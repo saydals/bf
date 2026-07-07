@@ -9,16 +9,16 @@
                     <strong>{{ $t("flightPlanFlightTime") }}:</strong> {{ totalFlightTime }}
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanMinAlt") }}:</strong> {{ minAltitude }}ft
+                    <strong>{{ $t("flightPlanMinAlt") }}:</strong> {{ formatAltitude(minAltitude) }}
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ maxAltitude }}ft
+                    <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanGroundElev") }}:</strong> {{ groundElevation }}ft
+                    <strong>{{ $t("flightPlanGroundElev") }}:</strong> {{ formatAltitude(groundElevation) }}
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanMaxGroundElev") }}:</strong> {{ maxGroundElevation }}ft
+                    <strong>{{ $t("flightPlanMaxGroundElev") }}:</strong> {{ formatAltitude(maxGroundElevation) }}
                 </span>
             </div>
 
@@ -49,7 +49,7 @@
                             class="axis-label"
                             text-anchor="end"
                         >
-                            {{ tick.value }}ft
+                            {{ formatAltitude(tick.value) }}
                         </text>
                     </g>
 
@@ -136,7 +136,7 @@
                             :r="point.uid === selectedWaypointUid ? 4 : 3"
                             :class="['waypoint-marker', { selected: point.uid === selectedWaypointUid }]"
                             @click="handleWaypointClick(point.uid)"
-                            @mouseenter="handleMarkerHover(point, index)"
+                            @mouseenter="handleMarkerHover($event, point)"
                         />
                         <text
                             v-for="(point, index) in scaledProfilePoints"
@@ -150,43 +150,21 @@
                         </text>
                     </g>
 
-                    <!-- Hover tooltip -->
-                    <g v-if="hoveredPoint" class="hover-tooltip">
-                        <rect
-                            :x="hoveredPoint.tooltipX - 50"
-                            :y="hoveredPoint.tooltipY - 40"
-                            width="100"
-                            height="38"
-                            class="tooltip-bg"
-                            rx="3"
-                        />
-                        <text
-                            :x="hoveredPoint.tooltipX"
-                            :y="hoveredPoint.tooltipY - 25"
-                            class="tooltip-text"
-                            text-anchor="middle"
-                        >
-                            WP{{ hoveredPoint.order + 1 }}
-                        </text>
-                        <text
-                            :x="hoveredPoint.tooltipX"
-                            :y="hoveredPoint.tooltipY - 12"
-                            class="tooltip-text"
-                            text-anchor="middle"
-                        >
-                            {{ $t("flightPlanAlt") }}: {{ hoveredPoint.altitude }}ft
-                        </text>
-                        <text
-                            :x="hoveredPoint.tooltipX"
-                            :y="hoveredPoint.tooltipY + 1"
-                            class="tooltip-text"
-                            text-anchor="middle"
-                        >
-                            {{ $t("flightPlanDist") }}: {{ formatDistance(hoveredPoint.distance) }}
-                        </text>
-                    </g>
                 </svg>
             </div>
+
+            <!-- Tooltip teleported to body to avoid overflow clipping -->
+            <Teleport to="body">
+                <div
+                    v-if="tooltipData.visible"
+                    class="global-wp-tooltip"
+                    :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
+                >
+                    <div>WP{{ tooltipData.order }}</div>
+                    <div>{{ $t("flightPlanAlt") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
+                    <div>{{ $t("flightPlanSpeed") }}: {{ formatSpeed(tooltipData.speed) }}</div>
+                </div>
+            </Teleport>
         </template>
 
         <div v-else class="no-waypoints">
@@ -199,13 +177,14 @@
 import { ref, computed, watch } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
+import { useSettingsStore } from "@/stores/settings";
 
 const { positionalWaypoints, selectedWaypointUid, selectWaypoint } = useFlightPlan();
+const settings = useSettingsStore();
 // Modifier waypoints (lat/lon = 0) would otherwise skew distance and altitude.
 const waypoints = positionalWaypoints;
 
 const chartSvg = ref(null);
-const hoveredPoint = ref(null);
 
 // Chart dimensions (50% smaller)
 const chartWidth = 800;
@@ -290,11 +269,44 @@ const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
     };
 };
 
-// Format distance for display (convert meters to nautical miles)
+// Unit format helpers (work order spec: formatAltitude takes meters, formatSpeed takes m/s)
+const METERS_TO_KMH = 3.6;
+const METERS_TO_KNOTS = 1.94384;
+
+const formatAltitude = (meters) => {
+    if (settings.altitudeUnit === "ft") {
+        return `${Math.round(meters * METERS_TO_FEET)}ft`;
+    }
+    return `${Math.round(meters)}m`;
+};
+
+const formatSpeed = (ms) => {
+    if (settings.speedUnit === "kt") {
+        return `${(ms * METERS_TO_KNOTS).toFixed(1)}kt`;
+    }
+    return `${(ms * METERS_TO_KMH).toFixed(1)}km/h`;
+};
+
+// Format distance for display (convert meters to display unit)
 const formatDistance = (meters) => {
+    if (settings.distanceUnit === "km") {
+        const km = meters / 1000;
+        return `${km.toFixed(2)}km`;
+    }
+    // nautical miles
     const nauticalMiles = meters * METERS_TO_NAUTICAL_MILES;
     return `${nauticalMiles.toFixed(2)}nm`;
 };
+
+// Tooltip state (teleported to body, positioned with clientX/clientY)
+const tooltipData = ref({
+    visible: false,
+    x: 0,
+    y: 0,
+    order: 0,
+    altitude: 0,
+    speed: 0,
+});
 
 // Calculate profile points with cumulative distance
 const profilePoints = computed(() => {
@@ -313,6 +325,7 @@ const profilePoints = computed(() => {
             uid: wp.uid,
             order: wp.order,
             altitude: wp.altitude,
+            speed: wp.speed || 0,
             distance: cumulativeDistance,
             latitude: wp.latitude,
             longitude: wp.longitude,
@@ -529,18 +542,42 @@ const terrainAreaPath = computed(() => {
     return `${topPath} ${bottomPath}`;
 });
 
+// Tooltip position update (clientX/Y based, with screen edge correction)
+const updateTooltipPosition = (event, wpData) => {
+    const tooltipWidth = 150;
+    const tooltipHeight = 60;
+    const offset = 15;
+
+    let posX = event.clientX + offset;
+    let posY = event.clientY - offset;
+
+    // Prevent overflow on right edge
+    if (posX + tooltipWidth > window.innerWidth) {
+        posX = event.clientX - tooltipWidth - offset;
+    }
+
+    // Prevent overflow on bottom edge
+    if (posY + tooltipHeight > window.innerHeight) {
+        posY = event.clientY - tooltipHeight - offset;
+    }
+
+    tooltipData.value = {
+        visible: true,
+        x: posX,
+        y: posY,
+        order: (wpData.order ?? 0) + 1,
+        altitude: wpData.altitude ?? 0,
+        speed: wpData.speed ?? 0,
+    };
+};
+
 // Event handlers
 const handleWaypointClick = (uid) => {
     selectWaypoint(uid);
 };
 
-const handleMarkerHover = (point, index) => {
-    hoveredPoint.value = {
-        ...point,
-        index,
-        tooltipX: point.x,
-        tooltipY: point.y,
-    };
+const handleMarkerHover = (event, point) => {
+    updateTooltipPosition(event, point);
 };
 
 const handleMouseMove = () => {
@@ -548,7 +585,7 @@ const handleMouseMove = () => {
 };
 
 const handleMouseLeave = () => {
-    hoveredPoint.value = null;
+    tooltipData.value.visible = false;
 };
 
 // Check if a segment's waypoints have moved (positions changed)
