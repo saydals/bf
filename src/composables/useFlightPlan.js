@@ -9,7 +9,8 @@ const DEFAULT_ALTITUDE = 100; // feet AGL (약 30m)
 const DEFAULT_TYPE = "flyover";
 const DEFAULT_SPEED = 10; // knots
 
-// Unit conversion constants (configurator ↔ firmware)
+// Debounce timer for savePlan during drag operations
+let savePlanTimeout = null;
 const FEET_TO_CM = 30.48;
 const KNOTS_TO_CMS = 51.4444;
 const MINUTES_TO_DECISECONDS = 600;
@@ -91,8 +92,8 @@ export function useFlightPlan() {
         // still validate the slot that's meaningful for each modifier type.
         if (isModifierWaypointType(waypointData.type)) {
             if (waypointData.type === "alt_change") {
-                if (!Number.isFinite(waypointData.altitude) || waypointData.altitude < 0) {
-                    gui_log(i18n.getMessage("flightPlanInvalidAltitude") || "Altitude must be positive");
+                if (!Number.isFinite(waypointData.altitude)) {
+                    gui_log(i18n.getMessage("flightPlanInvalidAltitude") || "Altitude must be valid");
                     return false;
                 }
             } else if (waypointData.type === "delay") {
@@ -216,7 +217,12 @@ export function useFlightPlan() {
         }
 
         Object.assign(waypoint, updates);
-        savePlan();
+        // Debounce savePlan during drag operations to prevent localStorage blocking
+        if (savePlanTimeout) clearTimeout(savePlanTimeout);
+        savePlanTimeout = setTimeout(() => {
+            savePlan();
+            savePlanTimeout = null;
+        }, 300);
         console.log("Updated waypoint:", waypoint);
         return true;
     };
