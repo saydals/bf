@@ -14,7 +14,7 @@
         </UiBox>
         <div v-else class="waypoints">
             <div
-                v-for="waypoint in sortedWaypoints"
+                v-for="(waypoint, idx) in getWaypointsWithIndex()"
                 :key="waypoint.uid"
                 class="waypoint-item"
                 :class="{
@@ -41,7 +41,7 @@
                     </div>
                     <div class="waypoint-details">
                         <template v-if="waypoint.type === 'alt_change'">
-                            {{ $t("flightPlanTypeAltChange") }} → {{ settings.formatAltitude(waypoint.altitude) }} AMSL
+                            {{ $t("flightPlanTypeAltChange") }} → {{ (waypoint.alt_rel || 0).toFixed(0) }}m 상대
                         </template>
                         <template v-else-if="waypoint.type === 'delay'">
                             {{ $t("flightPlanTypeDelay") }}: {{ waypoint.duration }}min
@@ -50,7 +50,7 @@
                             {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
                         </template>
                         <template v-else>
-                            {{ settings.formatAltitude(waypoint.altitude) }} AMSL - {{ settings.formatSpeed(waypoint.speed) }} -
+                            {{ (waypoint.alt_rel || 0).toFixed(0) }}m 상대 - {{ ((waypoint.speed || 1500) / 100).toFixed(1) }} m/s -
                             {{ getWaypointTypeLabel(waypoint.type) }}
                             <span v-if="waypoint.type === 'hold'" class="hold-details">
                                 ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})
@@ -116,9 +116,20 @@ const {
     reorderWaypoints,
     getWaypointTypeLabel,
     isModifierWaypointType,
+    waypointsWithRel,
 } = useFlightPlan();
 
 const settings = useSettingsStore();
+
+// Combine sorted order with relative values
+const getWaypointsWithIndex = () => {
+    const rel = waypointsWithRel.value;
+    return sortedWaypoints.value.map((wp, i) => ({
+        ...wp,
+        alt_rel: rel[i]?.alt_rel ?? 0,
+        alt_agl: rel[i]?.alt_agl ?? 0,
+    }));
+};
 
 const showDeleteDialog = ref(false);
 const waypointToDelete = ref(null);
