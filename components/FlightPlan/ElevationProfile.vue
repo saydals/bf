@@ -20,16 +20,6 @@
                 <span class="stat">
                     <strong>{{ $t("flightPlanMaxGroundElev") }}:</strong> {{ formatAltitude(maxGroundElevation) }}
                 </span>
-                <span class="stat unit-toggle ml-auto">
-                    <UButton
-                        variant="soft"
-                        color="neutral"
-                        size="xs"
-                        :label="settings.unitMode === 'nautical' ? '🧭 nm/ft/kt' : '⚡ km/m/kmh'"
-                        :title="$t('flightPlanToggleUnits')"
-                        @click="settings.toggleUnitMode()"
-                    />
-                </span>
             </div>
 
             <div class="profile-chart-container">

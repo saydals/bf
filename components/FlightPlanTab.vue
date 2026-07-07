@@ -65,6 +65,17 @@
             <UButton :disabled="!canUseFC" :title="$t('flightPlanSaveToFC')" @click="handleSave">
                 {{ $t("save") }}
             </UButton>
+
+            <div class="ml-auto flex items-center gap-1">
+                <span class="text-xs text-surface-700">{{ $t("units") }}:</span>
+                <UButton
+                    variant="soft"
+                    color="neutral"
+                    size="xs"
+                    :label="settings.unitMode === 'nautical' ? '🧭 nm/ft/kt' : '⚡ km/m/kmh'"
+                    @click="settings.toggleUnitMode()"
+                />
+            </div>
         </div>
     </BaseTab>
 </template>
@@ -80,6 +91,7 @@ import FlightPlanMap from "./FlightPlan/FlightPlanMap.vue";
 import ElevationProfile from "./FlightPlan/ElevationProfile.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useConnectionStore } from "@/stores/connection";
+import { useSettingsStore } from "@/stores/settings";
 import FC from "@/js/fc";
 import GUI from "@/js/gui";
 import { gui_log } from "@/js/gui_log";
@@ -87,6 +99,7 @@ import { i18n } from "@/js/localization";
 
 const { loadFromFC, saveToFC, clearOnFC, clearPlan, loadPlan, waypoints } = useFlightPlan();
 const connectionStore = useConnectionStore();
+const settings = useSettingsStore();
 const showClearDialog = ref(false);
 const showLoadPromptDialog = ref(false);
 
