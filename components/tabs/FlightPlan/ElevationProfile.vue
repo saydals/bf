@@ -161,8 +161,8 @@
                     :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div>{{ $t("flightPlanAlt") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
-                    <div>{{ $t("flightPlanSpeed") }}: {{ formatSpeed(tooltipData.speed) }}</div>
+                    <div><span v-html="$t('flightPlanAlt')"></span>: {{ formatAltitude(tooltipData.altitude) }}</div>
+                    <div><span v-html="$t('flightPlanSpeed')"></span>: {{ formatSpeed(tooltipData.speed) }}</div>
                 </div>
             </Teleport>
         </template>
