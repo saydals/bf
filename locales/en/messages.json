@@ -3584,10 +3584,10 @@
         "message": "Speed"
     },
     "flightPlanRelativeGroundElev": {
-        "message": "Rel. Ground Elev"
+        "message": "Rel. Ground Alt"
     },
     "flightPlanRelativeMaxGroundElev": {
-        "message": "Rel. Max Ground"
+        "message": "Rel. Max Ground Alt"
     },
     "flightPlanSpeedMps": {
         "message": "Speed (m/s)"

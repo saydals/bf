@@ -347,6 +347,7 @@ const dragState = ref({
     lastMoveTime: 0,
     speedVisualOffsetX: 0, // 시각적 X 오프셋 (속도 드래그 피드백)
     speedDirection: 0, // 시간 기반 속도 방향 (-1:감속, 0:중립, +1:가속)
+    lastSpeedChangeTime: 0, // 별도 속도 변경 타이머 (500ms 간격)
 });
 
 // Tooltip state (teleported to body, positioned with clientX/clientY)
@@ -711,6 +712,7 @@ const handlePointerDown = (event, point) => {
         lastValue: point.altitude,
         lastMoveTime: 0,
         speedVisualOffsetX: 0,
+        lastSpeedChangeTime: Date.now(),
         speedDirection: 0,
     };
 };
@@ -740,7 +742,7 @@ const handlePointerMove = (event) => {
         // 시각적 오프셋: 실제 드래그량의 50%, 최대 15px
         dragState.value.speedVisualOffsetX = Math.sign(speedDeltaX) * Math.min(Math.abs(speedDeltaX) * 0.5, 15);
         // 방향 결정 (±5px 히스테리시스)
-        if (Math.abs(speedDeltaX) > 5) {
+        if (Math.abs(speedDeltaX) > 8) {
             dragState.value.speedDirection = speedDeltaX > 0 ? 1 : -1;
         } else {
             dragState.value.speedDirection = 0;
@@ -821,8 +823,8 @@ const handleSpeedDragMove = (event) => {
 
     // ★ 시간 쓰로틀: 500ms 간격으로만 값 변경
     const now = Date.now();
-    if (now - dragState.value.lastMoveTime < 500) return;
-    dragState.value.lastMoveTime = now;
+    if (now - dragState.value.lastSpeedChangeTime < 500) return;
+    dragState.value.lastSpeedChangeTime = now;
 
     // ★ 시간 기반: 방향에 따라 ±1 m/s
     const currentMps = Math.round(settings.storageToMps(currentWp.speed || 10));
