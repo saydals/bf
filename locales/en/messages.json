@@ -3592,6 +3592,9 @@
     "flightPlanSpeedMps": {
         "message": "Speed (m/s)"
     },
+    "flightPlanAMSL": {
+        "message": "AMSL"
+    },
     "motorsVoltage": {
         "message": "Voltage:"
     },
