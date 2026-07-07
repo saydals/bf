@@ -33,7 +33,7 @@
                 <UInputNumber
                     v-model="form.altitude"
                     :step="1"
-                    :min="0"
+                    :min="-5000"
                     :max="50000"
                     required
                     :aria-label="$t('flightPlanAltitude')"

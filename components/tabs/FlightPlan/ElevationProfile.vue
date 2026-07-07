@@ -15,10 +15,15 @@
                     <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanGroundElev") }}:</strong> {{ formatAltitude(groundElevation) }}
+                    <strong>{{ $t("flightPlanRelativeGroundElev") }}:</strong>
+                    {{ formatAltitude(selectedWpRelativeGroundElev) }}
+                    <span class="stat-note" v-if="selectedWaypointUid"
+                        >(WP{{ (profilePoints.find((p) => p.uid === selectedWaypointUid)?.order ?? 0) + 1 }})</span
+                    >
                 </span>
                 <span class="stat">
-                    <strong>{{ $t("flightPlanMaxGroundElev") }}:</strong> {{ formatAltitude(maxGroundElevation) }}
+                    <strong>{{ $t("flightPlanRelativeMaxGroundElev") }}:</strong>
+                    {{ formatAltitude(relativeMaxGroundElevation) }}
                 </span>
             </div>
 
@@ -52,6 +57,7 @@
                             text-anchor="end"
                         >
                             {{ formatAltitude(tick.value) }}
+                            <tspan v-if="tick === yAxisTicks[yAxisTicks.length - 1]" class="amsl-label">(AMSL)</tspan>
                         </text>
                     </g>
 
@@ -165,11 +171,8 @@
                     :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div>
-                        <span v-html="$t('flightPlanAlt')"></span>: {{ formatAltitude(tooltipData.altitude) }}
-                        <span v-html="$t('flightPlanRelativeAlt')"></span>
-                    </div>
-                    <div><span v-html="$t('flightPlanSpeed')"></span>: {{ formatSpeedMps(tooltipData.speed) }}</div>
+                    <div>{{ $t("flightPlanRelativeAltLabel") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
+                    <div>{{ $t("flightPlanSpeedLabel") }}: {{ formatSpeedMps(tooltipData.speed) }}</div>
                 </div>
             </Teleport>
         </template>
@@ -325,7 +328,7 @@ const minAllowedAGL = computed(() => {
     const result = {};
     for (const point of profilePoints.value) {
         const groundAtPoint = getGroundElevAtPoint(point.distance);
-        result[point.uid] = Math.max(0, groundAtPoint - wp1GroundElevation.value);
+        result[point.uid] = groundAtPoint - wp1GroundElevation.value; // 음수 허용 (0 clamp 제거)
     }
     return result;
 });
@@ -342,6 +345,8 @@ const dragState = ref({
     startY: 0,
     lastValue: 0,
     lastMoveTime: 0,
+    speedVisualOffsetX: 0, // 시각적 X 오프셋 (속도 드래그 피드백)
+    speedDirection: 0, // 시간 기반 속도 방향 (-1:감속, 0:중립, +1:가속)
 });
 
 // Tooltip state (teleported to body, positioned with clientX/clientY)
@@ -414,6 +419,21 @@ const maxGroundElevation = computed(() => {
     return Math.round(Math.max(...terrainSamples.value.map((sample) => sample.elevation)));
 });
 
+// ★ 선택된 WP의 상대지면표고 (WP1 지표고도 기준)
+const selectedWpRelativeGroundElev = computed(() => {
+    if (!selectedWaypointUid.value) return 0;
+    const point = profilePoints.value.find((p) => p.uid === selectedWaypointUid.value);
+    if (!point) return 0;
+    return getGroundElevAtPoint(point.distance) - wp1GroundElevation.value;
+});
+
+// ★ 전체 최대 상대지면표고
+const relativeMaxGroundElevation = computed(() => {
+    if (terrainSamples.value.length === 0) return 0;
+    const maxAmbl = Math.max(...terrainSamples.value.map((s) => s.elevation));
+    return maxAmbl - wp1GroundElevation.value;
+});
+
 // Total flight time (based on speed at each waypoint for the next segment)
 const totalFlightTime = computed(() => {
     if (waypoints.value.length < 2) {
@@ -456,7 +476,7 @@ const totalFlightTime = computed(() => {
 // Combined maximum for y-axis scaling (considers both flight path AMSL and terrain)
 const combinedMax = computed(() => {
     const maxAmsl = profilePoints.value.length > 0 ? Math.max(...profilePoints.value.map((p) => p.altitudeAMSL)) : 0;
-    return Math.max(maxAmsl, maxGroundElevation.value);
+    return Math.max(maxAmsl, maxGroundElevation.value, 100); // 최소 100ft 보장
 });
 
 // Y-axis ticks
@@ -502,11 +522,19 @@ const scaleY = (altitude) => {
 
 // Profile points with scaled x/y coordinates for rendering
 const scaledProfilePoints = computed(() => {
-    return profilePoints.value.map((point) => ({
-        ...point,
-        x: scaleX(point.distance),
-        y: scaleY(point.altitudeAMSL),
-    }));
+    return profilePoints.value.map((point) => {
+        const baseX = scaleX(point.distance);
+        // ★ 속도 드래그 중인 WP에만 시각적 X 오프셋 적용
+        const offsetX =
+            dragState.value.active && dragState.value.type === "speed" && dragState.value.wpUid === point.uid
+                ? dragState.value.speedVisualOffsetX
+                : 0;
+        return {
+            ...point,
+            x: baseX + offsetX,
+            y: scaleY(point.altitudeAMSL),
+        };
+    });
 });
 
 // Calculate SVG path for elevation line
@@ -682,6 +710,8 @@ const handlePointerDown = (event, point) => {
         startY: event.clientY,
         lastValue: point.altitude,
         lastMoveTime: 0,
+        speedVisualOffsetX: 0,
+        speedDirection: 0,
     };
 };
 
@@ -704,10 +734,29 @@ const handlePointerMove = (event) => {
         return;
     }
 
+    // ★ 속도 드래그: 방향 감지 + 시각적 오프셋 (쓰로틀과 무관하게 즉시)
+    if (dragState.value.type === "speed") {
+        const speedDeltaX = event.clientX - dragState.value.startX;
+        // 시각적 오프셋: 실제 드래그량의 50%, 최대 15px
+        dragState.value.speedVisualOffsetX = Math.sign(speedDeltaX) * Math.min(Math.abs(speedDeltaX) * 0.5, 15);
+        // 방향 결정 (±5px 히스테리시스)
+        if (Math.abs(speedDeltaX) > 5) {
+            dragState.value.speedDirection = speedDeltaX > 0 ? 1 : -1;
+        } else {
+            dragState.value.speedDirection = 0;
+        }
+    }
+
     if (dragState.value.type === "altitude") {
         handleAltDragMove(event);
     } else {
         handleSpeedDragMove(event);
+    }
+
+    // ★ 드래그 중 항상 툴팁 위치 갱신
+    const draggedPoint = scaledProfilePoints.value.find((p) => p.uid === dragState.value.wpUid);
+    if (draggedPoint) {
+        updateTooltipPosition(event, draggedPoint);
     }
 };
 
@@ -726,42 +775,64 @@ const handlePointerUp = (event) => {
     dragState.value.wpUid = null;
 };
 
-// Altitude drag (vertical): change AGL value
+// Altitude drag (vertical): SVG scale synchronized — marker follows mouse exactly
 const handleAltDragMove = (event) => {
-    const deltaY = dragState.value.startY - event.clientY; // Negative = drag down
     const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
     if (!currentWp) return;
 
-    // 1 foot per 2 pixels drag
-    const altitudeDelta = Math.round(deltaY / 2);
-    const minAlt = minAllowedAGL.value[dragState.value.wpUid] ?? 0;
+    // SVG 스케일을 통해 화면픽셀 → 고도 변화량 변환
+    const svgEl = chartSvg.value;
+    if (!svgEl) return;
+    const svgRect = svgEl.getBoundingClientRect();
+    const plotHeight = chartHeight - padding.top - padding.bottom;
+    const svgScale = plotHeight / svgRect.height; // SVG단위 / 화면픽셀
+
+    const deltaScreenY = dragState.value.startY - event.clientY;
+    const deltaSvgY = deltaScreenY * svgScale;
+
+    // scaleY의 역변환: SVG Y 변화 → 고도 변화 (feet)
+    const min = 0;
+    const max = combinedMax.value;
+    const range = max - min || 100;
+    const paddedMax = max + range * 0.1;
+    const paddedRange = paddedMax - min;
+    const feetPerSvgUnit = paddedRange / plotHeight;
+
+    const altitudeDelta = Math.round(deltaSvgY * feetPerSvgUnit);
+
+    const minAlt = minAllowedAGL.value[dragState.value.wpUid] ?? -5000;
     const newAlt = Math.max(minAlt, Math.min(maxAllowedAGL, currentWp.altitude + altitudeDelta));
 
     if (newAlt !== currentWp.altitude) {
         updateWaypoint(dragState.value.wpUid, { altitude: newAlt });
         dragState.value.startY = event.clientY;
+        // ★ 툴팁 실시간 갱신
+        tooltipData.value.altitude = newAlt;
     }
 };
 
-// Speed drag (horizontal): change speed value (0.5s throttle for 1 m/s)
+// Speed drag (horizontal): time-based — direction held determines ±1 m/s per 500ms
 const handleSpeedDragMove = (event) => {
-    const now = Date.now();
-    if (now - dragState.value.lastMoveTime < 500) return; // Throttle to 0.5s
-    dragState.value.lastMoveTime = now;
-
-    const deltaX = event.clientX - dragState.value.startX;
     const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
     if (!currentWp) return;
 
-    // 10 pixels per 1 m/s
-    const speedDeltaMps = Math.round(deltaX / 10);
+    // ★ 방향이 중립이면 변화 없음 (마우스가 중심 근처)
+    if (dragState.value.speedDirection === 0) return;
+
+    // ★ 시간 쓰로틀: 500ms 간격으로만 값 변경
+    const now = Date.now();
+    if (now - dragState.value.lastMoveTime < 500) return;
+    dragState.value.lastMoveTime = now;
+
+    // ★ 시간 기반: 방향에 따라 ±1 m/s
     const currentMps = Math.round(settings.storageToMps(currentWp.speed || 10));
-    const newMps = Math.max(5, Math.min(25, currentMps + speedDeltaMps));
+    const newMps = Math.max(5, Math.min(25, currentMps + dragState.value.speedDirection));
     const newKnots = settings.mpsToStorage(newMps);
 
-    if (Math.abs(newKnots - currentWp.speed) > 0.1) {
+    if (Math.abs(newKnots - currentWp.speed) > 0.01) {
         updateWaypoint(dragState.value.wpUid, { speed: newKnots });
-        dragState.value.startX = event.clientX;
+        // ★ 툴팁 실시간 갱신
+        tooltipData.value.speed = newKnots;
     }
 };
 
@@ -1042,6 +1113,11 @@ watch(
     fill: var(--text);
     font-size: 8px;
     font-family: sans-serif;
+}
+
+.amsl-label {
+    fill: var(--surface-600);
+    font-size: 6px;
 }
 
 .terrain-area {

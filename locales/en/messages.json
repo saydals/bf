@@ -3577,6 +3577,18 @@
     "flightPlanRelativeAlt": {
         "message": "AGL"
     },
+    "flightPlanRelativeAltLabel": {
+        "message": "Rel. Alt"
+    },
+    "flightPlanSpeedLabel": {
+        "message": "Speed"
+    },
+    "flightPlanRelativeGroundElev": {
+        "message": "Rel. Ground Elev"
+    },
+    "flightPlanRelativeMaxGroundElev": {
+        "message": "Rel. Max Ground"
+    },
     "flightPlanSpeedMps": {
         "message": "Speed (m/s)"
     },

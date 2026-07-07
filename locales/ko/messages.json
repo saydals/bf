@@ -3563,6 +3563,18 @@
     "flightPlanRelativeAlt": {
         "message": "AGL"
     },
+    "flightPlanRelativeAltLabel": {
+        "message": "상대고도"
+    },
+    "flightPlanSpeedLabel": {
+        "message": "속도"
+    },
+    "flightPlanRelativeGroundElev": {
+        "message": "상대지면표고"
+    },
+    "flightPlanRelativeMaxGroundElev": {
+        "message": "상대 최대지면표고"
+    },
     "flightPlanSpeedMps": {
         "message": "속도 (m/s)"
     },
