@@ -43,10 +43,10 @@
 
             <SettingRow v-if="showSpeed" :label="speedLabel" full-width>
                 <UInputNumber
-                    v-model="form.speed"
-                    :step="0.1"
-                    :min="0"
-                    :max="500"
+                    v-model="form.speedMps"
+                    :step="1"
+                    :min="5"
+                    :max="25"
                     required
                     :aria-label="$t('flightPlanSpeed')"
                     class="w-48"
@@ -118,6 +118,12 @@ const {
     isModifierWaypointType,
 } = useFlightPlan();
 
+const settings = useSettingsStore();
+
+// Labels (use locale messages with units)
+const altitudeLabel = computed(() => t("flightPlanAltitude"));
+const speedLabel = computed(() => t("flightPlanSpeedMps"));
+
 // Form element ref for validation
 const formElement = ref(null);
 
@@ -128,8 +134,9 @@ let closeResetTimeoutId = null;
 const form = reactive({
     latitude: 0,
     longitude: 0,
-    altitude: 400,
+    altitude: 100,
     speed: 10,
+    speedMps: 15, // m/s display (storage: knots)
     type: "flyover",
     duration: 1,
     pattern: "circle",
@@ -175,12 +182,10 @@ watch(editingWaypoint, (waypoint) => {
         form.latitude = Number(waypoint.latitude.toFixed(6));
         form.longitude = Number(waypoint.longitude.toFixed(6));
         // storage→display conversion
-        form.altitude = settings.altitudeUnit === "m"
-            ? Math.round(waypoint.altitude * 0.3048)
-            : waypoint.altitude;
-        form.speed = settings.speedUnit === "kmh"
-            ? Math.round((waypoint.speed * 1.852) * 10) / 10
-            : waypoint.speed;
+        form.altitude = settings.altitudeUnit === "m" ? Math.round(waypoint.altitude * 0.3048) : waypoint.altitude;
+        form.speed = settings.speedUnit === "kmh" ? Math.round(waypoint.speed * 1.852 * 10) / 10 : waypoint.speed;
+        // Convert storage knots to m/s for the m/s display field
+        form.speedMps = Math.round(settings.storageToMps(waypoint.speed));
         form.type = waypoint.type;
         form.duration = waypoint.duration;
         form.pattern = waypoint.pattern;
@@ -235,7 +240,7 @@ const buildPayload = () => {
                 latitude: form.latitude,
                 longitude: form.longitude,
                 altitude: settings.displayAltToStorage(form.altitude),
-                speed: settings.displaySpeedToStorage(form.speed),
+                speed: settings.mpsToStorage(form.speedMps),
                 duration: form.duration,
                 pattern: form.pattern,
             };
@@ -245,7 +250,7 @@ const buildPayload = () => {
                 latitude: form.latitude,
                 longitude: form.longitude,
                 altitude: settings.displayAltToStorage(form.altitude),
-                speed: settings.displaySpeedToStorage(form.speed),
+                speed: settings.mpsToStorage(form.speedMps),
             };
     }
 };
@@ -254,8 +259,9 @@ const buildPayload = () => {
 const resetForm = () => {
     form.latitude = 0;
     form.longitude = 0;
-    form.altitude = 400;
+    form.altitude = 100;
     form.speed = 10;
+    form.speedMps = 15;
     form.type = "flyover";
     form.duration = 1;
     form.pattern = "circle";

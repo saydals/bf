@@ -3377,10 +3377,10 @@
         "message": "Longitude <span class=\"units\">°</span>"
     },
     "flightPlanAltitude": {
-        "message": "Altitude <span class=\"units\">ft AMSL</span>"
+        "message": "Altitude <span class=\"units\">ft AGL</span>"
     },
     "flightPlanSpeed": {
-        "message": "Speed <span class=\"units\">knots</span>"
+        "message": "Speed <span class=\"units\">m/s</span>"
     },
     "flightPlanType": {
         "message": "Waypoint Type"
@@ -3573,6 +3573,12 @@
     },
     "flightPlanDist": {
         "message": "Dist"
+    },
+    "flightPlanRelativeAlt": {
+        "message": "AGL"
+    },
+    "flightPlanSpeedMps": {
+        "message": "Speed (m/s)"
     },
     "motorsVoltage": {
         "message": "Voltage:"

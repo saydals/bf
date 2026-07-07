@@ -41,7 +41,7 @@
                     </div>
                     <div class="waypoint-details">
                         <template v-if="waypoint.type === 'alt_change'">
-                            {{ $t("flightPlanTypeAltChange") }} → {{ settings.formatAltitude(waypoint.altitude) }} AMSL
+                            {{ $t("flightPlanTypeAltChange") }} → {{ settings.formatAltitude(waypoint.altitude) }} AGL
                         </template>
                         <template v-else-if="waypoint.type === 'delay'">
                             {{ $t("flightPlanTypeDelay") }}: {{ waypoint.duration }}min
@@ -50,7 +50,8 @@
                             {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
                         </template>
                         <template v-else>
-                            {{ settings.formatAltitude(waypoint.altitude) }} AMSL - {{ settings.formatSpeed(waypoint.speed) }} -
+                            {{ settings.formatAltitude(waypoint.altitude) }} AGL -
+                            {{ settings.formatSpeedMps(waypoint.speed) }} -
                             {{ getWaypointTypeLabel(waypoint.type) }}
                             <span v-if="waypoint.type === 'hold'" class="hold-details">
                                 ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})

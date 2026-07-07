@@ -29,6 +29,8 @@
                     class="profile-chart"
                     @mousemove="handleMouseMove"
                     @mouseleave="handleMouseLeave"
+                    @pointermove="handlePointerMove"
+                    @pointerup="handlePointerUp"
                 >
                     <!-- Y-axis grid lines and labels -->
                     <g class="y-axis">
@@ -133,23 +135,25 @@
                             :key="`marker-${index}`"
                             :cx="point.x"
                             :cy="point.y"
-                            :r="point.uid === selectedWaypointUid ? 4 : 3"
-                            :class="['waypoint-marker', { selected: point.uid === selectedWaypointUid }]"
-                            @click="handleWaypointClick(point.uid)"
-                            @mouseenter="handleMarkerHover($event, point)"
+                            r="10"
+                            :fill="getMarkerColor(point)"
+                            :stroke="getMarkerStroke(point)"
+                            :stroke-width="getMarkerStrokeWidth(point)"
+                            class="waypoint-marker"
+                            :class="{ selected: point.uid === selectedWaypointUid }"
+                            @pointerdown="handlePointerDown($event, point)"
                         />
                         <text
                             v-for="(point, index) in scaledProfilePoints"
                             :key="`label-${index}`"
                             :x="point.x"
-                            :y="point.y - 8"
+                            :y="point.y - 14"
                             class="waypoint-label"
                             text-anchor="middle"
                         >
                             WP{{ point.order + 1 }}
                         </text>
                     </g>
-
                 </svg>
             </div>
 
@@ -161,8 +165,11 @@
                     :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div><span v-html="$t('flightPlanAlt')"></span>: {{ formatAltitude(tooltipData.altitude) }}</div>
-                    <div><span v-html="$t('flightPlanSpeed')"></span>: {{ formatSpeed(tooltipData.speed) }}</div>
+                    <div>
+                        <span v-html="$t('flightPlanAlt')"></span>: {{ formatAltitude(tooltipData.altitude) }}
+                        <span v-html="$t('flightPlanRelativeAlt')"></span>
+                    </div>
+                    <div><span v-html="$t('flightPlanSpeed')"></span>: {{ formatSpeedMps(tooltipData.speed) }}</div>
                 </div>
             </Teleport>
         </template>
@@ -179,7 +186,7 @@ import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 
-const { positionalWaypoints, selectedWaypointUid, selectWaypoint } = useFlightPlan();
+const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint } = useFlightPlan();
 const settings = useSettingsStore();
 // Modifier waypoints (lat/lon = 0) would otherwise skew distance and altitude.
 const waypoints = positionalWaypoints;
@@ -195,6 +202,9 @@ const padding = {
     bottom: 35,
     left: 45,
 };
+
+// Drag direction threshold (px) for distinguishing horizontal vs vertical drag
+const DRAG_DIRECTION_THRESHOLD = 10;
 
 // Ground elevation in feet AMSL (fetched from API)
 const groundElevation = ref(0); // Average ground elevation for display
@@ -274,7 +284,65 @@ const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
 
 const formatAltitude = (ft) => settings.formatAltitude(ft);
 const formatSpeed = (kt) => settings.formatSpeed(kt);
+const formatSpeedMps = (kt) => settings.formatSpeedMps(kt);
 const formatDistance = (meters) => settings.formatDistance(meters);
+
+// Ground elevation at WP1 (feet AMSL) — the reference for AGL system
+const wp1GroundElevation = computed(() => {
+    if (terrainSamples.value.length === 0 || profilePoints.value.length === 0) {
+        return 0;
+    }
+    // Find the terrain sample closest to WP1
+    const wp1 = profilePoints.value[0];
+    const closest = terrainSamples.value.reduce((prev, curr) => {
+        return Math.abs(curr.distance - wp1.distance) < Math.abs(prev.distance - wp1.distance) ? curr : prev;
+    });
+    return closest ? closest.elevation : 0;
+});
+
+// Get ground elevation (feet AMSL) at a given distance along the profile
+const getGroundElevAtPoint = (distance) => {
+    if (terrainSamples.value.length === 0) {
+        return 0;
+    }
+    // Find the two terrain samples that bracket the given distance
+    const samples = terrainSamples.value;
+    if (distance <= samples[0].distance) return samples[0].elevation;
+    if (distance >= samples[samples.length - 1].distance) return samples[samples.length - 1].elevation;
+
+    for (let i = 0; i < samples.length - 1; i++) {
+        if (distance >= samples[i].distance && distance <= samples[i + 1].distance) {
+            const t = (distance - samples[i].distance) / (samples[i + 1].distance - samples[i].distance);
+            return samples[i].elevation + t * (samples[i + 1].elevation - samples[i].elevation);
+        }
+    }
+    return 0;
+};
+
+// Minimum allowed AGL for each waypoint (ground elevation at that WP - WP1 ground elevation)
+const minAllowedAGL = computed(() => {
+    if (profilePoints.value.length === 0) return {};
+    const result = {};
+    for (const point of profilePoints.value) {
+        const groundAtPoint = getGroundElevAtPoint(point.distance);
+        result[point.uid] = Math.max(0, groundAtPoint - wp1GroundElevation.value);
+    }
+    return result;
+});
+
+// Maximum allowed AGL (10,000 feet system limit, configurable in future)
+const maxAllowedAGL = 10000; // feet
+
+// Drag state
+const dragState = ref({
+    active: false,
+    type: null, // 'altitude' or 'speed'
+    wpUid: null,
+    startX: 0,
+    startY: 0,
+    lastValue: 0,
+    lastMoveTime: 0,
+});
 
 // Tooltip state (teleported to body, positioned with clientX/clientY)
 const tooltipData = ref({
@@ -293,6 +361,7 @@ const profilePoints = computed(() => {
     }
 
     let cumulativeDistance = 0;
+    const wpg = wp1GroundElevation.value; // WP1 ground elevation in feet AMSL
     const points = waypoints.value.map((wp, index) => {
         if (index > 0) {
             const prevWp = waypoints.value[index - 1];
@@ -302,7 +371,8 @@ const profilePoints = computed(() => {
         return {
             uid: wp.uid,
             order: wp.order,
-            altitude: wp.altitude,
+            altitude: wp.altitude, // AGL (relative to WP1 ground)
+            altitudeAMSL: wp.altitude + wpg, // AMSL for Y-axis scaling
             speed: wp.speed || 0,
             distance: cumulativeDistance,
             latitude: wp.latitude,
@@ -383,9 +453,10 @@ const totalFlightTime = computed(() => {
     return `${hours}:${minutes.toString().padStart(2, "0")}`;
 });
 
-// Combined maximum for y-axis scaling (considers both flight path and terrain)
+// Combined maximum for y-axis scaling (considers both flight path AMSL and terrain)
 const combinedMax = computed(() => {
-    return Math.max(maxAltitude.value, maxGroundElevation.value);
+    const maxAmsl = profilePoints.value.length > 0 ? Math.max(...profilePoints.value.map((p) => p.altitudeAMSL)) : 0;
+    return Math.max(maxAmsl, maxGroundElevation.value);
 });
 
 // Y-axis ticks
@@ -434,7 +505,7 @@ const scaledProfilePoints = computed(() => {
     return profilePoints.value.map((point) => ({
         ...point,
         x: scaleX(point.distance),
-        y: scaleY(point.altitude),
+        y: scaleY(point.altitudeAMSL),
     }));
 });
 
@@ -571,17 +642,134 @@ const updateTooltipPosition = (event, wpData) => {
     };
 };
 
-// Event handlers
-const handleWaypointClick = (uid) => {
-    selectWaypoint(uid);
+// Marker style helpers
+const getMarkerColor = (point) => {
+    if (point.uid === selectedWaypointUid.value) return "var(--success-500)";
+    return "var(--primary-500)";
 };
 
-const handleMarkerHover = (event, point) => {
+const getMarkerStroke = (point) => {
+    if (point.uid === selectedWaypointUid.value) return "var(--surface-50)";
+    return "var(--surface-50)";
+};
+
+const getMarkerStrokeWidth = (point) => {
+    if (point.uid === selectedWaypointUid.value) return 2;
+    return 1.5;
+};
+
+// Update tooltip with AGL altitude and m/s speed
+const updateTooltipData = (point) => {
+    tooltipData.value.altitude = point.altitude; // AGL
+    tooltipData.value.speed = point.speed; // knots (formatSpeedMps converts)
+};
+
+// Pointer handlers for drag functionality
+const handlePointerDown = (event, point) => {
+    selectWaypoint(point.uid);
     updateTooltipPosition(event, point);
+    updateTooltipData(point);
+    tooltipData.value.visible = true;
+
+    // Capture pointer to receive events even outside the element
+    event.target.setPointerCapture(event.pointerId);
+
+    dragState.value = {
+        active: true,
+        type: null, // Will be determined on first move
+        wpUid: point.uid,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastValue: point.altitude,
+        lastMoveTime: 0,
+    };
 };
 
-const handleMouseMove = () => {
-    // Keep current hover if over a marker
+const handlePointerMove = (event) => {
+    if (!dragState.value.active) return;
+
+    const dx = event.clientX - dragState.value.startX;
+    const dy = event.clientY - dragState.value.startY;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Determine drag direction if not yet determined
+    if (!dragState.value.type) {
+        if (absDx > DRAG_DIRECTION_THRESHOLD || absDy > DRAG_DIRECTION_THRESHOLD) {
+            dragState.value.type = absDy > absDx ? "altitude" : "speed";
+            // Reset start position for clean delta calculation
+            dragState.value.startX = event.clientX;
+            dragState.value.startY = event.clientY;
+        }
+        return;
+    }
+
+    if (dragState.value.type === "altitude") {
+        handleAltDragMove(event);
+    } else {
+        handleSpeedDragMove(event);
+    }
+};
+
+const handlePointerUp = (event) => {
+    if (!dragState.value.active) return;
+
+    // Release pointer capture
+    if (event.target) {
+        try {
+            event.target.releasePointerCapture(event.pointerId);
+        } catch {}
+    }
+
+    dragState.value.active = false;
+    dragState.value.type = null;
+    dragState.value.wpUid = null;
+};
+
+// Altitude drag (vertical): change AGL value
+const handleAltDragMove = (event) => {
+    const deltaY = dragState.value.startY - event.clientY; // Negative = drag down
+    const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
+    if (!currentWp) return;
+
+    // 1 foot per 2 pixels drag
+    const altitudeDelta = Math.round(deltaY / 2);
+    const minAlt = minAllowedAGL.value[dragState.value.wpUid] ?? 0;
+    const newAlt = Math.max(minAlt, Math.min(maxAllowedAGL, currentWp.altitude + altitudeDelta));
+
+    if (newAlt !== currentWp.altitude) {
+        updateWaypoint(dragState.value.wpUid, { altitude: newAlt });
+        dragState.value.startY = event.clientY;
+    }
+};
+
+// Speed drag (horizontal): change speed value (0.5s throttle for 1 m/s)
+const handleSpeedDragMove = (event) => {
+    const now = Date.now();
+    if (now - dragState.value.lastMoveTime < 500) return; // Throttle to 0.5s
+    dragState.value.lastMoveTime = now;
+
+    const deltaX = event.clientX - dragState.value.startX;
+    const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
+    if (!currentWp) return;
+
+    // 10 pixels per 1 m/s
+    const speedDeltaMps = Math.round(deltaX / 10);
+    const currentMps = Math.round(settings.storageToMps(currentWp.speed || 10));
+    const newMps = Math.max(5, Math.min(25, currentMps + speedDeltaMps));
+    const newKnots = settings.mpsToStorage(newMps);
+
+    if (Math.abs(newKnots - currentWp.speed) > 0.1) {
+        updateWaypoint(dragState.value.wpUid, { speed: newKnots });
+        dragState.value.startX = event.clientX;
+    }
+};
+
+const handleMouseMove = (event) => {
+    // Handle drag if active (dragging can happen via mouse too)
+    if (dragState.value.active && event.pointerType === "mouse") {
+        handlePointerMove(event);
+    }
 };
 
 const handleMouseLeave = () => {
@@ -880,20 +1068,15 @@ watch(
 }
 
 .waypoint-marker {
-    fill: var(--primary-500);
-    stroke: var(--surface-50);
-    stroke-width: 1.5;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: opacity 0.2s;
 }
 
 .waypoint-marker:hover {
-    r: 4;
-    fill: var(--primary-600);
+    opacity: 0.8;
 }
 
 .waypoint-marker.selected {
-    fill: var(--success-500);
     stroke: var(--surface-50);
     stroke-width: 2;
 }
