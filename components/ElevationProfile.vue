@@ -269,34 +269,12 @@ const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
     };
 };
 
-// Unit format helpers (work order spec: formatAltitude takes meters, formatSpeed takes m/s)
-const METERS_TO_KMH = 3.6;
-const METERS_TO_KNOTS = 1.94384;
+// Unit format helpers — delegation to settings store
+// NOTE: storage units are altitude=feet, speed=knots, distance=meters
 
-const formatAltitude = (meters) => {
-    if (settings.altitudeUnit === "ft") {
-        return `${Math.round(meters * METERS_TO_FEET)}ft`;
-    }
-    return `${Math.round(meters)}m`;
-};
-
-const formatSpeed = (ms) => {
-    if (settings.speedUnit === "kt") {
-        return `${(ms * METERS_TO_KNOTS).toFixed(1)}kt`;
-    }
-    return `${(ms * METERS_TO_KMH).toFixed(1)}km/h`;
-};
-
-// Format distance for display (convert meters to display unit)
-const formatDistance = (meters) => {
-    if (settings.distanceUnit === "km") {
-        const km = meters / 1000;
-        return `${km.toFixed(2)}km`;
-    }
-    // nautical miles
-    const nauticalMiles = meters * METERS_TO_NAUTICAL_MILES;
-    return `${nauticalMiles.toFixed(2)}nm`;
-};
+const formatAltitude = (ft) => settings.formatAltitude(ft);
+const formatSpeed = (kt) => settings.formatSpeed(kt);
+const formatDistance = (meters) => settings.formatDistance(meters);
 
 // Tooltip state (teleported to body, positioned with clientX/clientY)
 const tooltipData = ref({

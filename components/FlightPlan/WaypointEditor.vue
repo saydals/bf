@@ -29,7 +29,7 @@
                 />
             </SettingRow>
 
-            <SettingRow v-if="showAltitude" :label="$t('flightPlanAltitude')" full-width>
+            <SettingRow v-if="showAltitude" :label="altitudeLabel" full-width>
                 <UInputNumber
                     v-model="form.altitude"
                     :step="1"
@@ -41,7 +41,7 @@
                 />
             </SettingRow>
 
-            <SettingRow v-if="showSpeed" :label="$t('flightPlanSpeed')" full-width>
+            <SettingRow v-if="showSpeed" :label="speedLabel" full-width>
                 <UInputNumber
                     v-model="form.speed"
                     :step="0.1"
@@ -105,6 +105,7 @@ import { useTranslation } from "i18next-vue";
 import Dialog from "@/components/elements/Dialog.vue";
 import SettingRow from "@/components/elements/SettingRow.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
+import { useSettingsStore } from "@/stores/settings";
 
 const { t } = useTranslation();
 const {
@@ -173,8 +174,13 @@ watch(editingWaypoint, (waypoint) => {
     if (waypoint) {
         form.latitude = Number(waypoint.latitude.toFixed(6));
         form.longitude = Number(waypoint.longitude.toFixed(6));
-        form.altitude = waypoint.altitude;
-        form.speed = waypoint.speed;
+        // storage→display conversion
+        form.altitude = settings.altitudeUnit === "m"
+            ? Math.round(waypoint.altitude * 0.3048)
+            : waypoint.altitude;
+        form.speed = settings.speedUnit === "kmh"
+            ? Math.round((waypoint.speed * 1.852) * 10) / 10
+            : waypoint.speed;
         form.type = waypoint.type;
         form.duration = waypoint.duration;
         form.pattern = waypoint.pattern;
@@ -218,7 +224,7 @@ const buildPayload = () => {
     const base = { type: form.type, latitude: 0, longitude: 0, altitude: 0, speed: 0, duration: 0, pattern: "circle" };
     switch (form.type) {
         case "alt_change":
-            return { ...base, altitude: form.altitude };
+            return { ...base, altitude: settings.displayAltToStorage(form.altitude) };
         case "delay":
             return { ...base, duration: form.duration };
         case "yaw_rate":
@@ -228,8 +234,8 @@ const buildPayload = () => {
                 ...base,
                 latitude: form.latitude,
                 longitude: form.longitude,
-                altitude: form.altitude,
-                speed: form.speed,
+                altitude: settings.displayAltToStorage(form.altitude),
+                speed: settings.displaySpeedToStorage(form.speed),
                 duration: form.duration,
                 pattern: form.pattern,
             };
@@ -238,8 +244,8 @@ const buildPayload = () => {
                 ...base,
                 latitude: form.latitude,
                 longitude: form.longitude,
-                altitude: form.altitude,
-                speed: form.speed,
+                altitude: settings.displayAltToStorage(form.altitude),
+                speed: settings.displaySpeedToStorage(form.speed),
             };
     }
 };
