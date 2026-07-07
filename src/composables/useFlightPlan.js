@@ -7,7 +7,7 @@ import MSP from "../js/msp";
 const STORAGE_KEY = "flightPlans";
 const DEFAULT_ALTITUDE = 100; // feet AGL (약 30m)
 const DEFAULT_TYPE = "flyover";
-const DEFAULT_SPEED = 10; // knots
+const DEFAULT_SPEED = 29.16; // knots (≈15 m/s)
 
 // Debounce timer for savePlan during drag operations
 let savePlanTimeout = null;
