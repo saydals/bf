@@ -546,19 +546,41 @@ const terrainAreaPath = computed(() => {
 const updateTooltipPosition = (event, wpData) => {
     const tooltipWidth = 150;
     const tooltipHeight = 60;
-    const offset = 15;
+    const gap = 30; // gap from marker/label to tooltip
 
-    let posX = event.clientX + offset;
-    let posY = event.clientY - offset;
+    // Get marker screen position
+    const rect = event.target.getBoundingClientRect();
+    const markerCenterX = rect.left + rect.width / 2;
+    const markerTop = rect.top;
 
-    // Prevent overflow on right edge
-    if (posX + tooltipWidth > window.innerWidth) {
-        posX = event.clientX - tooltipWidth - offset;
+    // Tooltip Y: above the marker (with gap)
+    let posY = markerTop - tooltipHeight - gap;
+
+    // Determine horizontal zone based on marker X ratio within chart
+    const xRatio = (wpData.x ?? 0) / chartWidth;
+    let posX;
+
+    if (xRatio < 0.33) {
+        // Left zone: tooltip right-aligned to marker (up-right)
+        posX = markerCenterX;
+    } else if (xRatio < 0.66) {
+        // Center zone: tooltip centered on marker (up)
+        posX = markerCenterX - tooltipWidth / 2;
+    } else {
+        // Right zone: tooltip left-aligned to marker (up-left)
+        posX = markerCenterX - tooltipWidth;
     }
 
-    // Prevent overflow on bottom edge
-    if (posY + tooltipHeight > window.innerHeight) {
-        posY = event.clientY - tooltipHeight - offset;
+    // Screen edge guards
+    if (posX < 4) {
+        posX = 4;
+    }
+    if (posX + tooltipWidth > window.innerWidth - 4) {
+        posX = window.innerWidth - tooltipWidth - 4;
+    }
+    if (posY < 4) {
+        // If tooltip would go off top, place below marker instead
+        posY = rect.bottom + gap;
     }
 
     tooltipData.value = {
