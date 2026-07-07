@@ -7,6 +7,7 @@ const STORAGE_KEY = "bfSettings";
 // Storage: altitude = feet, speed = knots, distance = meters
 const FT_TO_M = 0.3048;
 const KT_TO_KMH = 1.852;
+const KT_TO_MPS = 0.514444; // 1 knot = 0.514444 m/s
 const M_TO_NM = 1 / 1852;
 const M_TO_KM = 1 / 1000;
 
@@ -80,7 +81,7 @@ export const useSettingsStore = defineStore("settings", () => {
         if (speedUnit.value === "kmh") {
             return `${(kt * KT_TO_KMH).toFixed(1)}km/h`;
         }
-        return `${(kt).toFixed(1)}kt`;
+        return `${kt.toFixed(1)}kt`;
     }
 
     /**
@@ -120,6 +121,34 @@ export const useSettingsStore = defineStore("settings", () => {
     }
 
     /**
+     * Format speed from storage (knots) to m/s display string.
+     * FlightPlan uses m/s as the primary speed unit regardless of unitMode.
+     * @param {number} kt - speed in knots (storage unit)
+     * @returns {string} e.g. "5.1 m/s"
+     */
+    function formatSpeedMps(kt) {
+        return `${(kt * KT_TO_MPS).toFixed(1)} m/s`;
+    }
+
+    /**
+     * Convert m/s display value to storage (knots).
+     * @param {number} mps - speed in m/s
+     * @returns {number} speed in knots (storage unit)
+     */
+    function mpsToStorage(mps) {
+        return mps / KT_TO_MPS;
+    }
+
+    /**
+     * Convert storage (knots) to m/s display value.
+     * @param {number} kt - speed in knots (storage unit)
+     * @returns {number} speed in m/s
+     */
+    function storageToMps(kt) {
+        return kt * KT_TO_MPS;
+    }
+
+    /**
      * Get altitude unit symbol for labels.
      * @returns {string} "ft" or "m"
      */
@@ -153,9 +182,12 @@ export const useSettingsStore = defineStore("settings", () => {
         // Converter functions
         formatAltitude,
         formatSpeed,
+        formatSpeedMps,
         formatDistance,
         displayAltToStorage,
         displaySpeedToStorage,
+        mpsToStorage,
+        storageToMps,
         altitudeSymbol,
         speedSymbol,
         distanceSymbol,

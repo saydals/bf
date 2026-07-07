@@ -3363,10 +3363,10 @@
         "message": "경도 <span class=\"units\">°<\/span>"
     },
     "flightPlanAltitude": {
-        "message": "고도 <span class=\"units\">ft AMSL<\/span>"
+        "message": "고도 <span class=\"units\">ft AGL<\/span>"
     },
     "flightPlanSpeed": {
-        "message": "속도 <span class=\"units\">노트<\/span>"
+        "message": "속도 <span class=\"units\">m\/s<\/span>"
     },
     "flightPlanType": {
         "message": "웨이포인트 형식"
@@ -3559,6 +3559,12 @@
     },
     "flightPlanDist": {
         "message": "거리"
+    },
+    "flightPlanRelativeAlt": {
+        "message": "AGL"
+    },
+    "flightPlanSpeedMps": {
+        "message": "속도 (m/s)"
     },
     "motorsVoltage": {
         "message": "전압:"

@@ -5,7 +5,7 @@ import { i18n } from "../js/localization";
 import MSP from "../js/msp";
 
 const STORAGE_KEY = "flightPlans";
-const DEFAULT_ALTITUDE = 400;
+const DEFAULT_ALTITUDE = 100; // feet AGL (약 30m)
 const DEFAULT_TYPE = "flyover";
 const DEFAULT_SPEED = 10; // knots
 
@@ -363,8 +363,8 @@ export function useFlightPlan() {
         };
     };
 
-    // Convert a waypoint to a CLI insert command string
-    const waypointToCliCommand = (wp, index) => {
+    // Build CLI arguments string for a waypoint (command name excluded)
+    const buildCliArgs = (wp) => {
         const lat = wp.latitude.toFixed(7);
         const lon = wp.longitude.toFixed(7);
         const altCm = Math.round(wp.altitude * FEET_TO_CM);
@@ -373,7 +373,17 @@ export function useFlightPlan() {
         const durationDs = Math.round(wp.duration * MINUTES_TO_DECISECONDS);
         const patternCli = PATTERN_TO_CLI[wp.pattern] ?? "ORBIT";
 
-        return `waypoint insert ${index} ${lat} ${lon} ${altCm} ${speedRaw} ${typeCli} ${durationDs} ${patternCli}`;
+        return `${lat} ${lon} ${altCm} ${speedRaw} ${typeCli} ${durationDs} ${patternCli}`;
+    };
+
+    // Convert a waypoint to a CLI insert command string
+    const waypointToCliCommand = (wp, index) => {
+        return `waypoint insert ${index} ${buildCliArgs(wp)}`;
+    };
+
+    // Convert a waypoint to a CLI update command string
+    const waypointToCliUpdateCommand = (wp, index) => {
+        return `waypoint update ${index} ${buildCliArgs(wp)}`;
     };
 
     // Load waypoints from flight controller via CLI
@@ -411,17 +421,44 @@ export function useFlightPlan() {
         }
     };
 
-    // Save waypoints to flight controller via CLI
+    // Get existing waypoint count from FC via CLI
+    const getFcWaypointCount = async () => {
+        try {
+            const response = await sendCliCommand("waypoint list");
+            let count = 0;
+            for (const line of response) {
+                if (line.trim().startsWith("waypoint insert ")) {
+                    count++;
+                }
+            }
+            return count;
+        } catch {
+            return 0;
+        }
+    };
+
+    // Save waypoints to flight controller via CLI (update/insert hybrid)
     const saveToFC = async () => {
         try {
             const sorted = [...state.waypoints].sort((a, b) => a.order - b.order);
 
-            // Clear existing waypoints on FC
-            await sendCliCommand("waypoint clear");
+            // Get current waypoint count on FC
+            const fcCount = await getFcWaypointCount();
 
-            // Insert each waypoint
+            // Update existing waypoints and insert new ones
             for (let i = 0; i < sorted.length; i++) {
-                await sendCliCommand(waypointToCliCommand(sorted[i], i));
+                if (i < fcCount) {
+                    await sendCliCommand(waypointToCliUpdateCommand(sorted[i], i));
+                } else {
+                    await sendCliCommand(waypointToCliCommand(sorted[i], i));
+                }
+            }
+
+            // If we have fewer waypoints than FC, clear the excess
+            if (sorted.length < fcCount) {
+                for (let i = sorted.length; i < fcCount; i++) {
+                    await sendCliCommand(`waypoint remove ${sorted.length}`);
+                }
             }
 
             // Persist to EEPROM
@@ -431,7 +468,9 @@ export function useFlightPlan() {
 
             // Also cache to localStorage
             savePlan();
-            console.log(`Saved ${sorted.length} waypoints to FC`);
+            console.log(
+                `Saved ${sorted.length} waypoints to FC (${Math.min(sorted.length, fcCount)} updated, ${Math.max(0, sorted.length - fcCount)} inserted)`,
+            );
         } catch (error) {
             console.error("Failed to save flight plan to FC:", error);
             gui_log(i18n.getMessage("flightPlanFCSaveError"));
