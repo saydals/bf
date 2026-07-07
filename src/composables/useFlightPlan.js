@@ -65,6 +65,22 @@ const state = reactive({
     showEditorDialog: false,
 });
 
+
+// Relative altitude helpers (display layer, storage = MSL)
+const BASE = computed(() => state.waypoints[0]?.terrain ?? 0);
+const maxTerrain = computed(() => {
+    if (!state.waypoints.length) return 0;
+    return Math.max(...state.waypoints.map(w => w.terrain || 0));
+});
+const waypointsWithRel = computed(() =>
+    state.waypoints.map(w => ({
+        ...w,
+        alt_rel: (w.altitude ?? 0) - BASE.value,
+        alt_agl: (w.altitude ?? 0) - (w.terrain ?? 0),
+    }))
+);
+const dragMaxAlt = computed(() => maxTerrain.value - BASE.value + 300);
+
 // Shared computed properties
 const sortedWaypoints = computed(() => {
     return [...state.waypoints].sort((a, b) => a.order - b.order);
@@ -166,6 +182,17 @@ export function useFlightPlan() {
         }
     };
 
+
+    // Set relative altitude (clamped between terrain & dragMaxAlt)
+    const setRelativeAlt = (index, alt_rel) => {
+        if (!state.waypoints[index]) return;
+        const wp = state.waypoints[index];
+        const lowerBound = (wp.terrain || 0) - BASE.value;
+        const clamped = Math.max(lowerBound, Math.min(alt_rel, dragMaxAlt.value));
+        wp.altitude = BASE.value + clamped;
+        savePlan();
+    };
+
     // Add waypoint
     const addWaypoint = (waypointData) => {
         // Validate coordinates and altitude
@@ -179,6 +206,7 @@ export function useFlightPlan() {
             longitude: waypointData.longitude ?? 0,
             altitude: waypointData.altitude ?? DEFAULT_ALTITUDE,
             speed: waypointData.speed ?? DEFAULT_SPEED,
+            terrain: waypointData.terrain ?? 0,
             type: waypointData.type ?? DEFAULT_TYPE,
             duration: waypointData.duration ?? 0,
             pattern: waypointData.pattern ?? "circle",
@@ -486,6 +514,11 @@ export function useFlightPlan() {
         savePlan,
         loadFromFC,
         saveToFC,
+        BASE,
+        maxTerrain,
+        waypointsWithRel,
+        dragMaxAlt,
+        setRelativeAlt,
         clearOnFC,
         addWaypoint,
         addWaypointAtLocation,
