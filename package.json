@@ -41,9 +41,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "github.com/betaflight/betaflight-configurator"
+    "url": "github.com/saydals/bf"
   },
-  "author": "The Betaflight open source project.",
+  "author": "saydals",
   "license": "GPL-3.0",
   "engines": {
     "node": "24.x"

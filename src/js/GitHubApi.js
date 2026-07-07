@@ -1,6 +1,7 @@
 // NOTE: this files seems to be unused anywhere
+// Auto-update blocked — GitHub API disabled
 const GitHubApi = function () {
-    this.GITHUB_API_URL = "https://api.github.com/";
+    this.GITHUB_API_URL = "";
 };
 
 GitHubApi.prototype.getFileLastCommitInfo = function (project, branch, filename, callback) {

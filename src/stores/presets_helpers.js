@@ -20,7 +20,7 @@ export function createSourceId() {
 export function createOfficialSource() {
     const officialSource = new PresetSource(
         "Betaflight Official Presets",
-        "https://presets.betaflight.com/firmware-presets/",
+        "",
         "",
         OFFICIAL_SOURCE_ID,
     );
@@ -31,7 +31,7 @@ export function createOfficialSource() {
 export function createSecondaryOfficialSource() {
     const backupSource = new PresetSource(
         "Betaflight Presets - GitHub BACKUP",
-        "https://github.com/betaflight/firmware-presets",
+        "",
         "backup",
         BACKUP_SOURCE_ID,
     );
