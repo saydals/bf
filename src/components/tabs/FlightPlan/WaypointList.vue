@@ -41,7 +41,7 @@
                     </div>
                     <div class="waypoint-details">
                         <template v-if="waypoint.type === 'alt_change'">
-                            {{ $t("flightPlanTypeAltChange") }} → {{ waypoint.altitude }}ft AMSL
+                            {{ $t("flightPlanTypeAltChange") }} → {{ settings.formatAltitude(waypoint.altitude) }} AMSL
                         </template>
                         <template v-else-if="waypoint.type === 'delay'">
                             {{ $t("flightPlanTypeDelay") }}: {{ waypoint.duration }}min
@@ -50,7 +50,7 @@
                             {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
                         </template>
                         <template v-else>
-                            {{ waypoint.altitude }}ft AMSL - {{ waypoint.speed }}kts -
+                            {{ settings.formatAltitude(waypoint.altitude) }} AMSL - {{ settings.formatSpeed(waypoint.speed) }} -
                             {{ getWaypointTypeLabel(waypoint.type) }}
                             <span v-if="waypoint.type === 'hold'" class="hold-details">
                                 ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})
@@ -102,6 +102,7 @@ import { ref } from "vue";
 import Dialog from "@/components/elements/Dialog.vue";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
+import { useSettingsStore } from "@/stores/settings";
 import { i18n } from "@/js/localization";
 
 const {
@@ -116,6 +117,8 @@ const {
     getWaypointTypeLabel,
     isModifierWaypointType,
 } = useFlightPlan();
+
+const settings = useSettingsStore();
 
 const showDeleteDialog = ref(false);
 const waypointToDelete = ref(null);
