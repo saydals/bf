@@ -9,16 +9,16 @@
                     <strong>{{ $t("flightPlanFlightTime") }}:</strong> {{ totalFlightTime }}
                 </span>
                 <span class="stat">
-                    <strong>상대고도 최소:</strong> {{ formatAltitude(minAltitude) }}
+                    <strong>{{ $t("flightPlanMinAlt") }}:</strong> {{ formatAltitude(minAltitude) }}
                 </span>
                 <span class="stat">
-                    <strong>상대고도 최대:</strong> {{ formatAltitude(maxAltitude) }}
+                    <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
                 </span>
                 <span class="stat">
-                    <strong>지표고도 평균:</strong> {{ formatAltitude(groundElevation) }}
+                    <strong>{{ $t("flightPlanGroundElev") }}:</strong> {{ formatAltitude(groundElevation) }}
                 </span>
                 <span class="stat">
-                    <strong>지표고도 최대:</strong> {{ formatAltitude(maxGroundElevation) }}
+                    <strong>{{ $t("flightPlanMaxGroundElev") }}:</strong> {{ formatAltitude(maxGroundElevation) }}
                 </span>
             </div>
 
@@ -27,9 +27,8 @@
                     ref="chartSvg"
                     :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
                     class="profile-chart"
-                    @pointermove="handlePointerMove"
+                    @mousemove="handleMouseMove"
                     @mouseleave="handleMouseLeave"
-                    @pointerup.capture="handlePointerUp"
                 >
                     <!-- Y-axis grid lines and labels -->
                     <g class="y-axis">
@@ -138,9 +137,6 @@
                             :class="['waypoint-marker', { selected: point.uid === selectedWaypointUid }]"
                             @click="handleWaypointClick(point.uid)"
                             @mouseenter="handleMarkerHover($event, point)"
-                            @pointerdown.prevent="handlePointerDown($event, point, index)"
-                            @pointerup="handlePointerUp()"
-                            @pointerleave="handlePointerUp()"
                         />
                         <text
                             v-for="(point, index) in scaledProfilePoints"
@@ -165,13 +161,8 @@
                     :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div>━━━━━━━━━━</div>
-                    <div>상대고도: {{ tooltipData.alt_rel.toFixed(1) }} m</div>
-                    <div>속도: {{ (tooltipData.speed * (1/51.4444) || 0).toFixed(1) }} m/s</div>
-                    <div :style="{ color: tooltipData.alt_agl < 0 ? '#DD2222' : 'inherit' }">
-                        지상고도: {{ tooltipData.alt_agl.toFixed(1) }} m
-                        <span v-if="tooltipData.alt_agl < 0"> ⚠충돌위험</span>
-                    </div>
+                    <div><span v-html="$t('flightPlanAlt')"></span>: {{ formatAltitude(tooltipData.altitude) }}</div>
+                    <div><span v-html="$t('flightPlanSpeed')"></span>: {{ formatSpeed(tooltipData.speed) }}</div>
                 </div>
             </Teleport>
         </template>
@@ -188,15 +179,12 @@ import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 
-const { positionalWaypoints, selectedWaypointUid, selectWaypoint, BASE, waypointsWithRel, dragMaxAlt, setRelativeAlt } = useFlightPlan();
+const { positionalWaypoints, selectedWaypointUid, selectWaypoint } = useFlightPlan();
 const settings = useSettingsStore();
 // Modifier waypoints (lat/lon = 0) would otherwise skew distance and altitude.
 const waypoints = positionalWaypoints;
 
 const chartSvg = ref(null);
-const isDraggingVertical = ref(false);
-const dragStartY = ref(0);
-const dragWPIndex = ref(-1);
 
 // Chart dimensions (50% smaller)
 const chartWidth = 800;
@@ -304,9 +292,8 @@ const profilePoints = computed(() => {
         return [];
     }
 
-    const wpRel = waypointsWithRel.value;
     let cumulativeDistance = 0;
-    const points = wpRel.map((wp, index) => {
+    const points = waypoints.value.map((wp, index) => {
         if (index > 0) {
             const prevWp = waypoints.value[index - 1];
             cumulativeDistance += calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
@@ -315,11 +302,8 @@ const profilePoints = computed(() => {
         return {
             uid: wp.uid,
             order: wp.order,
-            alt_rel: wp.alt_rel,
-            alt_agl: wp.alt_agl,
             altitude: wp.altitude,
             speed: wp.speed || 0,
-            terrain: wp.terrain || 0,
             distance: cumulativeDistance,
             latitude: wp.latitude,
             longitude: wp.longitude,
@@ -342,16 +326,14 @@ const minAltitude = computed(() => {
     if (waypoints.value.length === 0) {
         return 0;
     }
-    const wpRel = waypointsWithRel.value;
-    return Math.round(Math.min(...wpRel.map((wp) => wp.alt_rel)));
+    return Math.round(Math.min(...waypoints.value.map((wp) => wp.altitude)));
 });
 
 const maxAltitude = computed(() => {
     if (waypoints.value.length === 0) {
         return 0;
     }
-    const wpRel = waypointsWithRel.value;
-    return Math.round(Math.max(...wpRel.map((wp) => wp.alt_rel)));
+    return Math.round(Math.max(...waypoints.value.map((wp) => wp.altitude)));
 });
 
 // Max ground elevation from terrain samples
@@ -584,37 +566,9 @@ const updateTooltipPosition = (event, wpData) => {
         x: posX,
         y: posY,
         order: (wpData.order ?? 0) + 1,
-        alt_rel: wpData.alt_rel ?? 0,
-        alt_agl: wpData.alt_agl ?? 0,
+        altitude: wpData.altitude ?? 0,
         speed: wpData.speed ?? 0,
     };
-};
-
-
-// Vertical drag handlers for altitude adjustment
-const handlePointerDown = (event, point, index) => {
-    if (!point) return;
-    isDraggingVertical.value = true;
-    dragStartY.value = event.clientY;
-    dragWPIndex.value = index;
-    event.target.setPointerCapture(event.pointerId);
-};
-
-const handlePointerMove = (event) => {
-    if (!isDraggingVertical.value || dragWPIndex.value < 0) return;
-    const dy = event.clientY - dragStartY.value;
-    if (Math.abs(dy) < 3) return; // dead zone
-    const altChange = -dy; // up = higher altitude
-    const wp = profilePoints.value[dragWPIndex.value];
-    if (!wp) return;
-    const currentRel = wp.alt_rel ?? 0;
-    setRelativeAlt(dragWPIndex.value, currentRel + altChange);
-    dragStartY.value = event.clientY;
-};
-
-const handlePointerUp = () => {
-    isDraggingVertical.value = false;
-    dragWPIndex.value = -1;
 };
 
 // Event handlers
@@ -926,7 +880,7 @@ watch(
 }
 
 .waypoint-marker {
-    fill: #FFCC00;
+    fill: var(--primary-500);
     stroke: var(--surface-50);
     stroke-width: 1.5;
     cursor: pointer;
@@ -934,19 +888,14 @@ watch(
 }
 
 .waypoint-marker:hover {
-    r: 12;
+    r: 4;
+    fill: var(--primary-600);
 }
 
 .waypoint-marker.selected {
-    fill: #33AA33;
+    fill: var(--success-500);
     stroke: var(--surface-50);
     stroke-width: 2;
-}
-
-.waypoint-marker.dragging {
-    fill: #DD2222;
-    stroke: var(--surface-50);
-    stroke-width: 2.5;
 }
 
 .waypoint-label {
