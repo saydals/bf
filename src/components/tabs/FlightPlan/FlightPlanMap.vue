@@ -42,6 +42,7 @@ const draggingWaypointUid = ref(null);
 const dragPanInteraction = ref(null);
 const isDragging = ref(false);
 const dragStartCoordinate = ref(null);
+const lastValidDragCoord = ref(null); // last valid coord for pointercancel recovery
 const isLoading = ref(true);
 
 // Helper function to initialize map with given coordinates
@@ -189,14 +190,17 @@ const setupMapLayers = () => {
                 // Start dragging this waypoint
                 isDragging.value = true;
                 draggingWaypointUid.value = waypointUid;
-                dragStartCoordinate.value = event.coordinate;
+                dragStartCoordinate.value = [...event.coordinate];
+                            lastValidDragCoord.value = [...event.coordinate];
 
                 // Disable map panning
                 if (dragPanInteraction.value) {
                     dragPanInteraction.value.setActive(false);
                 }
 
-                console.log("Started dragging waypoint:", waypointUid);
+                // style only change (no full recreating)
+                            updateDraggingStyle(waypointUid, true);
+                            console.log("Started dragging waypoint:", waypointUid);
             }
         }
     });
@@ -363,22 +367,16 @@ const updateMapFeatures = (autoFit = true) => {
             waypointOrder: wp.order + 1,
         });
 
-        // Check if this waypoint is selected or being dragged
+        // Check if this waypoint is selected
         const isSelected = selectedWaypointUid.value === wp.uid;
-        const isBeingDragged = draggingWaypointUid.value === wp.uid;
 
-        // Determine color: green for dragging, orange for selected, blue for normal
+        // Determine color: orange for selected, blue for normal
         let fillColor = "#0080FF"; // Blue for normal
         let radius = 10;
         let strokeWidth = 2;
         let fontSize = "bold 12px sans-serif";
 
-        if (isBeingDragged) {
-            fillColor = "#00FF00"; // Green for dragging
-            radius = 16;
-            strokeWidth = 3;
-            fontSize = "bold 14px sans-serif";
-        } else if (isSelected) {
+        if (isSelected) {
             fillColor = "#FF8C00"; // Orange for selected
             radius = 14;
             strokeWidth = 3;
@@ -439,20 +437,6 @@ watch(
     { deep: true },
 );
 
-// Watch dragging state and update map to show green marker
-watch(
-    () => draggingWaypointUid.value,
-    (newUid) => {
-        if (!mapInstance.value) {
-            return;
-        }
-        // Update map features to show dragging styling (green marker) when drag starts
-        // When newUid is null (drag ended), updateMapFeatures will be called by the update handlers
-        if (newUid) {
-            updateMapFeatures(false); // Don't auto-fit when starting to drag
-        }
-    },
-);
 
 // Watch selected waypoint and update map focus
 watch(
@@ -515,6 +499,10 @@ onUnmounted(() => {
 .map {
     width: 100%;
     height: 100%;
+}
+
+.map :deep(.ol-viewport) {
+    touch-action: none !important;
 }
 
 .map-loading {
