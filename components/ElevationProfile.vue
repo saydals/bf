@@ -800,7 +800,7 @@ const handleAltDragMove = (event) => {
 
     const altitudeDelta = Math.round(deltaSvgY * feetPerSvgUnit);
 
-    const minAlt = minAllowedAGL.value[dragState.value.wpUid] ?? -5000;
+    const minAlt = selectedWpRelativeGroundElev.value;
     const newAlt = Math.max(minAlt, Math.min(maxAllowedAGL, currentWp.altitude + altitudeDelta));
 
     if (newAlt !== currentWp.altitude) {
