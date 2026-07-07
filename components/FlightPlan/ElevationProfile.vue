@@ -15,6 +15,9 @@
                     <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
                 </span>
                 <span class="stat">
+                    <strong>{{ $t("flightPlanAMSL") }}:</strong>
+                </span>
+                <span class="stat">
                     <strong>{{ $t("flightPlanRelativeGroundElev") }}:</strong>
                     {{ formatAltitude(selectedWpRelativeGroundElev) }}
                     <span class="stat-note" v-if="selectedWaypointUid"
@@ -57,7 +60,6 @@
                             text-anchor="end"
                         >
                             {{ formatAltitude(tick.value) }}
-                            <tspan v-if="tick === yAxisTicks[yAxisTicks.length - 1]" class="amsl-label">(AMSL)</tspan>
                         </text>
                     </g>
 
@@ -1122,11 +1124,6 @@ watch(
     fill: var(--text);
     font-size: 8px;
     font-family: sans-serif;
-}
-
-.amsl-label {
-    fill: var(--surface-600);
-    font-size: 6px;
 }
 
 .terrain-area {

@@ -3578,6 +3578,9 @@
     "flightPlanSpeedMps": {
         "message": "속도 (m/s)"
     },
+    "flightPlanAMSL": {
+        "message": "해발고도"
+    },
     "motorsVoltage": {
         "message": "전압:"
     },
