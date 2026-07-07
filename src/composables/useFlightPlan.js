@@ -117,10 +117,6 @@ export function useFlightPlan() {
             gui_log(i18n.getMessage("flightPlanInvalidLongitude"));
             return false;
         }
-        if (waypointData.altitude < 0) {
-            gui_log(i18n.getMessage("flightPlanInvalidAltitude") || "Altitude must be positive");
-            return false;
-        }
         return true;
     };
 
