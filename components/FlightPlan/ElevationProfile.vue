@@ -958,48 +958,16 @@ const generateSegmentSamples = (segmentsToFetch) => {
     return { samplesToFetch, segmentSampleRanges };
 };
 
-// Fetch elevations from API in batches
-const fetchElevationBatches = async (samplesToFetch) => {
-    const allElevations = [];
-    const batchSize = 100;
-
-    for (let i = 0; i < samplesToFetch.length; i += batchSize) {
-        const batch = samplesToFetch.slice(i, i + batchSize);
-        const locations = batch.map((s) => ({ latitude: s.latitude, longitude: s.longitude }));
-
-        const response = await fetch("https://api.open-elevation.com/api/v1/lookup", {
-            method: "POST",
-            headers: { Accept: "application/json", "Content-Type": "application/json" },
-            body: JSON.stringify({ locations }),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data.results?.length > 0) {
-            allElevations.push(...data.results.map((result) => Math.round(result.elevation * METERS_TO_FEET)));
-        }
-
-        if (i + batchSize < samplesToFetch.length) {
-            await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-    }
-
-    return allElevations;
-};
-
-// Cache fetched segments and produce absolute-distance samples
+// Merge fetched elevations back into sample objects and update cache
 const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations) => {
     const samples = [];
 
     for (const { segment, startIdx, endIdx } of segmentSampleRanges) {
         const segmentSamples = [];
 
-        for (let i = startIdx; i < endIdx; i++) {
-            const sample = samplesToFetch[i];
-            const elevation = allElevations[i] || 0;
+        for (let j = startIdx; j < endIdx; j++) {
+            const sample = samplesToFetch[j];
+            const elevation = allElevations[j] ?? 0;
 
             segmentSamples.push({
                 latitude: sample.latitude,
@@ -1023,6 +991,58 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
     }
 
     return samples;
+};
+
+// Fetch elevations from Open-Meteo API (GET 방식)
+const fetchElevationBatches = async (samplesToFetch) => {
+    const allElevations = [];
+    const batchSize = 100; // 최대 100개까지 한 번에 요청 가능
+
+    for (let i = 0; i < samplesToFetch.length; i += batchSize) {
+        const batch = samplesToFetch.slice(i, i + batchSize);
+
+        // Open-Meteo 형식: comma-separated 문자열
+        const latitudes = batch.map((s) => s.latitude).join(",");
+        const longitudes = batch.map((s) => s.longitude).join(",");
+
+        const url = `https://api.open-meteo.com/v1/elevation?latitude=${latitudes}&longitude=${longitudes}`;
+
+        try {
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    Accept: "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Open-Meteo 응답 구조: { elevation: [38.0, 45.5, ...] }
+            if (data.elevation && Array.isArray(data.elevation)) {
+                // 미터 → 피트 변환 (기존과 동일)
+                const feetValues = data.elevation.map((elev) => Math.round(elev * METERS_TO_FEET));
+                allElevations.push(...feetValues);
+            } else {
+                // 응답이 이상할 경우 0으로 fallback
+                allElevations.push(...Array(batch.length).fill(0));
+            }
+        } catch (error) {
+            console.error("Open-Meteo Elevation API fetch failed:", error);
+            // 실패한 배치만큼 0 채우기
+            allElevations.push(...Array(batch.length).fill(0));
+        }
+
+        // 요청 간 약간의 딜레이 (안전장치)
+        if (i + batchSize < samplesToFetch.length) {
+            await new Promise((resolve) => setTimeout(resolve, 80));
+        }
+    }
+
+    return allElevations;
 };
 
 // Fetch ground elevation with segment-level caching
