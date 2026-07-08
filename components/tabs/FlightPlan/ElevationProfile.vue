@@ -229,9 +229,13 @@ const elevationFetchSeq = ref(0); // Monotonic sequence to prevent race conditio
 const segmentCache = ref(new Map());
 
 // Terrain sampling configuration
-const MIN_SAMPLE_INTERVAL_METERS = 45; // Minimum distance between samples (45m resolution)
-const MAX_SAMPLES_PER_SEGMENT = 22; // Maximum samples between waypoints
-const MAX_TOTAL_SAMPLES = 150; // Maximum total samples across all segments
+// API 설정
+const ELEVATION_API_URL = "https://api.opentopodata.org/v1/srtm90m"; // ArduPilot 스타일
+
+// Terrain sampling configuration
+const MIN_SAMPLE_INTERVAL_METERS = 40;
+const MAX_SAMPLES_PER_SEGMENT = 25;
+const MAX_TOTAL_SAMPLES = 160;
 
 // Generate cache key for a segment between two waypoints
 const getSegmentKey = (fromUid, toUid) => `${fromUid}-${toUid}`;
@@ -1043,47 +1047,40 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
     return samples;
 };
 
-// Open-Meteo 최적화 버전
+// ArduPilot 스타일 - OpenTopoData API
 const fetchElevationBatches = async (samplesToFetch) => {
     const allElevations = [];
 
-    // 전체 샘플 수 강력 제한
+    // 전체 샘플 제한
     if (samplesToFetch.length > MAX_TOTAL_SAMPLES) {
         console.warn(`[Elevation] Reducing samples: ${samplesToFetch.length} → ${MAX_TOTAL_SAMPLES}`);
         samplesToFetch = samplesToFetch.slice(0, MAX_TOTAL_SAMPLES);
     }
 
-    const batchSize = 25;
-    const delayBetweenBatches = 220;
+    const batchSize = 30; // OpenTopoData는 100개까지 안정적
+    const delayBetweenBatches = 180;
 
-    console.log(
-        `[Elevation] Fetching ${samplesToFetch.length} points in ${Math.ceil(samplesToFetch.length / batchSize)} batches`,
-    );
+    console.log(`[Elevation] Fetching ${samplesToFetch.length} points...`);
 
     for (let i = 0; i < samplesToFetch.length; i += batchSize) {
         const batch = samplesToFetch.slice(i, i + batchSize);
 
-        const latitudes = batch.map((s) => s.latitude.toFixed(5)).join(",");
-        const longitudes = batch.map((s) => s.longitude.toFixed(5)).join(",");
+        // OpenTopoData 형식: locations=lat1,lon1|lat2,lon2|...
+        const locations = batch.map((s) => `${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`).join("|");
 
-        const url = `https://api.open-meteo.com/v1/elevation?latitude=${latitudes}&longitude=${longitudes}`;
+        const url = `${ELEVATION_API_URL}?locations=${locations}`;
 
         try {
-            const response = await fetch(url, { method: "GET" });
+            const response = await fetch(url);
 
-            if (response.status === 429) {
-                console.warn("[Elevation] Rate limit hit, waiting...");
-                await new Promise((r) => setTimeout(r, 1500));
-                i -= batchSize;
-                continue;
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
             }
-
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const data = await response.json();
 
-            if (data.elevation && Array.isArray(data.elevation)) {
-                const feetValues = data.elevation.map((e) => Math.round(e * METERS_TO_FEET));
+            if (data.results && Array.isArray(data.results)) {
+                const feetValues = data.results.map((item) => Math.round((item.elevation || 0) * METERS_TO_FEET));
                 allElevations.push(...feetValues);
             } else {
                 allElevations.push(...Array(batch.length).fill(0));
@@ -1149,7 +1146,7 @@ const fetchGroundElevation = async () => {
 // fetchGroundElevation을 debounce 처리 (300ms)
 const debouncedFetchGroundElevation = debounce(() => {
     fetchGroundElevation();
-}, 450);
+}, 400);
 
 // Watch waypoints and fetch ground elevation when they change
 watch(
