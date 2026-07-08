@@ -228,7 +228,7 @@ const segmentCache = reactive(new Map());
 
 // Terrain sampling configuration
 // API 설정
-const ELEVATION_API_URL = "https://api.opentopodata.org/v1/srtm90m"; // ArduPilot 스타일
+const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation"; // Open-Meteo
 
 // Terrain sampling configuration
 const MIN_SAMPLE_INTERVAL_METERS = 40;
@@ -1084,13 +1084,21 @@ const fetchElevationBatches = async (samplesToFetch) => {
     for (let i = 0; i < samplesToFetch.length; i += batchSize) {
         const batch = samplesToFetch.slice(i, i + batchSize);
 
-        // OpenTopoData 형식: locations=lat1,lon1|lat2,lon2|...
-        const locations = batch.map((s) => `${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`).join("|");
+        // Open-Meteo 형식: latitude=lat1,lat2,...&longitude=lon1,lon2,...
+        const latitudes = batch.map((s) => s.latitude.toFixed(5)).join(",");
+        const longitudes = batch.map((s) => s.longitude.toFixed(5)).join(",");
 
-        const url = `${ELEVATION_API_URL}?locations=${locations}`;
+        const url = `${ELEVATION_API_URL}?latitude=${latitudes}&longitude=${longitudes}`;
 
         try {
             const response = await fetch(url);
+
+            if (response.status === 429) {
+                console.warn("[Elevation] 429 Rate Limit - waiting 2 seconds...");
+                await new Promise((r) => setTimeout(r, 2000));
+                i -= batchSize;
+                continue;
+            }
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
@@ -1098,8 +1106,8 @@ const fetchElevationBatches = async (samplesToFetch) => {
 
             const data = await response.json();
 
-            if (data.results && Array.isArray(data.results)) {
-                const feetValues = data.results.map((item) => Math.round((item.elevation || 0) * METERS_TO_FEET));
+            if (data.elevation && Array.isArray(data.elevation)) {
+                const feetValues = data.elevation.map((elev) => Math.round(elev * METERS_TO_FEET));
                 allElevations.push(...feetValues);
             } else {
                 allElevations.push(...Array(batch.length).fill(0));
