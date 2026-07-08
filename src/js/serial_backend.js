@@ -29,7 +29,9 @@ import { unmountVueTab } from "./vue_tab_mounter";
 import { switchTab } from "./tab_switch";
 import { useConnectionStore } from "../stores/connection";
 import { useDialogStore } from "../stores/dialog";
+import { getConnectionState } from "./connection_state.js";
 
+const connectionState = getConnectionState();
 const logHead = "[SERIAL-BACKEND]";
 
 let mspHelper;
@@ -172,6 +174,7 @@ function prepareDisconnect() {
     // (handled by onClosed) does not run the unexpected-disconnect teardown on top of
     // finishClose(). Covers both the Disconnect button and the removedDevice route.
     intentionalDisconnect = true;
+    connectionState.markIntentionalDisconnect();
 
     // Cancel any in-flight reboot reconnect so a user-initiated disconnect during the reboot
     // window is not undone by a retry. (The reboot retry itself reconnects via beginConnect,
@@ -226,6 +229,7 @@ function beginConnect(selectedPort) {
     // may never dispatch the "disconnect" event that would otherwise consume the flag, so
     // resetting here keeps a stale flag from downgrading a later unexpected disconnect.
     intentionalDisconnect = false;
+    connectionState.clearIntentionalDisconnect();
 
     // prevent connection when we do not have permission
     if (selectedPort.startsWith("requestpermission")) {
@@ -420,6 +424,7 @@ function finishUnexpectedDisconnect() {
     // disconnects. Reset before the UI teardown so a late removedDevice cannot re-enter
     // connectDisconnect() against a still-"connected" state.
     isConnected = false;
+    connectionState.setLinkOpen(false);
 
     teardownConnectionUi();
 }
@@ -525,6 +530,7 @@ function read_serial_adapter(event) {
 function onOpen(openInfo) {
     if (openInfo) {
         CONFIGURATOR.virtualMode = false;
+        connectionState.setLinkOpen(true);
 
         GUI.timeout_remove("connectAttempt"); // port opened — pre-open watchdog no longer needed
 
@@ -604,6 +610,7 @@ function onOpenVirtual() {
     CONFIGURATOR.virtualApiVersion = PortHandler.portPicker.virtualMspVersion;
 
     isConnected = true;
+    connectionState.setLinkOpen(true);
 
     // Set connection timestamp for virtual connections
     connectionTimestamp = Date.now();
@@ -907,6 +914,7 @@ function onClosed(result) {
     // down by finishClose(); for unexpected ones complete the same UI teardown now.
     const wasIntentional = intentionalDisconnect;
     intentionalDisconnect = false;
+    connectionState.notifyClosed();
     if (!wasIntentional) {
         finishUnexpectedDisconnect();
     }

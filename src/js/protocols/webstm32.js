@@ -22,7 +22,7 @@ import NotificationManager from "../utils/notifications";
 import { get as getConfig } from "../ConfigStorage";
 
 function readSerialAdapter(event) {
-    read_serial(event.detail.buffer);
+    read_serial(event.detail.data);
 }
 
 function onMSPConnectionError() {

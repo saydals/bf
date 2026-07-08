@@ -12,6 +12,7 @@ import {
     checkUsbSupport,
     isAndroid,
 } from "./utils/checkCompatibility.js";
+import { getConnectionState } from "./connection_state.js";
 
 const DEFAULT_PORT = "noselection";
 const DEFAULT_BAUDS = 115200;
@@ -294,13 +295,15 @@ PortHandler.selectActivePort = function (suggestedDevice = false) {
 
     // Expert-only fallbacks: only surface virtual/manual when expert mode is on, and never as
     // a replacement for a real device that was just lost (see hadRealSelection above).
+    // Also skip fallbacks during reconnect window to avoid hijacking the port selection.
+    const connectionState = getConnectionState();
     const expertMode = isExpertModeEnabled();
 
-    if (!selectedPort && !hadRealSelection && expertMode && this.showVirtualMode) {
+    if (!selectedPort && !hadRealSelection && !connectionState.isReconnecting && expertMode && this.showVirtualMode) {
         selectedPort = "virtual";
     }
 
-    if (!selectedPort && !hadRealSelection && expertMode && this.showManualMode) {
+    if (!selectedPort && !hadRealSelection && !connectionState.isReconnecting && expertMode && this.showManualMode) {
         selectedPort = "manual";
     }
 
