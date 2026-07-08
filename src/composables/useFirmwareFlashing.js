@@ -8,7 +8,6 @@ import read_hex_file from "../js/workers/hex_parser";
 import STM32 from "../js/protocols/webstm32";
 import ESP32 from "../js/protocols/esp32";
 import PortHandler from "../js/port_handler";
-import { getConnectionState } from "../js/connection_state.js";
 
 /**
  * A composable for managing firmware flashing operations.
@@ -391,9 +390,6 @@ export function useFirmwareFlashing(params = {}) {
             return;
         }
 
-        // Mark FLASHING state to block concurrent connections and suppress reconnect dialogs
-        getConnectionState().beginDeviceReplacement();
-
         try {
             if (config && !parsedHexData.configInserted) {
                 const configInserter = new ConfigInserter();
@@ -423,7 +419,6 @@ export function useFirmwareFlashing(params = {}) {
         }
 
         setFlashOnConnect?.(false);
-        getConnectionState().endFlashing();
     };
 
     /**

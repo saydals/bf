@@ -62,18 +62,10 @@ class Serial extends EventTarget {
     _setupEventForwarding() {
         const events = ["addedDevice", "removedDevice", "connect", "disconnect", "receive"];
 
-        // Lifecycle events that should only fire from the active protocol
-        const activeOnlyEvents = ["connect", "disconnect", "receive"];
-
         for (const { name, instance } of this._protocols) {
             if (typeof instance?.addEventListener === "function") {
                 for (const eventType of events) {
                     instance.addEventListener(eventType, (event) => {
-                        // Gate lifecycle events to the active protocol only
-                        if (activeOnlyEvents.includes(eventType) && instance !== this._protocol) {
-                            return;
-                        }
-
                         let newDetail;
                         if (event.type === "receive") {
                             // For 'receive' events, we need to handle the data differently
