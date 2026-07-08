@@ -918,8 +918,8 @@ const handleAltDragMove = (event) => {
     }
 };
 
-// Speed drag (horizontal): time-based — direction held determines ±1 m/s per 500ms
-// setInterval 기반 정밀 타이머: 0.5초마다 정확히 속도 ±1 m/s
+// Speed drag (horizontal): time-based — direction held determines ±1 m/s per 250ms
+// setInterval 기반 정밀 타이머: 0.25초마다 속도 ±1 m/s
 const startSpeedChangeInterval = () => {
     if (dragState.value.speedInterval) return;
     dragState.value.speedInterval = setInterval(() => {
@@ -936,7 +936,7 @@ const startSpeedChangeInterval = () => {
             updateWaypoint(dragState.value.wpUid, { speed: newKnots });
             tooltipData.value.speed = newKnots;
         }
-    }, 500);
+    }, 250);
 };
 
 const stopSpeedChangeInterval = () => {
