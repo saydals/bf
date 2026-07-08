@@ -138,6 +138,9 @@
                     <!-- Elevation line -->
                     <path :d="linePath" class="elevation-line" />
 
+                    <!-- Invisible wide hit-area for double-click-to-insert (stroke-width 1.5 is too thin to click reliably) -->
+                    <path :d="linePath" class="elevation-line-hitarea" @dblclick="handleLineDoubleClick" />
+
                     <!-- Waypoint markers -->
                     <g class="waypoint-markers">
                         <circle
@@ -194,7 +197,8 @@ import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 
-const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint } = useFlightPlan();
+const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint, insertWaypointAfter } =
+    useFlightPlan();
 const settings = useSettingsStore();
 // Modifier waypoints (lat/lon = 0) would otherwise skew distance and altitude.
 const waypoints = positionalWaypoints;
@@ -513,6 +517,13 @@ const scaleX = (distance) => {
     return padding.left + (distance / total) * plotWidth;
 };
 
+// Inverse of scaleX: SVG x-coordinate → distance (meters) along the profile
+const unscaleX = (svgX) => {
+    const total = totalDistance.value || 1;
+    const plotWidth = chartWidth - padding.left - padding.right;
+    return ((svgX - padding.left) / plotWidth) * total;
+};
+
 const scaleY = (altitude) => {
     const min = 0; // Always start at sea level (0 ft AMSL)
     const max = combinedMax.value; // Use combined max to include terrain heights
@@ -697,6 +708,43 @@ const getMarkerStrokeWidth = (point) => {
 const updateTooltipData = (point) => {
     tooltipData.value.altitude = point.altitude; // AGL
     tooltipData.value.speed = point.speed; // knots (formatSpeedMps converts)
+};
+
+// Insert a new waypoint by double-clicking a point along the elevation line.
+// The click position determines both where along the segment (map position)
+// and what altitude the new waypoint gets — both via the same fraction, so the
+// new point sits exactly on the existing straight line (map + profile).
+const handleLineDoubleClick = (event) => {
+    const svgEl = chartSvg.value;
+    if (!svgEl) return;
+
+    const pt = svgEl.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
+    const clickDistance = unscaleX(svgP.x);
+
+    const points = profilePoints.value; // order 정렬됨, 각 항목에 uid/latitude/longitude/altitude/distance 포함
+    for (let i = 0; i < points.length - 1; i++) {
+        const a = points[i];
+        const b = points[i + 1];
+
+        if (clickDistance >= a.distance && clickDistance <= b.distance) {
+            const segmentLength = b.distance - a.distance;
+            const fraction = segmentLength > 0 ? (clickDistance - a.distance) / segmentLength : 0;
+
+            const newLatLon = interpolatePoint(a.latitude, a.longitude, b.latitude, b.longitude, fraction);
+            const newAltitude = Math.round(a.altitude + fraction * (b.altitude - a.altitude));
+
+            insertWaypointAfter(a.uid, {
+                latitude: newLatLon.latitude,
+                longitude: newLatLon.longitude,
+                altitude: newAltitude,
+                speed: a.speed,
+            });
+            return;
+        }
+    }
 };
 
 // Pointer handlers for drag functionality
@@ -1191,6 +1239,13 @@ watch(
     fill: none;
     stroke: var(--primary-500);
     stroke-width: 1.5;
+}
+
+.elevation-line-hitarea {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 14;
+    cursor: copy;
 }
 
 .waypoint-marker {
