@@ -2,7 +2,13 @@
     <Dialog v-model="showEditorDialog" :title="editMode ? $t('flightPlanEditWaypoint') : $t('flightPlanAddWaypoint')">
         <form ref="formElement" class="editor-form flex flex-col gap-3" @submit.prevent="handleSave">
             <SettingRow :label="$t('flightPlanType')" full-width>
-                <USelect v-model="form.type" :items="typeItems" :aria-label="$t('flightPlanType')" class="w-48" />
+                <USelect
+                    v-model="form.type"
+                    :items="typeItems"
+                    :aria-label="$t('flightPlanType')"
+                    class="w-48"
+                    :ui="{ content: 'z-[3002]' }"
+                />
             </SettingRow>
 
             <SettingRow v-if="showPosition" :label="$t('flightPlanLatitude')" full-width>

@@ -71,6 +71,7 @@
                     <UButton
                         icon="i-lucide-trash-2"
                         size="xs"
+                        class="ml-8"
                         variant="soft"
                         color="error"
                         :aria-label="$t('delete')"
