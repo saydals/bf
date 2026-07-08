@@ -732,6 +732,11 @@ const updateTooltipPosition = (event, wpData) => {
 
 // Marker style helpers
 const getMarkerColor = (point) => {
+    // 드래그 중인 포인트는 방향에 따라 색상 변경
+    if (dragState.value.active && dragState.value.wpUid === point.uid) {
+        if (dragState.value.type === "altitude") return "#87CEEB"; // 하늘색 (고도 변경중)
+        if (dragState.value.type === "speed") return "#FF69B4"; // 핑크색 (속도 변경중)
+    }
     if (point.uid === selectedWaypointUid.value) return "var(--success-500)";
     return "var(--primary-500)";
 };
