@@ -171,6 +171,9 @@
                 </svg>
             </div>
 
+            <!-- Elevation API error -->
+            <div v-if="elevationError" class="elevation-error">⚠️ {{ elevationError }}</div>
+
             <Teleport to="body">
                 <div
                     v-if="tooltipData.visible"
@@ -211,6 +214,7 @@ const DRAG_DIRECTION_THRESHOLD = 10;
 
 const isFetchingElevation = ref(false);
 const needsFetchAgain = ref(false);
+const elevationError = ref(null); // API 에러 메시지 (화면 표시용)
 const segmentCache = reactive(new Map());
 
 const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation";
@@ -480,9 +484,7 @@ const areaPath = computed(() => {
     if (!scaledProfilePoints.value.length) return "";
     const by = chartHeight - padding.bottom,
         pts = scaledProfilePoints.value;
-    return (
-        `${pts.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ")  } L ${pts.at(-1).x} ${by} L ${pts[0].x} ${by} Z`
-    );
+    return `${pts.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ")} L ${pts.at(-1).x} ${by} L ${pts[0].x} ${by} Z`;
 });
 const terrainLinePath = computed(() =>
     currentTerrainSamples.value
@@ -773,11 +775,20 @@ const fetchBatches = async (samples) => {
         try {
             const r = await fetch(url);
             if (r.status === 429) {
+                const body = await r.json().catch(() => ({}));
+                const reason = body?.reason || "Rate limit exceeded";
+                console.warn("[Elevation] 429:", reason);
+                if (reason.includes("Daily")) {
+                    elevationError.value = `고도맵표시에러 : ${reason}`;
+                    out.push(...Array(b.length).fill(0));
+                    break;
+                }
                 await new Promise((x) => setTimeout(x, 2000));
                 i -= B;
                 continue;
             }
             if (!r.ok) throw r.status;
+            elevationError.value = null; // 성공 시 에러 메시지 초기화
             const d = await r.json();
             out.push(...(d.elevation ?? []).map((e) => Math.round((e ?? 0) * METERS_TO_FEET)));
         } catch {
@@ -933,6 +944,15 @@ watch(() => waypoints.value, debouncedFetch, { deep: true, immediate: true });
     font-size: 7px;
     font-weight: 700;
 }
+.elevation-error {
+    color: var(--error-500, #ef4444);
+    font-size: 0.8rem;
+    padding: 0.5rem 0.75rem;
+    background: color-mix(in srgb, var(--error-500, #ef4444) 10%, transparent);
+    border-radius: 6px;
+    margin-top: 0.5rem;
+}
+
 .no-waypoints {
     padding: 2rem;
     text-align: center;
