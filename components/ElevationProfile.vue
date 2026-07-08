@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, reactive } from "vue";
 import { debounce } from "lodash-es";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
@@ -224,7 +224,7 @@ const needsFetchAgain = ref(false);
 
 // Segment-level caching for terrain data
 // Key: "uid1-uid2", Value: { samples: [...], fromPos: {lat, lon}, toPos: {lat, lon}, distance }
-const segmentCache = ref(new Map());
+const segmentCache = reactive(new Map());
 
 // Terrain sampling configuration
 // API 설정
@@ -316,7 +316,7 @@ const currentTerrainSamples = computed(() => {
         const segmentKey = getSegmentKey(prevWp.uid, wp.uid);
         const segmentDistance = calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
 
-        const cached = segmentCache.value.get(segmentKey);
+        const cached = segmentCache.get(segmentKey);
         if (cached && cached.samples && cached.samples.length > 0) {
             const cachedDist = cached.distance || 1;
             for (const s of cached.samples) {
@@ -954,7 +954,7 @@ const handleMouseLeave = () => {
 
 // Check if a segment's waypoints have moved (positions changed)
 const hasSegmentMoved = (segmentKey, fromPos, toPos) => {
-    const cached = segmentCache.value.get(segmentKey);
+    const cached = segmentCache.get(segmentKey);
     if (!cached) {
         return true; // Not cached, needs fetching
     }
@@ -1057,7 +1057,7 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
             });
         }
 
-        segmentCache.value.set(segment.key, {
+        segmentCache.set(segment.key, {
             samples: segmentSamples,
             fromPos: { lat: segment.fromWp.latitude, lon: segment.fromWp.longitude },
             toPos: { lat: segment.toWp.latitude, lon: segment.toWp.longitude },
