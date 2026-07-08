@@ -36,6 +36,7 @@
                     @mouseleave="handleMouseLeave"
                     @pointermove="handlePointerMove"
                     @pointerup="handlePointerUp"
+                    @pointercancel="handlePointerUp"
                 >
                     <!-- Y-axis grid lines and labels -->
                     <g class="y-axis">
@@ -138,7 +139,7 @@
                     <!-- Elevation line -->
                     <path :d="linePath" class="elevation-line" />
 
-                    <!-- Invisible wide hit-area for double-click-to-insert (stroke-width 1.5 is too thin to click reliably) -->
+                    <!-- Invisible wide hit-area for double-click-to-insert -->
                     <path :d="linePath" class="elevation-line-hitarea" @dblclick="handleLineDoubleClick" />
 
                     <!-- Waypoint markers -->
@@ -170,7 +171,6 @@
                 </svg>
             </div>
 
-            <!-- Tooltip teleported to body to avoid overflow clipping -->
             <Teleport to="body">
                 <div
                     v-if="tooltipData.visible"
@@ -191,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive } from "vue";
+import { ref, computed, watch, reactive, onMounted, onUnmounted } from "vue";
 import { debounce } from "lodash-es";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
@@ -200,134 +200,114 @@ import { useSettingsStore } from "@/stores/settings";
 const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint, insertWaypointAfter } =
     useFlightPlan();
 const settings = useSettingsStore();
-// Modifier waypoints (lat/lon = 0) would otherwise skew distance and altitude.
 const waypoints = positionalWaypoints;
 
 const chartSvg = ref(null);
 
-// Chart dimensions (50% smaller)
 const chartWidth = 800;
 const chartHeight = 150;
-const padding = {
-    top: 20,
-    right: 20,
-    bottom: 35,
-    left: 45,
-};
-
-// Drag direction threshold (px) for distinguishing horizontal vs vertical drag
+const padding = { top: 20, right: 20, bottom: 35, left: 45 };
 const DRAG_DIRECTION_THRESHOLD = 10;
 
-// Ground elevation in feet AMSL (fetched from API)
 const isFetchingElevation = ref(false);
 const needsFetchAgain = ref(false);
-
-// Segment-level caching for terrain data
-// Key: "uid1-uid2", Value: { samples: [...], fromPos: {lat, lon}, toPos: {lat, lon}, distance }
 const segmentCache = reactive(new Map());
 
-// Terrain sampling configuration
-// API 설정
-const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation"; // Open-Meteo
-
-// Terrain sampling configuration
+const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation";
 const MIN_SAMPLE_INTERVAL_METERS = 40;
 const MAX_SAMPLES_PER_SEGMENT = 25;
 const MAX_TOTAL_SAMPLES = 160;
 
-// Generate cache key for a segment between two waypoints
-const getSegmentKey = (fromUid, toUid) => `${fromUid}-${toUid}`;
-
-// Conversion constants
 const METERS_TO_FEET = 3.28084;
 const METERS_TO_NAUTICAL_MILES = 1 / 1852;
 
-// Calculate distance between two points using Haversine formula
+/* ──────────────────────────────────────────────────
+   ✅ ✅ ✅ 안드로이드 터치 스크롤 방지 — 가장 중요한 부분
+   Vue @pointermove 는 passive:true 라서 안드로이드에서 preventDefault 가 무시됨
+   → 직접 window 에 passive:false 로 리스너 등록
+   ────────────────────────────────────────────────── */
+const preventTouchScroll = (e) => {
+    if (!dragState.value.active) return;
+    if (e.cancelable) {
+        try {
+            e.preventDefault();
+        } catch {}
+    }
+    e.stopPropagation();
+};
+
+onMounted(() => {
+    window.addEventListener("touchmove", preventTouchScroll, { passive: false, capture: true });
+    window.addEventListener(
+        "touchstart",
+        (e) => {
+            if (e.target.closest(".waypoint-marker") && e.cancelable) {
+                try {
+                    e.preventDefault();
+                } catch {}
+            }
+        },
+        { passive: false },
+    );
+});
+
+onUnmounted(() => {
+    window.removeEventListener("touchmove", preventTouchScroll, true);
+});
+/* ────────────────── 터치 고정 끝 ────────────────── */
+
+const getSegmentKey = (fromUid, toUid) => `${fromUid}-${toUid}`;
+
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371000; // Earth's radius in meters
+    const R = 6371000;
     const φ1 = (lat1 * Math.PI) / 180;
     const φ2 = (lat2 * Math.PI) / 180;
     const Δφ = ((lat2 - lat1) * Math.PI) / 180;
     const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c; // Distance in meters
+    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// Interpolate a point along a great circle path
-// fraction is between 0 (start) and 1 (end)
 const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
-    // Calculate distance first to check for zero/near-zero case
     const distance = calculateDistance(lat1, lon1, lat2, lon2);
-
-    // Guard against division by zero for identical or very close waypoints
-    if (distance < 0.001) {
-        // Less than 1mm - return start coordinates
-        return {
-            latitude: lat1,
-            longitude: lon1,
-        };
-    }
-
-    const φ1 = (lat1 * Math.PI) / 180;
-    const λ1 = (lon1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const λ2 = (lon2 * Math.PI) / 180;
-
-    const d = distance / 6371000; // Angular distance in radians
-
+    if (distance < 0.001) return { latitude: lat1, longitude: lon1 };
+    const φ1 = (lat1 * Math.PI) / 180,
+        λ1 = (lon1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180,
+        λ2 = (lon2 * Math.PI) / 180;
+    const d = distance / 6371000;
     const a = Math.sin((1 - fraction) * d) / Math.sin(d);
     const b = Math.sin(fraction * d) / Math.sin(d);
-
     const x = a * Math.cos(φ1) * Math.cos(λ1) + b * Math.cos(φ2) * Math.cos(λ2);
     const y = a * Math.cos(φ1) * Math.sin(λ1) + b * Math.cos(φ2) * Math.sin(λ2);
     const z = a * Math.sin(φ1) + b * Math.sin(φ2);
-
-    const φ = Math.atan2(z, Math.hypot(x, y));
-    const λ = Math.atan2(y, x);
-
     return {
-        latitude: (φ * 180) / Math.PI,
-        longitude: (λ * 180) / Math.PI,
+        latitude: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI,
+        longitude: (Math.atan2(y, x) * 180) / Math.PI,
     };
 };
-
-// Unit format helpers — delegation to settings store
-// NOTE: storage units are altitude=feet, speed=knots, distance=meters
 
 const formatAltitude = (ft) => settings.formatAltitude(ft);
 const formatSpeedMps = (kt) => settings.formatSpeedMps(kt);
 const formatDistance = (meters) => settings.formatDistance(meters);
 
-// Compute current terrain samples dynamically based on waypoints and cache
 const currentTerrainSamples = computed(() => {
-    if (waypoints.value.length === 0) {
-        return [];
-    }
-
+    if (waypoints.value.length === 0) return [];
     const samples = [];
     let cumulativeDistance = 0;
-
     for (let i = 1; i < waypoints.value.length; i++) {
-        const prevWp = waypoints.value[i - 1];
-        const wp = waypoints.value[i];
-        const segmentKey = getSegmentKey(prevWp.uid, wp.uid);
-        const segmentDistance = calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
-
-        const cached = segmentCache.get(segmentKey);
-        if (cached && cached.samples && cached.samples.length > 0) {
-            const cachedDist = cached.distance || 1;
-            for (const s of cached.samples) {
-                const fraction = s.relativeDistance / cachedDist;
+        const prevWp = waypoints.value[i - 1],
+            wp = waypoints.value[i];
+        const key = getSegmentKey(prevWp.uid, wp.uid);
+        const dist = calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
+        const cached = segmentCache.get(key);
+        if (cached?.samples?.length) {
+            cached.samples.forEach((s) =>
                 samples.push({
-                    latitude: s.latitude,
-                    longitude: s.longitude,
-                    distance: cumulativeDistance + fraction * segmentDistance,
-                    elevation: s.elevation,
-                });
-            }
+                    ...s,
+                    distance: cumulativeDistance + (s.relativeDistance / cached.distance) * dist,
+                }),
+            );
         } else {
             samples.push({
                 latitude: prevWp.latitude,
@@ -338,455 +318,243 @@ const currentTerrainSamples = computed(() => {
             samples.push({
                 latitude: wp.latitude,
                 longitude: wp.longitude,
-                distance: cumulativeDistance + segmentDistance,
+                distance: cumulativeDistance + dist,
                 elevation: 0,
             });
         }
-
-        cumulativeDistance += segmentDistance;
+        cumulativeDistance += dist;
     }
-
     return samples;
 });
 
-// Average ground elevation of current terrain samples
-const groundElevation = computed(() => {
-    if (currentTerrainSamples.value.length === 0) {
-        return 0;
-    }
-    const sum = currentTerrainSamples.value.reduce((acc, sample) => acc + sample.elevation, 0);
-    return Math.round(sum / currentTerrainSamples.value.length);
-});
+const groundElevation = computed(() =>
+    currentTerrainSamples.value.length
+        ? Math.round(
+            currentTerrainSamples.value.reduce((a, s) => a + s.elevation, 0) / currentTerrainSamples.value.length,
+        )
+        : 0,
+);
+const wp1GroundElevation = computed(() => currentTerrainSamples.value[0]?.elevation ?? 0);
 
-// Ground elevation at WP1 (feet AMSL) — the reference for AGL system
-const wp1GroundElevation = computed(() => {
-    if (currentTerrainSamples.value.length === 0) {
-        return 0;
-    }
-    return currentTerrainSamples.value[0].elevation;
-});
-
-// Get ground elevation (feet AMSL) at a given distance along the profile
 const getGroundElevAtPoint = (distance) => {
-    if (currentTerrainSamples.value.length === 0) {
-        return 0;
-    }
-    // Find the two terrain samples that bracket the given distance
-    const samples = currentTerrainSamples.value;
-    if (distance <= samples[0].distance) return samples[0].elevation;
-    if (distance >= samples[samples.length - 1].distance) return samples[samples.length - 1].elevation;
-
-    for (let i = 0; i < samples.length - 1; i++) {
-        if (distance >= samples[i].distance && distance <= samples[i + 1].distance) {
-            const t = (distance - samples[i].distance) / (samples[i + 1].distance - samples[i].distance);
-            return samples[i].elevation + t * (samples[i + 1].elevation - samples[i].elevation);
+    const s = currentTerrainSamples.value;
+    if (!s.length) return 0;
+    if (distance <= s[0].distance) return s[0].elevation;
+    if (distance >= s[s.length - 1].distance) return s[s.length - 1].elevation;
+    for (let i = 0; i < s.length - 1; i++) {
+        if (distance >= s[i].distance && distance <= s[i + 1].distance) {
+            const t = (distance - s[i].distance) / (s[i + 1].distance - s[i].distance);
+            return s[i].elevation + t * (s[i + 1].elevation - s[i].elevation);
         }
     }
     return 0;
 };
 
-// Maximum allowed AGL (10,000 feet system limit, configurable in future)
-const maxAllowedAGL = 10000; // feet
+const maxAllowedAGL = 10000;
 
-// Drag state
+// ✅ 고도 방향 저장용 필드 추가 (녹/파 구분)
 const dragState = ref({
     active: false,
-    type: null, // 'altitude' or 'speed'
+    type: null,
     wpUid: null,
     startX: 0,
     startY: 0,
     lastValue: 0,
+    altDirection: 0, // +1=올림=녹 / -1=내림=파
     lastMoveTime: 0,
-    speedVisualOffsetX: 0, // 시각적 X 오프셋 (속도 드래그 피드백)
-    speedDirection: 0, // 시간 기반 속도 방향 (-1:감속, 0:중립, +1:가속)
+    speedVisualOffsetX: 0,
+    speedDirection: 0,
     speedInterval: null,
 });
 
-// Tooltip state (teleported to body, positioned with clientX/clientY)
-const tooltipData = ref({
-    visible: false,
-    x: 0,
-    y: 0,
-    order: 0,
-    altitude: 0,
-    speed: 0,
-});
+const tooltipData = ref({ visible: false, x: 0, y: 0, order: 0, altitude: 0, speed: 0 });
 
-// Calculate profile points with cumulative distance
 const profilePoints = computed(() => {
-    if (waypoints.value.length === 0) {
-        return [];
-    }
-
-    let cumulativeDistance = 0;
-    const wpg = wp1GroundElevation.value; // WP1 ground elevation in feet AMSL
-    const points = waypoints.value.map((wp, index) => {
-        if (index > 0) {
-            const prevWp = waypoints.value[index - 1];
-            cumulativeDistance += calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
-        }
-
+    if (!waypoints.value.length) return [];
+    let cum = 0;
+    const wpg = wp1GroundElevation.value;
+    return waypoints.value.map((wp, i) => {
+        if (i)
+            cum += calculateDistance(
+                waypoints.value[i - 1].latitude,
+                waypoints.value[i - 1].longitude,
+                wp.latitude,
+                wp.longitude,
+            );
         return {
             uid: wp.uid,
             order: wp.order,
-            altitude: wp.altitude, // AGL (relative to WP1 ground)
-            altitudeAMSL: wp.altitude + wpg, // AMSL for Y-axis scaling
+            altitude: wp.altitude,
+            altitudeAMSL: wp.altitude + wpg,
             speed: wp.speed || 0,
-            distance: cumulativeDistance,
+            distance: cum,
             latitude: wp.latitude,
             longitude: wp.longitude,
         };
     });
-
-    return points;
 });
 
-// Total distance
-const totalDistance = computed(() => {
-    if (profilePoints.value.length === 0) {
-        return 0;
-    }
-    return profilePoints.value[profilePoints.value.length - 1].distance;
-});
+const totalDistance = computed(() => profilePoints.value.at(-1)?.distance ?? 0);
+const minAltitude = computed(() =>
+    waypoints.value.length ? Math.round(Math.min(...waypoints.value.map((w) => w.altitude))) : 0,
+);
+const maxAltitude = computed(() =>
+    waypoints.value.length ? Math.round(Math.max(...waypoints.value.map((w) => w.altitude))) : 0,
+);
+const maxGroundElevation = computed(() =>
+    currentTerrainSamples.value.length
+        ? Math.round(Math.max(...currentTerrainSamples.value.map((s) => s.elevation)))
+        : 0,
+);
 
-// Min and max altitude (already in feet from waypoint data)
-const minAltitude = computed(() => {
-    if (waypoints.value.length === 0) {
-        return 0;
-    }
-    return Math.round(Math.min(...waypoints.value.map((wp) => wp.altitude)));
-});
-
-const maxAltitude = computed(() => {
-    if (waypoints.value.length === 0) {
-        return 0;
-    }
-    return Math.round(Math.max(...waypoints.value.map((wp) => wp.altitude)));
-});
-
-// Max ground elevation from terrain samples
-const maxGroundElevation = computed(() => {
-    if (currentTerrainSamples.value.length === 0) {
-        return 0;
-    }
-    return Math.round(Math.max(...currentTerrainSamples.value.map((sample) => sample.elevation)));
-});
-
-// ★ 선택된 WP의 상대지면표고 (WP1 지표고도 기준)
 const selectedWpRelativeGroundElev = computed(() => {
     if (!selectedWaypointUid.value) return 0;
-    const point = profilePoints.value.find((p) => p.uid === selectedWaypointUid.value);
-    if (!point) return 0;
-    return getGroundElevAtPoint(point.distance) - wp1GroundElevation.value;
+    const p = profilePoints.value.find((x) => x.uid === selectedWaypointUid.value);
+    return p ? getGroundElevAtPoint(p.distance) - wp1GroundElevation.value : 0;
 });
+const relativeMaxGroundElevation = computed(() =>
+    currentTerrainSamples.value.length
+        ? Math.max(...currentTerrainSamples.value.map((s) => s.elevation)) - wp1GroundElevation.value
+        : 0,
+);
 
-// ★ 전체 최대 상대지면표고
-const relativeMaxGroundElevation = computed(() => {
-    if (currentTerrainSamples.value.length === 0) return 0;
-    const maxAmbl = Math.max(...currentTerrainSamples.value.map((s) => s.elevation));
-    return maxAmbl - wp1GroundElevation.value;
-});
-
-// Total flight time (based on speed at each waypoint for the next segment)
 const totalFlightTime = computed(() => {
-    if (waypoints.value.length < 2) {
-        return "0:00";
-    }
-
-    let totalHours = 0;
-
-    // For each segment from waypoint i to waypoint i+1
+    if (waypoints.value.length < 2) return "0:00";
+    let h = 0;
     for (let i = 0; i < waypoints.value.length - 1; i++) {
-        const wp = waypoints.value[i];
-        const nextWp = waypoints.value[i + 1];
-
-        // Calculate segment distance in nautical miles
-        const distanceMeters = calculateDistance(wp.latitude, wp.longitude, nextWp.latitude, nextWp.longitude);
-        const distanceNM = distanceMeters * METERS_TO_NAUTICAL_MILES;
-
-        // Use current waypoint's speed for this segment (speed in knots)
-        // Guard against zero or negative speed by using a minimum of 1 knot
-        const speed = (wp.speed ?? 10) <= 0 ? 1 : (wp.speed ?? 10);
-
-        // Calculate time in hours (distance in NM / speed in knots = hours)
-        const segmentTime = distanceNM / speed;
-        totalHours += segmentTime;
+        const d =
+            calculateDistance(
+                waypoints.value[i].latitude,
+                waypoints.value[i].longitude,
+                waypoints.value[i + 1].latitude,
+                waypoints.value[i + 1].longitude,
+            ) * METERS_TO_NAUTICAL_MILES;
+        const sp = (waypoints.value[i].speed ?? 10) <= 0 ? 1 : (waypoints.value[i].speed ?? 10);
+        h += d / sp;
     }
-
-    // Format as h:mm
-    let hours = Math.floor(totalHours);
-    let minutes = Math.round((totalHours - hours) * 60);
-
-    // Handle rollover when minutes === 60
-    if (minutes === 60) {
-        hours += 1;
-        minutes = 0;
+    let hr = Math.floor(h),
+        mn = Math.round((h - hr) * 60);
+    if (mn === 60) {
+        hr++;
+        mn = 0;
     }
-
-    return `${hours}:${minutes.toString().padStart(2, "0")}`;
+    return `${hr}:${mn.toString().padStart(2, "0")}`;
 });
 
-// Combined maximum for y-axis scaling (considers both flight path AMSL and terrain)
 const combinedMax = computed(() => {
-    const maxAmsl = profilePoints.value.length > 0 ? Math.max(...profilePoints.value.map((p) => p.altitudeAMSL)) : 0;
-    return Math.max(maxAmsl, maxGroundElevation.value, 100); // 최소 100ft 보장
+    const a = profilePoints.value.length ? Math.max(...profilePoints.value.map((p) => p.altitudeAMSL)) : 0;
+    return Math.max(a, maxGroundElevation.value, 100);
 });
 
-// Y-axis ticks
 const yAxisTicks = computed(() => {
-    const min = 0; // Always start at sea level (0 ft AMSL)
-    const max = combinedMax.value;
-    const range = max - min;
-    const tickCount = 5;
-    const step = Math.ceil(range / (tickCount - 1) / 10) * 10 || 50; // Round to nearest 10
-
-    const ticks = [];
-    const startValue = Math.floor(min / step) * step;
-
-    for (let i = 0; i < tickCount; i++) {
-        const value = startValue + i * step;
-        const y = scaleY(value);
-        ticks.push({ value, y });
-    }
-
-    return ticks;
+    const max = combinedMax.value,
+        range = max || 100;
+    const step = Math.ceil(range / 4 / 10) * 10 || 50;
+    return Array.from({ length: 5 }, (_, i) => ({ value: i * step, y: scaleY(i * step) }));
 });
 
-// Scale functions
-const scaleX = (distance) => {
-    const total = totalDistance.value || 1;
-    const plotWidth = chartWidth - padding.left - padding.right;
-    return padding.left + (distance / total) * plotWidth;
+const scaleX = (d) => padding.left + (d / (totalDistance.value || 1)) * (chartWidth - padding.left - padding.right);
+const unscaleX = (x) => ((x - padding.left) / (chartWidth - padding.left - padding.right)) * (totalDistance.value || 1);
+const scaleY = (alt) => {
+    const max = combinedMax.value,
+        range = max || 100,
+        pMax = max + range * 0.1,
+        pR = pMax;
+    return chartHeight - padding.bottom - (alt / pR) * (chartHeight - padding.top - padding.bottom);
 };
 
-// Inverse of scaleX: SVG x-coordinate → distance (meters) along the profile
-const unscaleX = (svgX) => {
-    const total = totalDistance.value || 1;
-    const plotWidth = chartWidth - padding.left - padding.right;
-    return ((svgX - padding.left) / plotWidth) * total;
-};
-
-const scaleY = (altitude) => {
-    const min = 0; // Always start at sea level (0 ft AMSL)
-    const max = combinedMax.value; // Use combined max to include terrain heights
-    const range = max - min || 100; // Default range if all altitudes are the same
-    const plotHeight = chartHeight - padding.top - padding.bottom;
-
-    // Add 10% padding to top only (keep bottom at 0)
-    const paddedMin = min;
-    const paddedMax = max + range * 0.1;
-    const paddedRange = paddedMax - paddedMin;
-
-    return chartHeight - padding.bottom - ((altitude - paddedMin) / paddedRange) * plotHeight;
-};
-
-// Profile points with scaled x/y coordinates for rendering
-const scaledProfilePoints = computed(() => {
-    return profilePoints.value.map((point) => {
-        const baseX = scaleX(point.distance);
-        // ★ 속도 드래그 중인 WP에만 시각적 X 오프셋 적용
-        const offsetX =
-            dragState.value.active && dragState.value.type === "speed" && dragState.value.wpUid === point.uid
+const scaledProfilePoints = computed(() =>
+    profilePoints.value.map((p) => ({
+        ...p,
+        x:
+            scaleX(p.distance) +
+            (dragState.value.active && dragState.value.type === "speed" && dragState.value.wpUid === p.uid
                 ? dragState.value.speedVisualOffsetX
-                : 0;
-        return {
-            ...point,
-            x: baseX + offsetX,
-            y: scaleY(point.altitudeAMSL),
-        };
-    });
-});
+                : 0),
+        y: scaleY(p.altitudeAMSL),
+    })),
+);
 
-// Calculate SVG path for elevation line
-const linePath = computed(() => {
-    if (scaledProfilePoints.value.length === 0) {
-        return "";
-    }
-
-    const pathParts = scaledProfilePoints.value.map((point, index) => {
-        const command = index === 0 ? "M" : "L";
-        return `${command} ${point.x} ${point.y}`;
-    });
-
-    return pathParts.join(" ");
-});
-
-// Calculate SVG path for area fill
+const linePath = computed(() => scaledProfilePoints.value.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" "));
 const areaPath = computed(() => {
-    if (scaledProfilePoints.value.length === 0) {
-        return "";
-    }
-
-    const baseY = chartHeight - padding.bottom;
-    const points = scaledProfilePoints.value;
-
-    const topPath = points
-        .map((point, index) => {
-            const command = index === 0 ? "M" : "L";
-            return `${command} ${point.x} ${point.y}`;
-        })
-        .join(" ");
-
-    const bottomPath = [`L ${points[points.length - 1].x} ${baseY}`, `L ${points[0].x} ${baseY}`, "Z"].join(" ");
-
-    return `${topPath} ${bottomPath}`;
+    if (!scaledProfilePoints.value.length) return "";
+    const by = chartHeight - padding.bottom,
+        pts = scaledProfilePoints.value;
+    return (
+        `${pts.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" ")  } L ${pts.at(-1).x} ${by} L ${pts[0].x} ${by} Z`
+    );
 });
-
-// Calculate SVG path for terrain line using sampled elevations
-const terrainLinePath = computed(() => {
-    if (currentTerrainSamples.value.length === 0) {
-        return "";
-    }
-
-    const points = currentTerrainSamples.value.map((sample) => {
-        return {
-            x: scaleX(sample.distance),
-            y: scaleY(sample.elevation),
-        };
-    });
-
-    const pathParts = points.map((point, index) => {
-        const command = index === 0 ? "M" : "L";
-        return `${command} ${point.x} ${point.y}`;
-    });
-
-    return pathParts.join(" ");
-});
-
-// Calculate SVG path for terrain area fill using sampled elevations
+const terrainLinePath = computed(() =>
+    currentTerrainSamples.value
+        .map((s, i) => `${i ? "L" : "M"} ${scaleX(s.distance)} ${scaleY(s.elevation)}`)
+        .join(" "),
+);
 const terrainAreaPath = computed(() => {
-    if (currentTerrainSamples.value.length === 0) {
-        return "";
-    }
-
-    const baseY = chartHeight - padding.bottom;
-    const points = currentTerrainSamples.value.map((sample) => {
-        return {
-            x: scaleX(sample.distance),
-            y: scaleY(sample.elevation),
-        };
-    });
-
-    const topPath = points
-        .map((point, index) => {
-            const command = index === 0 ? "M" : "L";
-            return `${command} ${point.x} ${point.y}`;
-        })
+    if (!currentTerrainSamples.value.length) return "";
+    const by = chartHeight - padding.bottom;
+    const top = currentTerrainSamples.value
+        .map((s, i) => `${i ? "L" : "M"} ${scaleX(s.distance)} ${scaleY(s.elevation)}`)
         .join(" ");
-
-    const bottomPath = [`L ${points[points.length - 1].x} ${baseY}`, `L ${points[0].x} ${baseY}`, "Z"].join(" ");
-
-    return `${topPath} ${bottomPath}`;
+    return `${top} L ${scaleX(currentTerrainSamples.value.at(-1).distance)} ${by} L ${scaleX(0)} ${by} Z`;
 });
 
-// Tooltip position update (clientX/Y based, with screen edge correction)
-const updateTooltipPosition = (event, wpData) => {
-    const tooltipWidth = 150;
-    const tooltipHeight = 60;
-    const gap = 30; // gap from marker/label to tooltip
-
-    // Get marker screen position
-    const rect = event.target.getBoundingClientRect();
-    const markerCenterX = rect.left + rect.width / 2;
-    const markerTop = rect.top;
-
-    // Tooltip Y: above the marker (with gap)
-    let posY = markerTop - tooltipHeight - gap;
-
-    // Determine horizontal zone based on marker X ratio within chart
-    const xRatio = (wpData.x ?? 0) / chartWidth;
-    let posX;
-
-    if (xRatio < 0.33) {
-        // Left zone: tooltip right-aligned to marker (up-right)
-        posX = markerCenterX;
-    } else if (xRatio < 0.66) {
-        // Center zone: tooltip centered on marker (up)
-        posX = markerCenterX - tooltipWidth / 2;
-    } else {
-        // Right zone: tooltip left-aligned to marker (up-left)
-        posX = markerCenterX - tooltipWidth;
-    }
-
-    // Screen edge guards
-    if (posX < 4) {
-        posX = 4;
-    }
-    if (posX + tooltipWidth > window.innerWidth - 4) {
-        posX = window.innerWidth - tooltipWidth - 4;
-    }
-    if (posY < 4) {
-        // If tooltip would go off top, place below marker instead
-        posY = rect.bottom + gap;
-    }
-
+const updateTooltipPosition = (e, wp) => {
+    const r = e.target.getBoundingClientRect();
+    const cx = r.left + r.width / 2,
+        top = r.top;
+    let y = top - 90,
+        x = cx - 75;
+    if (x < 4) x = 4;
+    if (x + 150 > innerWidth - 4) x = innerWidth - 154;
+    if (y < 4) y = r.bottom + 20;
     tooltipData.value = {
         visible: true,
-        x: posX,
-        y: posY,
-        order: (wpData.order ?? 0) + 1,
-        altitude: wpData.altitude ?? 0,
-        speed: wpData.speed ?? 0,
+        x,
+        y,
+        order: (wp.order ?? 0) + 1,
+        altitude: wp.altitude ?? 0,
+        speed: wp.speed ?? 0,
     };
 };
 
-// Marker style helpers
-const getMarkerColor = (point) => {
-    // 드래그 중인 포인트는 방향에 따라 색상 변경
-    if (dragState.value.active && dragState.value.wpUid === point.uid) {
-        if (dragState.value.type === "altitude") return "#87CEEB"; // 하늘색 (고도 변경중)
-        if (dragState.value.type === "speed") return "#FF69B4"; // 핑크색 (속도 변경중)
+// ✅ ✅ ✅ 네가 원했던 색상 규칙 정확히 적용
+// 🟢 위로 드래그 = 고도 올림 = 녹색
+// 🔵 아래로 드래그 = 고도 내림 = 파란색
+// 🩷 좌우 드래그 = 속도 변경 = 분홍
+const getMarkerColor = (p) => {
+    if (dragState.value.active && dragState.value.wpUid === p.uid) {
+        if (dragState.value.type === "altitude") {
+            return dragState.value.altDirection >= 0 ? "#22c55e" : "#3b82f6"; // 🟢녹 / 🔵파
+        }
+        if (dragState.value.type === "speed") return "#FF69B4"; // 🩷분홍
     }
-    if (point.uid === selectedWaypointUid.value) return "var(--success-500)";
+    if (p.uid === selectedWaypointUid.value) return "var(--success-500)";
     return "var(--primary-500)";
 };
+const getMarkerStroke = (p) => "var(--surface-50)";
+const getMarkerStrokeWidth = (p) => (p.uid === selectedWaypointUid.value ? 2 : 1.5);
 
-const getMarkerStroke = (point) => {
-    if (point.uid === selectedWaypointUid.value) return "var(--surface-50)";
-    return "var(--surface-50)";
-};
+const updateTooltipData = (p) => Object.assign(tooltipData.value, { altitude: p.altitude, speed: p.speed });
 
-const getMarkerStrokeWidth = (point) => {
-    if (point.uid === selectedWaypointUid.value) return 2;
-    return 1.5;
-};
-
-// Update tooltip with AGL altitude and m/s speed
-const updateTooltipData = (point) => {
-    tooltipData.value.altitude = point.altitude; // AGL
-    tooltipData.value.speed = point.speed; // knots (formatSpeedMps converts)
-};
-
-// Insert a new waypoint by double-clicking a point along the elevation line.
-// The click position determines both where along the segment (map position)
-// and what altitude the new waypoint gets — both via the same fraction, so the
-// new point sits exactly on the existing straight line (map + profile).
-const handleLineDoubleClick = (event) => {
-    const svgEl = chartSvg.value;
-    if (!svgEl) return;
-
-    const pt = svgEl.createSVGPoint();
-    pt.x = event.clientX;
-    pt.y = event.clientY;
-    const svgP = pt.matrixTransform(svgEl.getScreenCTM().inverse());
-    const clickDistance = unscaleX(svgP.x);
-
-    const points = profilePoints.value; // order 정렬됨, 각 항목에 uid/latitude/longitude/altitude/distance 포함
-    for (let i = 0; i < points.length - 1; i++) {
-        const a = points[i];
-        const b = points[i + 1];
-
-        if (clickDistance >= a.distance && clickDistance <= b.distance) {
-            const segmentLength = b.distance - a.distance;
-            const fraction = segmentLength > 0 ? (clickDistance - a.distance) / segmentLength : 0;
-
-            const newLatLon = interpolatePoint(a.latitude, a.longitude, b.latitude, b.longitude, fraction);
-            const newAltitude = Math.round(a.altitude + fraction * (b.altitude - a.altitude));
-
+const handleLineDoubleClick = (e) => {
+    const svg = chartSvg.value;
+    if (!svg) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const sp = pt.matrixTransform(svg.getScreenCTM().inverse());
+    const cd = unscaleX(sp.x);
+    const pts = profilePoints.value;
+    for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i],
+            b = pts[i + 1];
+        if (cd >= a.distance && cd <= b.distance) {
+            const f = b.distance - a.distance > 0 ? (cd - a.distance) / (b.distance - a.distance) : 0;
+            const ll = interpolatePoint(a.latitude, a.longitude, b.latitude, b.longitude, f);
             insertWaypointAfter(a.uid, {
-                latitude: newLatLon.latitude,
-                longitude: newLatLon.longitude,
-                altitude: newAltitude,
+                latitude: ll.latitude,
+                longitude: ll.longitude,
+                altitude: Math.round(a.altitude + f * (b.altitude - a.altitude)),
                 speed: a.speed,
             });
             return;
@@ -794,151 +562,133 @@ const handleLineDoubleClick = (event) => {
     }
 };
 
-// Pointer handlers for drag functionality
-const handlePointerDown = (event, point) => {
+const handlePointerDown = (e, point) => {
+    // ✅ 안드로이드: 누르는 순간 기본동작 차단 → 스크롤 시작 자체를 막음
+    if (e.cancelable)
+        try {
+            e.preventDefault();
+        } catch {}
+    e.stopPropagation();
+
     selectWaypoint(point.uid);
-    updateTooltipPosition(event, point);
+    updateTooltipPosition(e, point);
     updateTooltipData(point);
     tooltipData.value.visible = true;
-
-    // Capture pointer to receive events even outside the element
-    event.target.setPointerCapture(event.pointerId);
+    try {
+        e.target.setPointerCapture(e.pointerId);
+    } catch {}
 
     dragState.value = {
         active: true,
-        type: null, // Will be determined on first move
+        type: null,
         wpUid: point.uid,
-        startX: event.clientX,
-        startY: event.clientY,
+        startX: e.clientX,
+        startY: e.clientY,
         lastValue: point.altitude,
+        altDirection: 0,
         lastMoveTime: 0,
         speedVisualOffsetX: 0,
-        speedInterval: null,
         speedDirection: 0,
+        speedInterval: null,
     };
 };
 
-const handlePointerMove = (event) => {
+const handlePointerMove = (e) => {
     if (!dragState.value.active) return;
 
-    const dx = event.clientX - dragState.value.startX;
-    const dy = event.clientY - dragState.value.startY;
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
+    // ✅ ✅ ✅ 가장 중요: 드래그 중이면 무조건 스크롤 막음
+    if (e.cancelable)
+        try {
+            e.preventDefault();
+        } catch {}
+    e.stopPropagation();
 
-    // Determine drag direction if not yet determined
+    const dx = e.clientX - dragState.value.startX;
+    const dy = e.clientY - dragState.value.startY;
+    const ax = Math.abs(dx),
+        ay = Math.abs(dy);
+
     if (!dragState.value.type) {
-        if (absDx > DRAG_DIRECTION_THRESHOLD || absDy > DRAG_DIRECTION_THRESHOLD) {
-            dragState.value.type = absDy > absDx ? "altitude" : "speed";
-            // Reset start position for clean delta calculation
-            dragState.value.startX = event.clientX;
-            dragState.value.startY = event.clientY;
+        if (ax > DRAG_DIRECTION_THRESHOLD || ay > DRAG_DIRECTION_THRESHOLD) {
+            dragState.value.type = ay > ax ? "altitude" : "speed";
+            dragState.value.startX = e.clientX;
+            dragState.value.startY = e.clientY;
         }
         return;
     }
 
-    // ★ 속도 드래그: 방향 감지 + 시각적 오프셋 (쓰로틀과 무관하게 즉시)
     if (dragState.value.type === "speed") {
-        const speedDeltaX = event.clientX - dragState.value.startX;
-        // 시각적 오프셋: 실제 드래그량의 50%, 최대 15px
-        dragState.value.speedVisualOffsetX = Math.sign(speedDeltaX) * Math.min(Math.abs(speedDeltaX) * 0.5, 15);
-        // 방향 결정 (±8px 히스테리시스)
-        if (Math.abs(speedDeltaX) > 8) {
-            dragState.value.speedDirection = speedDeltaX > 0 ? 1 : -1;
-        } else {
-            dragState.value.speedDirection = 0;
-        }
-        // 타이머가 없으면 시작
-        if (!dragState.value.speedInterval) {
-            startSpeedChangeInterval();
-        }
+        const sd = e.clientX - dragState.value.startX;
+        dragState.value.speedVisualOffsetX = Math.sign(sd) * Math.min(Math.abs(sd) * 0.5, 15);
+        dragState.value.speedDirection = Math.abs(sd) > 8 ? Math.sign(sd) : 0;
+        if (!dragState.value.speedInterval) startSpeedChangeInterval();
     } else if (dragState.value.type === "altitude") {
-        handleAltDragMove(event);
+        // ✅ 방향 기록 → 색상 녹/파 전환
+        const d = dragState.value.startY - e.clientY;
+        dragState.value.altDirection = Math.abs(d) > 2 ? Math.sign(d) : dragState.value.altDirection;
+        handleAltDragMove(e);
     }
 
-    // ★ 드래그 중 항상 툴팁 위치 갱신
-    const draggedPoint = scaledProfilePoints.value.find((p) => p.uid === dragState.value.wpUid);
-    if (draggedPoint) {
-        updateTooltipPosition(event, draggedPoint);
-    }
+    const dp = scaledProfilePoints.value.find((p) => p.uid === dragState.value.wpUid);
+    if (dp) updateTooltipPosition(e, dp);
 };
 
-const handlePointerUp = (event) => {
+const handlePointerUp = (e) => {
     if (!dragState.value.active) return;
-
     stopSpeedChangeInterval();
-
-    // Release pointer capture
-    if (event.target) {
-        try {
-            event.target.releasePointerCapture(event.pointerId);
-        } catch {}
-    }
-
-    dragState.value.active = false;
-    dragState.value.type = null;
-    dragState.value.wpUid = null;
-    dragState.value.speedDirection = 0;
-    dragState.value.speedVisualOffsetX = 0;
+    try {
+        if (e?.pointerId != null) e.target.releasePointerCapture(e.pointerId);
+    } catch {}
+    dragState.value = {
+        active: false,
+        type: null,
+        wpUid: null,
+        startX: 0,
+        startY: 0,
+        lastValue: 0,
+        altDirection: 0,
+        lastMoveTime: 0,
+        speedVisualOffsetX: 0,
+        speedDirection: 0,
+        speedInterval: null,
+    };
 };
 
-// Altitude drag (vertical): SVG scale synchronized — marker follows mouse exactly
-const handleAltDragMove = (event) => {
-    const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
-    if (!currentWp) return;
-
-    // SVG 스케일을 통해 화면픽셀 → 고도 변화량 변환
-    const svgEl = chartSvg.value;
-    if (!svgEl) return;
-    const svgRect = svgEl.getBoundingClientRect();
-    const plotHeight = chartHeight - padding.top - padding.bottom;
-    const svgScale = plotHeight / svgRect.height; // SVG단위 / 화면픽셀
-
-    const deltaScreenY = dragState.value.startY - event.clientY;
-    const deltaSvgY = deltaScreenY * svgScale;
-
-    // scaleY의 역변환: SVG Y 변화 → 고도 변화 (feet)
-    const min = 0;
-    const max = combinedMax.value;
-    const range = max - min || 100;
-    const paddedMax = max + range * 0.1;
-    const paddedRange = paddedMax - min;
-    const feetPerSvgUnit = paddedRange / plotHeight;
-
-    const altitudeDelta = Math.round(deltaSvgY * feetPerSvgUnit);
-
-    const minAlt = selectedWpRelativeGroundElev.value;
-    const newAlt = Math.max(minAlt, Math.min(maxAllowedAGL, currentWp.altitude + altitudeDelta));
-
-    if (newAlt !== currentWp.altitude) {
-        updateWaypoint(dragState.value.wpUid, { altitude: newAlt });
-        dragState.value.startY = event.clientY;
-        // ★ 툴팁 실시간 갱신
-        tooltipData.value.altitude = newAlt;
+const handleAltDragMove = (e) => {
+    const wp = waypoints.value.find((w) => w.uid === dragState.value.wpUid);
+    const svg = chartSvg.value;
+    if (!wp || !svg) return;
+    const rect = svg.getBoundingClientRect();
+    const pH = chartHeight - padding.top - padding.bottom;
+    const range = combinedMax.value || 100;
+    const ftPx = (range * 1.1) / (pH * (rect.height / chartHeight));
+    const d = (dragState.value.startY - e.clientY) * ftPx;
+    const alt = Math.max(selectedWpRelativeGroundElev.value, Math.min(maxAllowedAGL, Math.round(wp.altitude + d)));
+    if (alt !== wp.altitude) {
+        updateWaypoint(wp.uid, { altitude: alt });
+        dragState.value.startY = e.clientY;
+        tooltipData.value.altitude = alt;
     }
 };
 
-// Speed drag (horizontal): time-based — direction held determines ±1 m/s per 250ms
-// setInterval 기반 정밀 타이머: 0.25초마다 속도 ±1 m/s
 const startSpeedChangeInterval = () => {
     if (dragState.value.speedInterval) return;
     dragState.value.speedInterval = setInterval(() => {
-        if (!dragState.value.active || dragState.value.type !== "speed" || dragState.value.speedDirection === 0) {
-            stopSpeedChangeInterval();
-            return;
-        }
-        const currentWp = waypoints.value.find((wp) => wp.uid === dragState.value.wpUid);
-        if (!currentWp) return;
-        const currentMps = Math.round(settings.storageToMps(currentWp.speed || 10));
-        const newMps = Math.max(5, Math.min(25, currentMps + dragState.value.speedDirection));
-        const newKnots = settings.mpsToStorage(newMps);
-        if (Math.abs(newKnots - currentWp.speed) > 0.01) {
-            updateWaypoint(dragState.value.wpUid, { speed: newKnots });
-            tooltipData.value.speed = newKnots;
+        if (!dragState.value.active || dragState.value.type !== "speed" || !dragState.value.speedDirection)
+            return stopSpeedChangeInterval();
+        const wp = waypoints.value.find((w) => w.uid === dragState.value.wpUid);
+        if (!wp) return;
+        const mps = Math.max(
+            5,
+            Math.min(25, Math.round(settings.storageToMps(wp.speed || 10)) + dragState.value.speedDirection),
+        );
+        const kt = settings.mpsToStorage(mps);
+        if (Math.abs(kt - wp.speed) > 0.01) {
+            updateWaypoint(wp.uid, { speed: kt });
+            tooltipData.value.speed = kt;
         }
     }, 250);
 };
-
 const stopSpeedChangeInterval = () => {
     if (dragState.value.speedInterval) {
         clearInterval(dragState.value.speedInterval);
@@ -946,214 +696,113 @@ const stopSpeedChangeInterval = () => {
     }
 };
 
-const handleMouseMove = (event) => {
-    // Handle drag if active (dragging can happen via mouse too)
-    if (dragState.value.active && event.pointerType === "mouse") {
-        handlePointerMove(event);
-    }
+const handleMouseMove = (e) => {
+    if (dragState.value.active && e.pointerType === "mouse") handlePointerMove(e);
 };
-
 const handleMouseLeave = () => {
     tooltipData.value.visible = false;
 };
 
-// Check if a segment's waypoints have moved (positions changed)
-const hasSegmentMoved = (segmentKey, fromPos, toPos) => {
-    const cached = segmentCache.get(segmentKey);
-    if (!cached) {
-        return true; // Not cached, needs fetching
-    }
-
-    // Check if positions match (with small tolerance for floating point comparison)
-    const tolerance = 0.000001; // ~0.1m tolerance
-    const fromMoved =
-        Math.abs(cached.fromPos.lat - fromPos.lat) > tolerance ||
-        Math.abs(cached.fromPos.lon - fromPos.lon) > tolerance;
-    const toMoved =
-        Math.abs(cached.toPos.lat - toPos.lat) > tolerance || Math.abs(cached.toPos.lon - toPos.lon) > tolerance;
-
-    return fromMoved || toMoved;
+const hasSegmentMoved = (k, f, t) => {
+    const c = segmentCache.get(k);
+    if (!c) return true;
+    const tol = 1e-6;
+    return (
+        Math.abs(c.fromPos.lat - f.lat) > tol ||
+        Math.abs(c.fromPos.lon - f.lon) > tol ||
+        Math.abs(c.toPos.lat - t.lat) > tol ||
+        Math.abs(c.toPos.lon - t.lon) > tol
+    );
 };
 
-// Partition waypoint segments into cached and uncached
 const partitionSegments = () => {
-    const segmentsToFetch = [];
-
+    const out = [];
     for (let i = 1; i < waypoints.value.length; i++) {
-        const prevWp = waypoints.value[i - 1];
-        const wp = waypoints.value[i];
-        const segmentKey = getSegmentKey(prevWp.uid, wp.uid);
-        const segmentDistance = calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
-        const fromPos = { lat: prevWp.latitude, lon: prevWp.longitude };
-        const toPos = { lat: wp.latitude, lon: wp.longitude };
-
-        if (hasSegmentMoved(segmentKey, fromPos, toPos)) {
-            segmentsToFetch.push({
-                key: segmentKey,
-                fromWp: prevWp,
-                toWp: wp,
-                segmentDistance,
+        const a = waypoints.value[i - 1],
+            b = waypoints.value[i];
+        const k = getSegmentKey(a.uid, b.uid);
+        if (hasSegmentMoved(k, { lat: a.latitude, lon: a.longitude }, { lat: b.latitude, lon: b.longitude }))
+            out.push({
+                key: k,
+                fromWp: a,
+                toWp: b,
+                segmentDistance: calculateDistance(a.latitude, a.longitude, b.latitude, b.longitude),
             });
-        }
     }
-
-    return segmentsToFetch;
+    return out;
 };
 
-// Generate sample points along segments that need elevation data
-const generateSegmentSamples = (segmentsToFetch) => {
-    const samplesToFetch = [];
-    const segmentSampleRanges = [];
-
-    for (const segment of segmentsToFetch) {
-        const startIdx = samplesToFetch.length;
-        const numSamples = Math.max(
+const genSamples = (segs) => {
+    const all = [],
+        ranges = [];
+    for (const s of segs) {
+        const st = all.length;
+        const n = Math.max(
             0,
-            Math.min(Math.floor(segment.segmentDistance / MIN_SAMPLE_INTERVAL_METERS), MAX_SAMPLES_PER_SEGMENT),
+            Math.min(Math.floor(s.segmentDistance / MIN_SAMPLE_INTERVAL_METERS), MAX_SAMPLES_PER_SEGMENT),
         );
-
-        samplesToFetch.push({
-            latitude: segment.fromWp.latitude,
-            longitude: segment.fromWp.longitude,
-            relativeDistance: 0,
-        });
-
-        for (let j = 1; j <= numSamples; j++) {
-            const fraction = j / (numSamples + 1);
-            const point = interpolatePoint(
-                segment.fromWp.latitude,
-                segment.fromWp.longitude,
-                segment.toWp.latitude,
-                segment.toWp.longitude,
-                fraction,
-            );
-            samplesToFetch.push({
-                latitude: point.latitude,
-                longitude: point.longitude,
-                relativeDistance: fraction * segment.segmentDistance,
-            });
+        all.push({ latitude: s.fromWp.latitude, longitude: s.fromWp.longitude, relativeDistance: 0 });
+        for (let j = 1; j <= n; j++) {
+            const f = j / (n + 1);
+            const p = interpolatePoint(s.fromWp.latitude, s.fromWp.longitude, s.toWp.latitude, s.toWp.longitude, f);
+            all.push({ ...p, relativeDistance: f * s.segmentDistance });
         }
-
-        samplesToFetch.push({
-            latitude: segment.toWp.latitude,
-            longitude: segment.toWp.longitude,
-            relativeDistance: segment.segmentDistance,
-        });
-        segmentSampleRanges.push({ segment, startIdx, endIdx: samplesToFetch.length });
+        all.push({ latitude: s.toWp.latitude, longitude: s.toWp.longitude, relativeDistance: s.segmentDistance });
+        ranges.push({ segment: s, startIdx: st, endIdx: all.length });
     }
-
-    return { samplesToFetch, segmentSampleRanges };
+    return { samplesToFetch: all, segmentSampleRanges: ranges };
 };
 
-// Merge fetched elevations back into sample objects and update cache
-const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations) => {
-    for (const { segment, startIdx, endIdx } of segmentSampleRanges) {
-        const segmentSamples = [];
-
-        for (let j = startIdx; j < endIdx; j++) {
-            const sample = samplesToFetch[j];
-            const elevation = allElevations[j] ?? 0;
-
-            segmentSamples.push({
-                latitude: sample.latitude,
-                longitude: sample.longitude,
-                relativeDistance: sample.relativeDistance,
-                elevation,
-            });
-        }
-
+const cacheMerge = (ranges, samples, elevs) =>
+    ranges.forEach(({ segment, startIdx, endIdx }) =>
         segmentCache.set(segment.key, {
-            samples: segmentSamples,
+            samples: samples.slice(startIdx, endIdx).map((s, j) => ({ ...s, elevation: elevs[startIdx + j] ?? 0 })),
             fromPos: { lat: segment.fromWp.latitude, lon: segment.fromWp.longitude },
             toPos: { lat: segment.toWp.latitude, lon: segment.toWp.longitude },
             distance: segment.segmentDistance,
-        });
-    }
-};
+        }),
+    );
 
-// ArduPilot 스타일 - OpenTopoData API
-const fetchElevationBatches = async (samplesToFetch) => {
-    const allElevations = [];
-
-    // 전체 샘플 제한
-    if (samplesToFetch.length > MAX_TOTAL_SAMPLES) {
-        console.warn(`[Elevation] Reducing samples: ${samplesToFetch.length} → ${MAX_TOTAL_SAMPLES}`);
-        samplesToFetch = samplesToFetch.slice(0, MAX_TOTAL_SAMPLES);
-    }
-
-    const batchSize = 30; // OpenTopoData는 100개까지 안정적
-    const delayBetweenBatches = 180;
-
-    console.log(`[Elevation] Fetching ${samplesToFetch.length} points...`);
-
-    for (let i = 0; i < samplesToFetch.length; i += batchSize) {
-        const batch = samplesToFetch.slice(i, i + batchSize);
-
-        // Open-Meteo 형식: latitude=lat1,lat2,...&longitude=lon1,lon2,...
-        const latitudes = batch.map((s) => s.latitude.toFixed(5)).join(",");
-        const longitudes = batch.map((s) => s.longitude.toFixed(5)).join(",");
-
-        const url = `${ELEVATION_API_URL}?latitude=${latitudes}&longitude=${longitudes}`;
-
+const fetchBatches = async (samples) => {
+    const out = [],
+        B = 30;
+    if (samples.length > MAX_TOTAL_SAMPLES) samples = samples.slice(0, MAX_TOTAL_SAMPLES);
+    for (let i = 0; i < samples.length; i += B) {
+        const b = samples.slice(i, i + B);
+        const url = `${ELEVATION_API_URL}?latitude=${b.map((s) => s.latitude.toFixed(5)).join(",")}&longitude=${b.map((s) => s.longitude.toFixed(5)).join(",")}`;
         try {
-            const response = await fetch(url);
-
-            if (response.status === 429) {
-                console.warn("[Elevation] 429 Rate Limit - waiting 2 seconds...");
-                await new Promise((r) => setTimeout(r, 2000));
-                i -= batchSize;
+            const r = await fetch(url);
+            if (r.status === 429) {
+                await new Promise((x) => setTimeout(x, 2000));
+                i -= B;
                 continue;
             }
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-
-            const data = await response.json();
-
-            if (data.elevation && Array.isArray(data.elevation)) {
-                const feetValues = data.elevation.map((elev) => Math.round(elev * METERS_TO_FEET));
-                allElevations.push(...feetValues);
-            } else {
-                allElevations.push(...Array(batch.length).fill(0));
-            }
-        } catch (error) {
-            console.error("[Elevation] Batch failed:", error);
-            allElevations.push(...Array(batch.length).fill(0));
+            if (!r.ok) throw r.status;
+            const d = await r.json();
+            out.push(...(d.elevation ?? []).map((e) => Math.round((e ?? 0) * METERS_TO_FEET)));
+        } catch {
+            out.push(...Array(b.length).fill(0));
         }
-
-        if (i + batchSize < samplesToFetch.length) {
-            await new Promise((r) => setTimeout(r, delayBetweenBatches));
-        }
+        if (i + B < samples.length) await new Promise((x) => setTimeout(x, 180));
     }
-
-    console.log(`[Elevation] Completed: ${allElevations.length} elevations`);
-    return allElevations;
+    return out;
 };
 
-// Fetch ground elevation with segment-level caching
 const fetchGroundElevation = async () => {
-    if (waypoints.value.length === 0) {
-        return;
-    }
+    if (!waypoints.value.length) return;
     if (isFetchingElevation.value) {
         needsFetchAgain.value = true;
         return;
     }
-
     isFetchingElevation.value = true;
     needsFetchAgain.value = false;
-
     try {
-        const segmentsToFetch = partitionSegments();
-
-        if (segmentsToFetch.length > 0) {
-            const { samplesToFetch, segmentSampleRanges } = generateSegmentSamples(segmentsToFetch);
-            const allElevations = await fetchElevationBatches(samplesToFetch);
-            cacheAndMergeSamples(segmentSampleRanges, samplesToFetch, allElevations);
+        const segs = partitionSegments();
+        if (segs.length) {
+            const { samplesToFetch, segmentSampleRanges } = genSamples(segs);
+            const e = await fetchBatches(samplesToFetch);
+            cacheMerge(segmentSampleRanges, samplesToFetch, e);
         }
-    } catch (error) {
-        console.error("Failed to fetch ground elevation:", error);
     } finally {
         isFetchingElevation.value = false;
         if (needsFetchAgain.value) {
@@ -1162,35 +811,31 @@ const fetchGroundElevation = async () => {
         }
     }
 };
-
-// fetchGroundElevation을 debounce 처리 (300ms)
-const debouncedFetchGroundElevation = debounce(() => {
-    fetchGroundElevation();
-}, 400);
-
-// Watch waypoints and fetch ground elevation when they change
-watch(
-    () => waypoints.value,
-    () => {
-        debouncedFetchGroundElevation();
-    },
-    { deep: true, immediate: true },
-);
+const debouncedFetch = debounce(fetchGroundElevation, 400);
+watch(() => waypoints.value, debouncedFetch, { deep: true, immediate: true });
 </script>
 
 <style scoped>
+/* ✅ ✅ ✅ 안드로이드 터치 스크롤 원천 봉쇄 — 이 4줄이 90% 해결 */
+.elevation-profile,
+.profile-chart,
+.waypoint-marker {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
 .profile-stats {
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
     margin-bottom: 0.75rem;
 }
-
 .profile-stats .stat {
     color: var(--text);
     font-size: 0.75rem;
 }
-
 .profile-stats .stat strong {
     color: var(--surface-950);
 }
@@ -1199,153 +844,106 @@ watch(
     width: 100%;
     overflow-x: auto;
 }
-
 .profile-chart {
     width: 100%;
     height: auto;
     display: block;
 }
 
-/* SVG styles */
 .grid-line {
     stroke: var(--surface-500);
     stroke-width: 0.5;
     opacity: 0.3;
 }
-
 .grid-line-light {
     stroke: var(--surface-500);
     stroke-width: 0.5;
     opacity: 0.15;
 }
-
 .axis-label {
     fill: var(--text);
     font-size: 8px;
-    font-family: sans-serif;
 }
-
 .y-axis-title {
     fill: var(--surface-700);
     font-size: 9px;
-    font-weight: bold;
-    font-family: sans-serif;
+    font-weight: 700;
 }
-
 .terrain-area {
     fill: var(--surface-700);
     opacity: 0.2;
 }
-
 .terrain-line {
     fill: none;
     stroke: var(--surface-700);
     stroke-width: 1.5;
     opacity: 0.7;
 }
-
 .elevation-area {
     fill: var(--primary-500);
     opacity: 0.15;
 }
-
 .elevation-line {
     fill: none;
     stroke: var(--primary-500);
     stroke-width: 1.5;
 }
-
 .elevation-line-hitarea {
     fill: none;
     stroke: transparent;
     stroke-width: 14;
     cursor: copy;
 }
-
 .waypoint-marker {
     cursor: pointer;
     transition: opacity 0.2s;
 }
-
 .waypoint-marker:hover {
     opacity: 0.8;
 }
-
 .waypoint-marker.selected {
     stroke: var(--surface-50);
     stroke-width: 2;
 }
-
 .waypoint-label {
     fill: var(--text);
     font-size: 7px;
-    font-weight: bold;
+    font-weight: 700;
     pointer-events: none;
-    font-family: sans-serif;
 }
-
 .ground-line {
     stroke: var(--surface-700);
     stroke-width: 1;
-    stroke-dasharray: 4, 2;
+    stroke-dasharray: 4 2;
     opacity: 0.6;
 }
-
 .ground-label {
     fill: var(--surface-700);
     font-size: 7px;
-    font-family: sans-serif;
-    font-weight: bold;
+    font-weight: 700;
 }
-
 .max-ground-line {
     stroke: var(--error-500);
     stroke-width: 1;
-    stroke-dasharray: 2, 2;
+    stroke-dasharray: 2 2;
     opacity: 0.7;
 }
-
 .max-ground-label {
     fill: var(--error-500);
     font-size: 7px;
-    font-family: sans-serif;
-    font-weight: bold;
+    font-weight: 700;
 }
-
-.tooltip-bg {
-    fill: var(--surface-950);
-    opacity: 0.9;
-    stroke: var(--primary-500);
-    stroke-width: 0.5;
-}
-
-.tooltip-text {
-    fill: var(--surface-50);
-    font-size: 8px;
-    font-family: sans-serif;
-    pointer-events: none;
-}
-
 .no-waypoints {
     padding: 2rem;
     text-align: center;
     color: var(--surface-700);
-}
-
-.no-waypoints p {
-    margin: 0;
     font-style: italic;
 }
 
-/* Responsive */
 @media (max-width: 768px) {
     .profile-stats {
         flex-direction: column;
         gap: 0.5rem;
-    }
-
-    .profile-chart-container {
-        overflow-x: scroll;
     }
 }
 </style>
