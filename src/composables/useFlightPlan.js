@@ -163,8 +163,16 @@ export function useFlightPlan() {
         }
     };
 
+    const MAX_WAYPOINTS = 15; // 펌웨어 제한 (STM32 플래시 크기)
+
     // Add waypoint
     const addWaypoint = (waypointData) => {
+        // 펌웨어 제한: 최대 15개
+        if (state.waypoints.length >= MAX_WAYPOINTS) {
+            console.warn(`Waypoint limit reached (${MAX_WAYPOINTS}), cannot add more`);
+            return false;
+        }
+
         // Validate coordinates and altitude
         if (!validateWaypoint(waypointData)) {
             return false;
