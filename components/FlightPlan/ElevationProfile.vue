@@ -225,8 +225,9 @@ const elevationFetchSeq = ref(0); // Monotonic sequence to prevent race conditio
 const segmentCache = ref(new Map());
 
 // Terrain sampling configuration
-const MIN_SAMPLE_INTERVAL_METERS = 50; // Minimum distance between samples (50m resolution)
-const MAX_SAMPLES_PER_SEGMENT = 50; // Maximum samples between waypoints
+const MIN_SAMPLE_INTERVAL_METERS = 40; // Minimum distance between samples (40m resolution)
+const MAX_SAMPLES_PER_SEGMENT = 25; // Maximum samples between waypoints
+const MAX_TOTAL_SAMPLES = 160; // Maximum total samples across all segments
 
 // Generate cache key for a segment between two waypoints
 const getSegmentKey = (fromUid, toUid) => `${fromUid}-${toUid}`;
@@ -996,9 +997,15 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
 
 // Open-Meteo용 안정 버전 (Rate Limit 최소화)
 const fetchElevationBatches = async (samplesToFetch) => {
+    // 전체 샘플 제한 (성능 + Rate Limit 보호)
+    if (samplesToFetch.length > MAX_TOTAL_SAMPLES) {
+        console.warn(`[Elevation] Reducing samples: ${samplesToFetch.length} → ${MAX_TOTAL_SAMPLES}`);
+        samplesToFetch = samplesToFetch.slice(0, MAX_TOTAL_SAMPLES);
+    }
+
     const allElevations = [];
-    const batchSize = 30; // 한 번에 최대 30개만 요청 (안전)
-    const delayBetweenBatches = 450; // 배치 간 450ms 대기
+    const batchSize = 15; // 한 번에 최대 15개만 요청 (안전)
+    const delayBetweenBatches = 300; // 배치 간 300ms 대기
 
     console.log(`[Elevation] Starting fetch for ${samplesToFetch.length} points...`);
 
