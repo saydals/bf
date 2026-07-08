@@ -259,6 +259,55 @@ export function useFlightPlan() {
         return true;
     };
 
+    // Insert a new waypoint immediately after the given waypoint (splitting a segment).
+    // Used by ElevationProfile's "double-click on the line" feature.
+    const insertWaypointAfter = (afterUid, waypointData) => {
+        // 펌웨어 제한: 최대 15개 (addWaypoint와 동일 정책)
+        if (state.waypoints.length >= MAX_WAYPOINTS) {
+            console.warn(`Waypoint limit reached (${MAX_WAYPOINTS}), cannot insert more`);
+            return false;
+        }
+
+        const merged = {
+            type: DEFAULT_TYPE,
+            ...waypointData,
+        };
+
+        if (!validateWaypoint(merged)) {
+            return false;
+        }
+
+        // Work on the full order-sorted list (includes modifier waypoints too —
+        // order numbering is shared across positional + modifier types).
+        const sorted = [...state.waypoints].sort((a, b) => a.order - b.order);
+        const afterIndex = sorted.findIndex((wp) => wp.uid === afterUid);
+        if (afterIndex === -1) {
+            console.error("insertWaypointAfter: reference waypoint not found:", afterUid);
+            return false;
+        }
+
+        const waypoint = {
+            uid: crypto.randomUUID(),
+            latitude: merged.latitude ?? 0,
+            longitude: merged.longitude ?? 0,
+            altitude: merged.altitude ?? DEFAULT_ALTITUDE,
+            speed: merged.speed ?? DEFAULT_SPEED,
+            type: merged.type,
+            duration: merged.duration ?? 0,
+            pattern: merged.pattern ?? "circle",
+        };
+
+        sorted.splice(afterIndex + 1, 0, waypoint);
+        sorted.forEach((wp, idx) => {
+            wp.order = idx;
+        });
+
+        state.waypoints = sorted;
+        savePlan();
+        console.log("Inserted waypoint after", afterUid, ":", waypoint);
+        return true;
+    };
+
     // Reorder waypoints (for drag-and-drop)
     const reorderWaypoints = (fromUid, toUid) => {
         const fromIndex = state.waypoints.findIndex((wp) => wp.uid === fromUid);
@@ -537,6 +586,7 @@ export function useFlightPlan() {
         saveToFC,
         clearOnFC,
         addWaypoint,
+        insertWaypointAfter,
         addWaypointAtLocation,
         updateWaypoint,
         removeWaypoint,
