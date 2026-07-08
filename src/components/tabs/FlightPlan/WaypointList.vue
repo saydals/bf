@@ -137,8 +137,7 @@ const handleEdit = (uid) => {
 };
 
 const handleRemove = (uid) => {
-    waypointToDelete.value = uid;
-    showDeleteDialog.value = true;
+    removeWaypoint(uid);
 };
 
 const confirmDelete = () => {
