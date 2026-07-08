@@ -219,13 +219,11 @@ const padding = {
 const DRAG_DIRECTION_THRESHOLD = 10;
 
 // Ground elevation in feet AMSL (fetched from API)
-const groundElevation = ref(0); // Average ground elevation for display
-const terrainSamples = ref([]); // Terrain samples with {distance, elevation, lat, lon}
 const isFetchingElevation = ref(false);
-const elevationFetchSeq = ref(0); // Monotonic sequence to prevent race conditions
+const needsFetchAgain = ref(false);
 
 // Segment-level caching for terrain data
-// Key: "uid1-uid2", Value: { samples: [...], fromPos: {lat, lon}, toPos: {lat, lon} }
+// Key: "uid1-uid2", Value: { samples: [...], fromPos: {lat, lon}, toPos: {lat, lon}, distance }
 const segmentCache = ref(new Map());
 
 // Terrain sampling configuration
@@ -300,30 +298,81 @@ const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
 // NOTE: storage units are altitude=feet, speed=knots, distance=meters
 
 const formatAltitude = (ft) => settings.formatAltitude(ft);
-const formatSpeed = (kt) => settings.formatSpeed(kt);
 const formatSpeedMps = (kt) => settings.formatSpeedMps(kt);
 const formatDistance = (meters) => settings.formatDistance(meters);
 
-// Ground elevation at WP1 (feet AMSL) — the reference for AGL system
-const wp1GroundElevation = computed(() => {
-    if (terrainSamples.value.length === 0 || profilePoints.value.length === 0) {
+// Compute current terrain samples dynamically based on waypoints and cache
+const currentTerrainSamples = computed(() => {
+    if (waypoints.value.length === 0) {
+        return [];
+    }
+
+    const samples = [];
+    let cumulativeDistance = 0;
+
+    for (let i = 1; i < waypoints.value.length; i++) {
+        const prevWp = waypoints.value[i - 1];
+        const wp = waypoints.value[i];
+        const segmentKey = getSegmentKey(prevWp.uid, wp.uid);
+        const segmentDistance = calculateDistance(prevWp.latitude, prevWp.longitude, wp.latitude, wp.longitude);
+
+        const cached = segmentCache.value.get(segmentKey);
+        if (cached && cached.samples && cached.samples.length > 0) {
+            const cachedDist = cached.distance || 1;
+            for (const s of cached.samples) {
+                const fraction = s.relativeDistance / cachedDist;
+                samples.push({
+                    latitude: s.latitude,
+                    longitude: s.longitude,
+                    distance: cumulativeDistance + fraction * segmentDistance,
+                    elevation: s.elevation,
+                });
+            }
+        } else {
+            samples.push({
+                latitude: prevWp.latitude,
+                longitude: prevWp.longitude,
+                distance: cumulativeDistance,
+                elevation: 0,
+            });
+            samples.push({
+                latitude: wp.latitude,
+                longitude: wp.longitude,
+                distance: cumulativeDistance + segmentDistance,
+                elevation: 0,
+            });
+        }
+
+        cumulativeDistance += segmentDistance;
+    }
+
+    return samples;
+});
+
+// Average ground elevation of current terrain samples
+const groundElevation = computed(() => {
+    if (currentTerrainSamples.value.length === 0) {
         return 0;
     }
-    // Find the terrain sample closest to WP1
-    const wp1 = profilePoints.value[0];
-    const closest = terrainSamples.value.reduce((prev, curr) => {
-        return Math.abs(curr.distance - wp1.distance) < Math.abs(prev.distance - wp1.distance) ? curr : prev;
-    });
-    return closest ? closest.elevation : 0;
+    const sum = currentTerrainSamples.value.reduce((acc, sample) => acc + sample.elevation, 0);
+    return Math.round(sum / currentTerrainSamples.value.length);
+});
+
+// Ground elevation at WP1 (feet AMSL) — the reference for AGL system
+const wp1GroundElevation = computed(() => {
+    if (currentTerrainSamples.value.length === 0) {
+        return 0;
+    }
+    return currentTerrainSamples.value[0].elevation;
 });
 
 // Get ground elevation (feet AMSL) at a given distance along the profile
 const getGroundElevAtPoint = (distance) => {
-    if (terrainSamples.value.length === 0) {
+    if (currentTerrainSamples.value.length === 0) {
         return 0;
     }
     // Find the two terrain samples that bracket the given distance
-    const samples = terrainSamples.value;
+    const samples = currentTerrainSamples.value;
     if (distance <= samples[0].distance) return samples[0].elevation;
     if (distance >= samples[samples.length - 1].distance) return samples[samples.length - 1].elevation;
 
@@ -335,17 +384,6 @@ const getGroundElevAtPoint = (distance) => {
     }
     return 0;
 };
-
-// Minimum allowed AGL for each waypoint (ground elevation at that WP - WP1 ground elevation)
-const minAllowedAGL = computed(() => {
-    if (profilePoints.value.length === 0) return {};
-    const result = {};
-    for (const point of profilePoints.value) {
-        const groundAtPoint = getGroundElevAtPoint(point.distance);
-        result[point.uid] = groundAtPoint - wp1GroundElevation.value; // 음수 허용 (0 clamp 제거)
-    }
-    return result;
-});
 
 // Maximum allowed AGL (10,000 feet system limit, configurable in future)
 const maxAllowedAGL = 10000; // feet
@@ -428,10 +466,10 @@ const maxAltitude = computed(() => {
 
 // Max ground elevation from terrain samples
 const maxGroundElevation = computed(() => {
-    if (terrainSamples.value.length === 0) {
+    if (currentTerrainSamples.value.length === 0) {
         return 0;
     }
-    return Math.round(Math.max(...terrainSamples.value.map((sample) => sample.elevation)));
+    return Math.round(Math.max(...currentTerrainSamples.value.map((sample) => sample.elevation)));
 });
 
 // ★ 선택된 WP의 상대지면표고 (WP1 지표고도 기준)
@@ -444,8 +482,8 @@ const selectedWpRelativeGroundElev = computed(() => {
 
 // ★ 전체 최대 상대지면표고
 const relativeMaxGroundElevation = computed(() => {
-    if (terrainSamples.value.length === 0) return 0;
-    const maxAmbl = Math.max(...terrainSamples.value.map((s) => s.elevation));
+    if (currentTerrainSamples.value.length === 0) return 0;
+    const maxAmbl = Math.max(...currentTerrainSamples.value.map((s) => s.elevation));
     return maxAmbl - wp1GroundElevation.value;
 });
 
@@ -596,11 +634,11 @@ const areaPath = computed(() => {
 
 // Calculate SVG path for terrain line using sampled elevations
 const terrainLinePath = computed(() => {
-    if (terrainSamples.value.length === 0) {
+    if (currentTerrainSamples.value.length === 0) {
         return "";
     }
 
-    const points = terrainSamples.value.map((sample) => {
+    const points = currentTerrainSamples.value.map((sample) => {
         return {
             x: scaleX(sample.distance),
             y: scaleY(sample.elevation),
@@ -617,12 +655,12 @@ const terrainLinePath = computed(() => {
 
 // Calculate SVG path for terrain area fill using sampled elevations
 const terrainAreaPath = computed(() => {
-    if (terrainSamples.value.length === 0) {
+    if (currentTerrainSamples.value.length === 0) {
         return "";
     }
 
     const baseY = chartHeight - padding.bottom;
-    const points = terrainSamples.value.map((sample) => {
+    const points = currentTerrainSamples.value.map((sample) => {
         return {
             x: scaleX(sample.distance),
             y: scaleY(sample.elevation),
@@ -935,8 +973,6 @@ const hasSegmentMoved = (segmentKey, fromPos, toPos) => {
 // Partition waypoint segments into cached and uncached
 const partitionSegments = () => {
     const segmentsToFetch = [];
-    const cachedSamples = [];
-    let cumulativeDistance = 0;
 
     for (let i = 1; i < waypoints.value.length; i++) {
         const prevWp = waypoints.value[i - 1];
@@ -952,19 +988,11 @@ const partitionSegments = () => {
                 fromWp: prevWp,
                 toWp: wp,
                 segmentDistance,
-                startDistance: cumulativeDistance,
             });
-        } else {
-            const cached = segmentCache.value.get(segmentKey);
-            cachedSamples.push(
-                ...cached.samples.map((s) => ({ ...s, distance: cumulativeDistance + s.relativeDistance })),
-            );
         }
-
-        cumulativeDistance += segmentDistance;
     }
 
-    return { segmentsToFetch, cachedSamples };
+    return segmentsToFetch;
 };
 
 // Generate sample points along segments that need elevation data
@@ -1014,8 +1042,6 @@ const generateSegmentSamples = (segmentsToFetch) => {
 
 // Merge fetched elevations back into sample objects and update cache
 const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations) => {
-    const samples = [];
-
     for (const { segment, startIdx, endIdx } of segmentSampleRanges) {
         const segmentSamples = [];
 
@@ -1029,22 +1055,15 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
                 relativeDistance: sample.relativeDistance,
                 elevation,
             });
-            samples.push({
-                latitude: sample.latitude,
-                longitude: sample.longitude,
-                distance: segment.startDistance + sample.relativeDistance,
-                elevation,
-            });
         }
 
         segmentCache.value.set(segment.key, {
             samples: segmentSamples,
             fromPos: { lat: segment.fromWp.latitude, lon: segment.fromWp.longitude },
             toPos: { lat: segment.toWp.latitude, lon: segment.toWp.longitude },
+            distance: segment.segmentDistance,
         });
     }
-
-    return samples;
 };
 
 // ArduPilot 스타일 - OpenTopoData API
@@ -1101,44 +1120,32 @@ const fetchElevationBatches = async (samplesToFetch) => {
 
 // Fetch ground elevation with segment-level caching
 const fetchGroundElevation = async () => {
-    elevationFetchSeq.value++;
-    const currentSeq = elevationFetchSeq.value;
-
-    // 이미 fetching 중이거나 waypoint가 없으면 스킵
-    if (waypoints.value.length === 0 || isFetchingElevation.value) {
+    if (waypoints.value.length === 0) {
+        return;
+    }
+    if (isFetchingElevation.value) {
+        needsFetchAgain.value = true;
         return;
     }
 
     isFetchingElevation.value = true;
+    needsFetchAgain.value = false;
 
     try {
-        const { segmentsToFetch, cachedSamples } = partitionSegments();
-        const allSegmentSamples = [...cachedSamples];
+        const segmentsToFetch = partitionSegments();
 
         if (segmentsToFetch.length > 0) {
             const { samplesToFetch, segmentSampleRanges } = generateSegmentSamples(segmentsToFetch);
             const allElevations = await fetchElevationBatches(samplesToFetch);
-            allSegmentSamples.push(...cacheAndMergeSamples(segmentSampleRanges, samplesToFetch, allElevations));
-        }
-
-        if (currentSeq === elevationFetchSeq.value) {
-            allSegmentSamples.sort((a, b) => a.distance - b.distance);
-            terrainSamples.value = allSegmentSamples;
-
-            if (allSegmentSamples.length > 0) {
-                const sum = allSegmentSamples.reduce((acc, sample) => acc + sample.elevation, 0);
-                groundElevation.value = Math.round(sum / allSegmentSamples.length);
-            }
+            cacheAndMergeSamples(segmentSampleRanges, samplesToFetch, allElevations);
         }
     } catch (error) {
         console.error("Failed to fetch ground elevation:", error);
-        if (currentSeq === elevationFetchSeq.value) {
-            groundElevation.value = 0;
-            terrainSamples.value = [];
-        }
     } finally {
-        if (currentSeq === elevationFetchSeq.value) {
-            isFetchingElevation.value = false;
+        isFetchingElevation.value = false;
+        if (needsFetchAgain.value) {
+            needsFetchAgain.value = false;
+            fetchGroundElevation();
         }
     }
 };
