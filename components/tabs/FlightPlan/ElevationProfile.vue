@@ -229,9 +229,9 @@ const elevationFetchSeq = ref(0); // Monotonic sequence to prevent race conditio
 const segmentCache = ref(new Map());
 
 // Terrain sampling configuration
-const MIN_SAMPLE_INTERVAL_METERS = 40; // Minimum distance between samples (40m resolution)
-const MAX_SAMPLES_PER_SEGMENT = 25; // Maximum samples between waypoints
-const MAX_TOTAL_SAMPLES = 160; // Maximum total samples across all segments
+const MIN_SAMPLE_INTERVAL_METERS = 45; // Minimum distance between samples (45m resolution)
+const MAX_SAMPLES_PER_SEGMENT = 22; // Maximum samples between waypoints
+const MAX_TOTAL_SAMPLES = 150; // Maximum total samples across all segments
 
 // Generate cache key for a segment between two waypoints
 const getSegmentKey = (fromUid, toUid) => `${fromUid}-${toUid}`;
@@ -1043,65 +1043,62 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
     return samples;
 };
 
-// Open-Meteo용 안정 버전 (Rate Limit 최소화)
+// Open-Meteo 최적화 버전
 const fetchElevationBatches = async (samplesToFetch) => {
-    // 전체 샘플 제한 (성능 + Rate Limit 보호)
+    const allElevations = [];
+
+    // 전체 샘플 수 강력 제한
     if (samplesToFetch.length > MAX_TOTAL_SAMPLES) {
         console.warn(`[Elevation] Reducing samples: ${samplesToFetch.length} → ${MAX_TOTAL_SAMPLES}`);
         samplesToFetch = samplesToFetch.slice(0, MAX_TOTAL_SAMPLES);
     }
 
-    const allElevations = [];
-    const batchSize = 15; // 한 번에 최대 15개만 요청 (안전)
-    const delayBetweenBatches = 300; // 배치 간 300ms 대기
+    const batchSize = 25;
+    const delayBetweenBatches = 220;
 
-    console.log(`[Elevation] Starting fetch for ${samplesToFetch.length} points...`);
+    console.log(
+        `[Elevation] Fetching ${samplesToFetch.length} points in ${Math.ceil(samplesToFetch.length / batchSize)} batches`,
+    );
 
     for (let i = 0; i < samplesToFetch.length; i += batchSize) {
         const batch = samplesToFetch.slice(i, i + batchSize);
 
-        const latitudes = batch.map((s) => s.latitude.toFixed(6)).join(",");
-        const longitudes = batch.map((s) => s.longitude.toFixed(6)).join(",");
+        const latitudes = batch.map((s) => s.latitude.toFixed(5)).join(",");
+        const longitudes = batch.map((s) => s.longitude.toFixed(5)).join(",");
 
         const url = `https://api.open-meteo.com/v1/elevation?latitude=${latitudes}&longitude=${longitudes}`;
 
         try {
-            const response = await fetch(url, {
-                method: "GET",
-                headers: { Accept: "application/json" },
-            });
+            const response = await fetch(url, { method: "GET" });
 
             if (response.status === 429) {
-                console.warn("[Elevation] 429 Rate Limit - waiting 2 seconds...");
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-                i -= batchSize; // 해당 배치 재시도
+                console.warn("[Elevation] Rate limit hit, waiting...");
+                await new Promise((r) => setTimeout(r, 1500));
+                i -= batchSize;
                 continue;
             }
 
-            if (!response.ok) {
-                throw new Error(`HTTP error: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
             const data = await response.json();
 
             if (data.elevation && Array.isArray(data.elevation)) {
-                const feetValues = data.elevation.map((elev) => Math.round(elev * METERS_TO_FEET));
+                const feetValues = data.elevation.map((e) => Math.round(e * METERS_TO_FEET));
                 allElevations.push(...feetValues);
             } else {
                 allElevations.push(...Array(batch.length).fill(0));
             }
         } catch (error) {
-            console.error(`[Elevation] Batch ${i} failed:`, error);
+            console.error("[Elevation] Batch failed:", error);
             allElevations.push(...Array(batch.length).fill(0));
         }
 
-        // 배치 사이 충분한 여유 시간
         if (i + batchSize < samplesToFetch.length) {
-            await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
+            await new Promise((r) => setTimeout(r, delayBetweenBatches));
         }
     }
 
-    console.log(`[Elevation] Fetch completed: ${allElevations.length} points`);
+    console.log(`[Elevation] Completed: ${allElevations.length} elevations`);
     return allElevations;
 };
 
@@ -1152,7 +1149,7 @@ const fetchGroundElevation = async () => {
 // fetchGroundElevation을 debounce 처리 (300ms)
 const debouncedFetchGroundElevation = debounce(() => {
     fetchGroundElevation();
-}, 300);
+}, 450);
 
 // Watch waypoints and fetch ground elevation when they change
 watch(
