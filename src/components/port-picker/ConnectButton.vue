@@ -207,6 +207,13 @@ export default defineComponent({
                     onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
             }
+            if (PortHandler.showUsbOption) {
+                items.push({
+                    label: i18n.getMessage("portsSelectPermissionDFU"),
+                    icon: "i-lucide-usb",
+                    onSelect: () => PortHandler.requestDevicePermission("usb"),
+                });
+            }
             return items;
         }
 
