@@ -1081,8 +1081,8 @@ const fetchElevationBatches = async (samplesToFetch) => {
         samplesToFetch = samplesToFetch.slice(0, MAX_TOTAL_SAMPLES);
     }
 
-    const batchSize = 30; // OpenTopoData는 100개까지 안정적
-    const delayBetweenBatches = 180;
+    const batchSize = 15; // Open-Meteo Rate Limit 회피
+    const delayBetweenBatches = 350;
 
     console.log(`[Elevation] Fetching ${samplesToFetch.length} points...`);
 
