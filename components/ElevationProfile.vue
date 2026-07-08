@@ -189,6 +189,7 @@
 
 <script setup>
 import { ref, computed, watch } from "vue";
+import { debounce } from "lodash-es";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
@@ -993,55 +994,59 @@ const cacheAndMergeSamples = (segmentSampleRanges, samplesToFetch, allElevations
     return samples;
 };
 
-// Fetch elevations from Open-Meteo API (GET 방식)
+// Open-Meteo용 안정 버전 (Rate Limit 최소화)
 const fetchElevationBatches = async (samplesToFetch) => {
     const allElevations = [];
-    const batchSize = 100; // 최대 100개까지 한 번에 요청 가능
+    const batchSize = 30; // 한 번에 최대 30개만 요청 (안전)
+    const delayBetweenBatches = 450; // 배치 간 450ms 대기
+
+    console.log(`[Elevation] Starting fetch for ${samplesToFetch.length} points...`);
 
     for (let i = 0; i < samplesToFetch.length; i += batchSize) {
         const batch = samplesToFetch.slice(i, i + batchSize);
 
-        // Open-Meteo 형식: comma-separated 문자열
-        const latitudes = batch.map((s) => s.latitude).join(",");
-        const longitudes = batch.map((s) => s.longitude).join(",");
+        const latitudes = batch.map((s) => s.latitude.toFixed(6)).join(",");
+        const longitudes = batch.map((s) => s.longitude.toFixed(6)).join(",");
 
         const url = `https://api.open-meteo.com/v1/elevation?latitude=${latitudes}&longitude=${longitudes}`;
 
         try {
             const response = await fetch(url, {
                 method: "GET",
-                headers: {
-                    Accept: "application/json",
-                },
+                headers: { Accept: "application/json" },
             });
 
+            if (response.status === 429) {
+                console.warn("[Elevation] 429 Rate Limit - waiting 2 seconds...");
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                i -= batchSize; // 해당 배치 재시도
+                continue;
+            }
+
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error(`HTTP error: ${response.status}`);
             }
 
             const data = await response.json();
 
-            // Open-Meteo 응답 구조: { elevation: [38.0, 45.5, ...] }
             if (data.elevation && Array.isArray(data.elevation)) {
-                // 미터 → 피트 변환 (기존과 동일)
                 const feetValues = data.elevation.map((elev) => Math.round(elev * METERS_TO_FEET));
                 allElevations.push(...feetValues);
             } else {
-                // 응답이 이상할 경우 0으로 fallback
                 allElevations.push(...Array(batch.length).fill(0));
             }
         } catch (error) {
-            console.error("Open-Meteo Elevation API fetch failed:", error);
-            // 실패한 배치만큼 0 채우기
+            console.error(`[Elevation] Batch ${i} failed:`, error);
             allElevations.push(...Array(batch.length).fill(0));
         }
 
-        // 요청 간 약간의 딜레이 (안전장치)
+        // 배치 사이 충분한 여유 시간
         if (i + batchSize < samplesToFetch.length) {
-            await new Promise((resolve) => setTimeout(resolve, 80));
+            await new Promise((resolve) => setTimeout(resolve, delayBetweenBatches));
         }
     }
 
+    console.log(`[Elevation] Fetch completed: ${allElevations.length} points`);
     return allElevations;
 };
 
@@ -1050,10 +1055,8 @@ const fetchGroundElevation = async () => {
     elevationFetchSeq.value++;
     const currentSeq = elevationFetchSeq.value;
 
-    if (waypoints.value.length === 0) {
-        groundElevation.value = 0;
-        terrainSamples.value = [];
-        isFetchingElevation.value = false;
+    // 이미 fetching 중이거나 waypoint가 없으면 스킵
+    if (waypoints.value.length === 0 || isFetchingElevation.value) {
         return;
     }
 
@@ -1091,11 +1094,16 @@ const fetchGroundElevation = async () => {
     }
 };
 
+// fetchGroundElevation을 debounce 처리 (300ms)
+const debouncedFetchGroundElevation = debounce(() => {
+    fetchGroundElevation();
+}, 300);
+
 // Watch waypoints and fetch ground elevation when they change
 watch(
     () => waypoints.value,
     () => {
-        fetchGroundElevation();
+        debouncedFetchGroundElevation();
     },
     { deep: true, immediate: true },
 );
