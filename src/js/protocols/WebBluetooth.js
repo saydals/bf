@@ -255,26 +255,43 @@ class WebBluetooth extends EventTarget {
         });
 
         if (!this.deviceDescription) {
-            // Check if there's an FFE0-based service (common BLE serial profile)
-            const ffe0Service = this.services.find(
-                (service) => service.uuid.includes("ffe0") || service.uuid.includes("FFE0"),
-            );
+            // 1. 장치 이름으로 프로필 매칭 시도 (DX-BT04-E 등)
+            if (this.device && this.device.name) {
+                this.deviceDescription = bluetoothDevices.find((device) => this.device.name.includes(device.name));
+            }
 
-            if (ffe0Service) {
-                this.service = ffe0Service;
-                this.deviceDescription = bluetoothDevices.find((device) => device.name === "CC2541") || {
-                    name: "BLE Serial (FFE0)",
-                    writeCharacteristic: "0000ffe1-0000-1000-8000-00805f9b34fb",
-                    readCharacteristic: "0000ffe2-0000-1000-8000-00805f9b34fb",
-                };
-                console.log(`${this.logHead} Auto-matched FFE0 service, using CC2541 profile`);
-            } else if (this.services.length > 0) {
-                // Fallback: use first service with generic BLE Serial profile
-                this.service = this.services[0];
-                this.deviceDescription = bluetoothDevices.find((device) => device.name === "Generic BLE Serial");
-                console.log(`${this.logHead} Using generic BLE profile for`, this.service.uuid);
+            // 2. 이름으로 매칭되지 않았으나 FFE0 서비스가 있는 경우
+            if (!this.deviceDescription) {
+                const ffe0Service = this.services.find(
+                    (service) => service.uuid.includes("ffe0") || service.uuid.includes("FFE0"),
+                );
+
+                if (ffe0Service) {
+                    this.service = ffe0Service;
+                    // CC2541 강제 주입 대신 빈 프로필을 할당하여 getCharacteristics()에서 속성 기반 매칭하도록 유도
+                    this.deviceDescription = {
+                        name: "BLE Serial (FFE0 Auto)",
+                        writeCharacteristic: "",
+                        readCharacteristic: "",
+                    };
+                    console.log(`${this.logHead} Found FFE0 service. Deferring characteristic matching to properties.`);
+                } else if (this.services.length > 0) {
+                    // Fallback: use first service
+                    this.service = this.services[0];
+                    this.deviceDescription = {
+                        name: "Generic BLE Serial",
+                        writeCharacteristic: "",
+                        readCharacteristic: "",
+                    };
+                    console.log(`${this.logHead} Using generic BLE profile for`, this.service.uuid);
+                } else {
+                    throw new Error("Unsupported device: No services found");
+                }
             } else {
-                throw new Error("Unsupported device");
+                // 이름으로 매칭된 경우, 해당 프로필의 서비스를 선택
+                this.service =
+                    this.services.find((service) => service.uuid.includes(this.deviceDescription.serviceUuid)) ||
+                    this.services[0];
             }
         }
 
@@ -288,67 +305,59 @@ class WebBluetooth extends EventTarget {
     async getCharacteristics() {
         const characteristics = await this.service.getCharacteristics();
 
-        characteristics.forEach((characteristic) => {
-            // console.log("Characteristic: ", characteristic);
-            if (characteristic.uuid == this.deviceDescription.writeCharacteristic) {
-                this.writeCharacteristic = characteristic;
-            }
-
-            if (characteristic.uuid == this.deviceDescription.readCharacteristic) {
-                this.readCharacteristic = characteristic;
-            }
-            return this.writeCharacteristic && this.readCharacteristic;
-        });
-
-        // Auto-detect characteristics by properties if UUID matching failed
-        if (!this.writeCharacteristic || !this.readCharacteristic) {
-            for (const char of characteristics) {
-                // Auto-match write characteristic
-                if (!this.writeCharacteristic && !this.deviceDescription.writeCharacteristic) {
-                    if (char.properties.write || char.properties.writeWithoutResponse) {
-                        this.writeCharacteristic = char;
-                        console.log(`${this.logHead} Auto-selected write characteristic:`, char.uuid);
-                        continue;
-                    }
-                }
-
-                // Auto-match read/notify characteristic
-                if (!this.readCharacteristic && !this.deviceDescription.readCharacteristic) {
-                    if (char.properties.notify || char.properties.read) {
-                        this.readCharacteristic = char;
-                        console.log(`${this.logHead} Auto-selected read characteristic:`, char.uuid);
-                        continue;
-                    }
-                }
-            }
+        // 1. 디바이스 프로필에 명시된 UUID로 먼저 찾기
+        if (this.deviceDescription && this.deviceDescription.writeCharacteristic) {
+            this.writeCharacteristic = characteristics.find(
+                (char) => char.uuid.toLowerCase() === this.deviceDescription.writeCharacteristic.toLowerCase(),
+            );
+        }
+        if (this.deviceDescription && this.deviceDescription.readCharacteristic) {
+            this.readCharacteristic = characteristics.find(
+                (char) => char.uuid.toLowerCase() === this.deviceDescription.readCharacteristic.toLowerCase(),
+            );
         }
 
-        // Fallback by properties when UUID-based device description didn't match reality
+        // 2. UUID 매칭 실패 또는 빈 프로필일 경우, 속성 기반 자동 감지
         if (!this.writeCharacteristic || !this.readCharacteristic) {
+            console.log(`${this.logHead} UUID matching incomplete. Falling back to property-based detection.`);
+            this.writeCharacteristic = null;
+            this.readCharacteristic = null;
+
             for (const char of characteristics) {
+                // Write 특성 찾기 (write 또는 writeWithoutResponse 속성 보유)
                 if (!this.writeCharacteristic && (char.properties.write || char.properties.writeWithoutResponse)) {
                     this.writeCharacteristic = char;
-                    console.log(`${this.logHead} Fallback write characteristic:`, char.uuid);
+                    console.log(`${this.logHead} Auto-selected write characteristic:`, char.uuid);
                 }
+
+                // Read/Notify 특성 찾기 (notify 또는 read 속성 보유)
                 if (!this.readCharacteristic && (char.properties.notify || char.properties.read)) {
                     this.readCharacteristic = char;
-                    console.log(`${this.logHead} Fallback read characteristic:`, char.uuid);
+                    console.log(`${this.logHead} Auto-selected read characteristic:`, char.uuid);
                 }
+            }
+
+            // 3. 예외 처리: 단일 특성 모듈 (FFE1 하나에 Write/Notify가 모두 있는 경우)
+            if ((!this.writeCharacteristic || !this.readCharacteristic) && characteristics.length === 1) {
+                const singleChar = characteristics[0];
+                if (singleChar.properties.write || singleChar.properties.writeWithoutResponse) {
+                    this.writeCharacteristic = singleChar;
+                }
+                if (singleChar.properties.notify || singleChar.properties.read) {
+                    this.readCharacteristic = singleChar;
+                }
+                console.log(`${this.logHead} Matched single characteristic for both read/write:`, singleChar.uuid);
             }
         }
 
-        if (!this.writeCharacteristic) {
-            throw new Error(
-                "Unexpected write characteristic found - should be",
-                this.deviceDescription.writeCharacteristic,
-            );
+        // 최종 검증
+        if (!this.writeCharacteristic || !this.readCharacteristic) {
+            throw new Error("Unsupported device: Could not find suitable read/write characteristics");
         }
 
-        if (!this.readCharacteristic) {
-            throw new Error(
-                "Unexpected read characteristic found - should be",
-                this.deviceDescription.readCharacteristic,
-            );
+        // Notify 시작
+        if (this.readCharacteristic.properties.notify) {
+            await this.readCharacteristic.startNotifications();
         }
 
         this.readCharacteristic.addEventListener("characteristicvaluechanged", this.handleNotification.bind(this));
@@ -443,7 +452,7 @@ class WebBluetooth extends EventTarget {
     }
 
     async send(data, cb) {
-        if (!this.writeCharacteristic || typeof this.writeCharacteristic.writeValue !== "function") {
+        if (!this.writeCharacteristic) {
             if (cb) {
                 cb({
                     error: "No write characteristic available or characteristic is invalid",
@@ -453,6 +462,22 @@ class WebBluetooth extends EventTarget {
             console.error(`${this.logHead} No write characteristic available or characteristic is invalid`);
             return;
         }
+
+        const writeSupported =
+            typeof this.writeCharacteristic.writeValue === "function" ||
+            typeof this.writeCharacteristic.writeValueWithoutResponse === "function";
+
+        if (!writeSupported) {
+            if (cb) {
+                cb({
+                    error: "No write characteristic available or characteristic is invalid",
+                    bytesSent: 0,
+                });
+            }
+            console.error(`${this.logHead} No write characteristic available or characteristic is invalid`);
+            return;
+        }
+
         if (!this.device?.gatt?.connected) {
             if (cb) {
                 cb({
@@ -471,7 +496,15 @@ class WebBluetooth extends EventTarget {
         this.writeQueue = this.writeQueue
             .then(async () => {
                 try {
-                    await this.writeCharacteristic.writeValue(dataBuffer);
+                    // DX-BT04-E는 writeWithoutResponse 속성을 주로 사용
+                    if (this.writeCharacteristic.properties.writeWithoutResponse) {
+                        await this.writeCharacteristic.writeValueWithoutResponse(dataBuffer);
+                    } else if (this.writeCharacteristic.properties.write) {
+                        await this.writeCharacteristic.writeValue(dataBuffer);
+                    } else {
+                        throw new Error("Write characteristic does not support writing");
+                    }
+
                     this.bytesSent += data.byteLength;
 
                     if (cb) {
