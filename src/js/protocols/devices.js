@@ -131,6 +131,15 @@ function applyFilters(data) {
     if (Array.isArray(data?.bluetoothDevices)) {
         const sanitized = data.bluetoothDevices.filter((d) => isPlainObject(d) && typeof d.serviceUuid === "string");
         bluetoothDevices.splice(0, bluetoothDevices.length, ...sanitized);
+        // DX-BT04-E가 API 목록에 없으면 강제 추가 (CC2541과 동일 Service UUID, Write/Notify 반대)
+        if (!bluetoothDevices.some((d) => d.name === "DX-BT04-E")) {
+            bluetoothDevices.push({
+                name: "DX-BT04-E",
+                serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
+                writeCharacteristic: "0000ffe2-0000-1000-8000-00805f9b34fb",
+                readCharacteristic: "0000ffe1-0000-1000-8000-00805f9b34fb",
+            });
+        }
     }
     if (Array.isArray(data?.serialDevices)) {
         const sanitized = sanitizeVidPidEntries(data.serialDevices);
