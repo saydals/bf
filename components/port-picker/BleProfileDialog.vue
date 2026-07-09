@@ -1,5 +1,5 @@
 <template>
-    <UModal v-model:open="open" :title="$t('bleProfileDialogTitle')">
+    <UModal v-model:open="open" :title="title" :ui="{ overlay: 'z-3000', content: 'z-3001' }">
         <template #body>
             <div class="ble-profile-dialog">
                 <p class="ble-profile-dialog__help">
@@ -37,6 +37,7 @@
 <script>
 import { defineComponent, computed, ref, watch } from "vue";
 import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
+import { i18n } from "../../js/localization";
 
 export default defineComponent({
     name: "BleProfileDialog",
@@ -57,19 +58,26 @@ export default defineComponent({
             set: (v) => emit("update:modelValue", v),
         });
 
+        const title = computed(() => i18n.getMessage("bleProfileDialogTitle"));
+
         const selectedDeviceKey = ref("");
         const selectedProfile = ref("");
 
         // 기기 목록: 현재 검색된 블루투스 기기
         const deviceItems = computed(() =>
-            props.bluetoothPorts.map((d) => ({
-                label: d.displayName || d.path,
+            (props.bluetoothPorts || []).map((d) => ({
                 value: d.path,
+                label: d.displayName || d.path,
             })),
         );
 
-        // 프로필 목록: 자동 감지 + 모든 등록된 BLE 프로필
-        const profileItems = ref(getSelectableProfiles());
+        // 프로필 목록: 자동 감지 + 모든 등록된 BLE 프로필 (value=프로필명, label=표시명)
+        const profileItems = computed(() =>
+            getSelectableProfiles().map((p) => ({
+                value: p.name,
+                label: p.label,
+            })),
+        );
 
         // 기기 변경 시 저장된 오버라이드 불러오기
         watch(selectedDeviceKey, (newKey) => {
@@ -85,6 +93,7 @@ export default defineComponent({
 
         return {
             open,
+            title,
             selectedDeviceKey,
             selectedProfile,
             deviceItems,
