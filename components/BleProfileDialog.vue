@@ -16,17 +16,18 @@
                         :items="allDeviceItems"
                         v-model="selectedDeviceKey"
                         size="sm"
-                        :ui="{ content: 'z-[3100] max-h-96' }"
+                        :ui="{ content: 'max-h-96' }"
                     />
                 </label>
 
-                <label class="ble-profile-dialog__field" v-if="selectedDeviceKey">
+                <label class="ble-profile-dialog__field">
                     <span>{{ $t("bleProfileDialogProfile") }}</span>
                     <USelect
                         :items="profileItems"
                         v-model="selectedProfile"
+                        :disabled="!selectedDeviceKey"
                         size="sm"
-                        :ui="{ content: 'z-[3100] max-h-96' }"
+                        :ui="{ content: 'max-h-96' }"
                     />
                 </label>
             </div>
