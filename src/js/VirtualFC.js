@@ -141,6 +141,7 @@ const VirtualFC = {
             "USE_SERIALRX_CRSF",
             "USE_SERIALRX_SBUS",
             "USE_DSHOT",
+            "USE_FLIGHT_PLAN",
         ];
 
         virtualFC.CONFIG.craftName = "BetaFlight";
@@ -161,7 +162,7 @@ const VirtualFC = {
         virtualFC.BEEPER_CONFIG.dshotBeaconConditions = new Beepers(FC.CONFIG, ["RX_LOST", "RX_SET"]);
         virtualFC.BEEPER_CONFIG.dshotBeaconTone = 1;
 
-        virtualFC.MIXER_CONFIG.mixer = 3;
+        virtualFC.MIXER_CONFIG.mixer = 14;
 
         virtualFC.MOTOR_DATA = Array.from({ length: 8 });
         virtualFC.MOTOR_3D_CONFIG = {
