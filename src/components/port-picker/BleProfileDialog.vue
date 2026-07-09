@@ -1,5 +1,5 @@
 <template>
-    <UModal v-model:open="open" :title="title" :ui="{ overlay: 'z-3000', content: 'z-3001' }">
+    <UModal v-model:open="open" :title="title" :ui="{ content: 'overflow-visible' }">
         <template #body>
             <div class="ble-profile-dialog">
                 <p class="ble-profile-dialog__help">
@@ -16,7 +16,7 @@
                         :items="allDeviceItems"
                         v-model="selectedDeviceKey"
                         size="sm"
-                        :ui="{ content: 'max-h-96' }"
+                        :ui="{ content: 'z-[9999] max-h-96' }"
                     />
                 </label>
 
@@ -27,7 +27,7 @@
                         v-model="selectedProfile"
                         :disabled="!selectedDeviceKey"
                         size="sm"
-                        :ui="{ content: 'max-h-96' }"
+                        :ui="{ content: 'z-[9999] max-h-96' }"
                     />
                 </label>
             </div>
