@@ -253,13 +253,6 @@ export default defineComponent({
 
         function buildPermissionItems() {
             const items = [];
-            if (PortHandler.showWiFiOption) {
-                items.push({
-                    label: i18n.getMessage("portsSelectWiFi"),
-                    icon: "i-lucide-wifi",
-                    onSelect: onWifiClick,
-                });
-            }
             if (PortHandler.showSerialOption) {
                 items.push({
                     label: i18n.getMessage("portsSelectPermission"),
@@ -286,6 +279,13 @@ export default defineComponent({
                     label: i18n.getMessage("portsSelectPermissionDFU"),
                     icon: "i-lucide-usb",
                     onSelect: () => PortHandler.requestDevicePermission("usb"),
+                });
+            }
+            if (PortHandler.showWiFiOption) {
+                items.push({
+                    label: i18n.getMessage("portsSelectWiFi"),
+                    icon: "i-lucide-wifi",
+                    onSelect: onWifiClick,
                 });
             }
             return items;
