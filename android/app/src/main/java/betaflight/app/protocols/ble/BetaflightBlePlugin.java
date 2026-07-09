@@ -77,6 +77,12 @@ public class BetaflightBlePlugin extends Plugin {
 	private static final String WRITE_CC2541 = "0000ffe1-0000-1000-8000-00805f9b34fb";
 	private static final String NOTIFY_CC2541 = "0000ffe2-0000-1000-8000-00805f9b34fb";
 
+	// DX-BT04-E는 CC2541과 동일한 Service UUID를 사용하지만 Write/Notify 특성이 정반대입니다.
+	// https://github.com/saydals/bf 에서 확인된 하드웨어 사양 반영.
+	private static final String SERVICE_DXBT04E = "0000ffe0-0000-1000-8000-00805f9b34fb";
+	private static final String WRITE_DXBT04E = "0000ffe2-0000-1000-8000-00805f9b34fb";
+	private static final String NOTIFY_DXBT04E = "0000ffe1-0000-1000-8000-00805f9b34fb";
+
 	private static final String SERVICE_HC05 = "00001101-0000-1000-8000-00805f9b34fb";
 	private static final String WRITE_HC05 = "00001101-0000-1000-8000-00805f9b34fb";
 	private static final String NOTIFY_HC05 = "00001101-0000-1000-8000-00805f9b34fb";
@@ -110,10 +116,13 @@ public class BetaflightBlePlugin extends Plugin {
 	private static final UUID UUID_SPEEDYBEE_V2 = UUID.fromString(SERVICE_SPEEDYBEE_V2);
 	private static final UUID UUID_SPEEDYBEE_V1 = UUID.fromString(SERVICE_SPEEDYBEE_V1);
 
-	private static final Map<String, KnownDevice> KNOWN_DEVICES = new HashMap<>();
+	// Service UUID를 key로, 같은 UUID를 공유하는 여러 KnownDevice를 List로 저장하는 멀티맵.
+	// CC2541과 DX-BT04-E가 동일한 FFE0 서비스 UUID를 사용하므로 단일 Map으로는 표현 불가능.
+	private static final Map<String, List<KnownDevice>> KNOWN_DEVICES = new HashMap<>();
 
 	static {
 		addDevice("CC2541", SERVICE_CC2541, WRITE_CC2541, NOTIFY_CC2541);
+		addDevice("DX-BT04-E", SERVICE_DXBT04E, WRITE_DXBT04E, NOTIFY_DXBT04E);
 		addDevice("HC-05", SERVICE_HC05, WRITE_HC05, NOTIFY_HC05);
 		addDevice("HM-10", SERVICE_HM10, WRITE_HM10, NOTIFY_HM10);
 		addDevice("HM-11", SERVICE_NORDIC_NUS, NOTIFY_NORDIC_NUS, WRITE_NORDIC_NUS);
@@ -124,9 +133,10 @@ public class BetaflightBlePlugin extends Plugin {
 		addDevice("DroneBridge", SERVICE_DRONEBRIDGE, WRITE_DRONEBRIDGE, NOTIFY_DRONEBRIDGE);
 	}
 
+	// 멀티맵에 디바이스 추가: 같은 service UUID를 가진 여러 KnownDevice를 리스트에 보관
 	private static void addDevice(String name, String service, String write, String notify) {
 		KnownDevice device = new KnownDevice(name, service, write, notify);
-		KNOWN_DEVICES.put(service.toLowerCase(), device);
+		KNOWN_DEVICES.computeIfAbsent(service.toLowerCase(), k -> new ArrayList<>()).add(device);
 	}
 
 	private BluetoothAdapter adapter;
@@ -319,8 +329,10 @@ public class BetaflightBlePlugin extends Plugin {
 			return;
 		}
 
-		KnownDevice profile = KNOWN_DEVICES.getOrDefault(serviceUuid.toLowerCase(),
-			new KnownDevice("Unknown", serviceUuid, writeUuid, notifyUuid));
+		// JS 측(devices.js)에서 이미 올바른 프로필을 식별하여 writeCharacteristic/notifyCharacteristic을
+		// 전달하므로, KNOWN_DEVICES 조회로 덮어쓰지 않고 JS 값을 신뢰한다.
+		// (CC2541 vs DX-BT04-E 구분: 동일 Service UUID라도 JS가 정확한 UUID를 전송)
+		KnownDevice profile = new KnownDevice("UserSelected", serviceUuid, writeUuid, notifyUuid);
 
 		bleManager = new BleBridgeManager(getContext(), this, profile);
 		bleManager.setConnectionObserver(new ConnectionObserver() {
@@ -528,35 +540,48 @@ public class BetaflightBlePlugin extends Plugin {
 
 	private KnownDevice findProfileForResult(ScanResult result, boolean allowNameMatch) {
 		if (result.getScanRecord() != null && result.getScanRecord().getServiceUuids() != null) {
+			String advertisedName = allowNameMatch ? result.getDevice().getName() : null;
+
 			for (ParcelUuid uuid : result.getScanRecord().getServiceUuids()) {
 				if (uuid == null) continue;
 				UUID service = uuid.getUuid();
 				if (service == null) continue;
 
-				// Accept any known profile if advertisement has one of our requested services
-				if (!requestedServices.isEmpty() && requestedServices.contains(service)) {
-					KnownDevice profile = KNOWN_DEVICES.get(service.toString().toLowerCase());
-					if (profile != null) {
-						return profile;
+				String serviceKey = service.toString().toLowerCase();
+				List<KnownDevice> candidates = KNOWN_DEVICES.get(serviceKey);
+				if (candidates == null || candidates.isEmpty()) continue;
+
+				// 1) 광고된 기기 이름으로 먼저 정확한 프로필을 찾는다.
+				//    (CC2541 vs DX-BT04-E 같이 동일 Service UUID를 쓰는 기기 구분)
+				if (advertisedName != null && !advertisedName.isEmpty()) {
+					String nameLower = advertisedName.toLowerCase();
+					for (KnownDevice candidate : candidates) {
+						if (candidate.name != null && nameLower.contains(candidate.name.toLowerCase())) {
+							return candidate;
+						}
 					}
 				}
 
-				// Or accept any known device by service UUID if present
-				KnownDevice known = KNOWN_DEVICES.get(service.toString().toLowerCase());
-				if (known != null) {
-					return known;
+				// 2) 이름 매칭 실패 시, 요청된 서비스 목록에 있으면 첫 번째 후보 반환
+				if (!requestedServices.isEmpty() && requestedServices.contains(service)) {
+					return candidates.get(0);
 				}
+
+				// 3) 그 외의 경우 첫 번째 후보 반환
+				return candidates.get(0);
 			}
 		}
 
+		// 이름 기반 매칭 (서비스 UUID가 광고되지 않은 기기용 폴백)
 		if (allowNameMatch) {
 			String advertisedName = result.getDevice().getName();
 			if (advertisedName != null) {
 				String name = advertisedName.toLowerCase();
-
-				for (KnownDevice deviceProfile : KNOWN_DEVICES.values()) {
-					if (deviceProfile.name != null && name.contains(deviceProfile.name.toLowerCase())) {
-						return deviceProfile;
+				for (List<KnownDevice> profileList : KNOWN_DEVICES.values()) {
+					for (KnownDevice deviceProfile : profileList) {
+						if (deviceProfile.name != null && name.contains(deviceProfile.name.toLowerCase())) {
+							return deviceProfile;
+						}
 					}
 				}
 			}
@@ -689,7 +714,8 @@ public class BetaflightBlePlugin extends Plugin {
 						return false;
 					}
 
-					KnownDevice alt = KNOWN_DEVICES.get(fallback.getUuid().toString().toLowerCase());
+					List<KnownDevice> altList = KNOWN_DEVICES.get(fallback.getUuid().toString().toLowerCase());
+					KnownDevice alt = (altList != null && !altList.isEmpty()) ? altList.get(0) : null;
 					if (alt == null) {
 						Log.w(TAG, "Fallback service " + fallback.getUuid() + " not in KNOWN_DEVICES on " + gatt.getDevice().getAddress());
 						return false;

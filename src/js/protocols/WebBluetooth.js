@@ -1,6 +1,7 @@
 import { i18n } from "../localization";
 import { gui_log } from "../gui_log";
 import { bluetoothDevices } from "./devices";
+import { getProfileOverride } from "./blePreferences";
 
 /*  Certain flags needs to be enabled in the browser to use BT
  *
@@ -180,6 +181,9 @@ class WebBluetooth extends EventTarget {
 
         this.device = this.devices.find((device) => device.path === path).port;
 
+        // 수동 오버라이드 조회 (device.id는 브라우저가 부여하는 영구 식별자)
+        this.profileOverride = getProfileOverride(this.device.id);
+
         console.log(`${this.logHead} Opening connection with ID: ${path}, Baud: ${options.baudRate}`);
 
         this.device.addEventListener("gattserverdisconnected", this.handleDisconnect.bind(this));
@@ -249,6 +253,18 @@ class WebBluetooth extends EventTarget {
 
         this.services = await this.server.getPrimaryServices();
         this.deviceDescription = null;
+
+        // 0. 수동 오버라이드가 있으면 이름/serviceUuid 감지를 전부 건너뛰고 최우선 적용
+        if (this.profileOverride) {
+            this.deviceDescription = this.profileOverride;
+            this.service =
+                this.services.find((service) => service.uuid.includes(this.profileOverride.serviceUuid)) ||
+                this.services[0];
+
+            gui_log(i18n.getMessage("bluetoothConnectionType", [this.deviceDescription.name]));
+            console.log(`${this.logHead} Using manual profile override:`, this.deviceDescription.name);
+            return this.service;
+        }
 
         // 1. 광고된 기기 이름으로 프로필 매칭 시도 (DX-BT04-E 등)
         const advertisedName = this.device?.name?.toLowerCase() ?? "";
