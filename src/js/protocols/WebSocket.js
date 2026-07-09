@@ -62,7 +62,17 @@ class Websocket extends EventTarget {
         console.log(`${this.logHead} Connecting to ${this.address}`);
 
         // WebSocket은 tcp:// 스킴을 지원하지 않으므로 ws://로 변환
-        const wsUrl = path.replace(/^tcp:/i, "ws:");
+        let wsUrl = path.replace(/^tcp:/i, "ws:");
+        // 포트가 명시되지 않은 경우 기본값 5761 추가 (Android CapacitorTcp와 동일)
+        try {
+            const parsed = new URL(wsUrl);
+            if (!parsed.port) {
+                parsed.port = "5761";
+                wsUrl = parsed.toString();
+            }
+        } catch (e) {
+            console.warn(`${this.logHead} Invalid URL: ${wsUrl}`, e);
+        }
 
         this.ws = new WebSocket(wsUrl, ["binary", "wsSerial"]);
         let socket = this;
