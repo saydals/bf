@@ -78,7 +78,7 @@ export default defineComponent({
             // 1) 현재 스캔된 기기 (address를 키로 사용)
             const ports = PortHandler.currentBluetoothPorts || [];
             for (const d of ports) {
-                const key = d.address || d.path;
+                const key = d.productId || d.address || d.path;
                 items.push({ value: key, label: d.displayName || key });
             }
 
@@ -116,7 +116,7 @@ export default defineComponent({
                 if (currentPath?.startsWith("bluetooth")) {
                     const currentPort = (PortHandler.currentBluetoothPorts || []).find((p) => p.path === currentPath);
                     if (currentPort) {
-                        selectedDeviceKey.value = currentPort.address || currentPort.path;
+                        selectedDeviceKey.value = currentPort.productId || currentPort.address || currentPort.path;
                         return;
                     }
                 }
