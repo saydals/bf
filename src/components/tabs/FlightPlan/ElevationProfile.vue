@@ -217,6 +217,12 @@ const needsFetchAgain = ref(false);
 const elevationError = ref(null); // API 에러 메시지 (화면 표시용)
 const segmentCache = reactive(new Map());
 
+// 웨이포인트의 "위치 관련" 상태만 뽑아낸 시그니처 문자열.
+// 이 값이 바뀔 때만 지면표고 API를 재호출해야 한다 (고도/속도/duration/pattern/type 변경은 제외).
+const positionSignature = computed(() =>
+    waypoints.value.map((wp) => `${wp.uid}:${wp.order}:${wp.latitude.toFixed(7)}:${wp.longitude.toFixed(7)}`).join("|"),
+);
+
 const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation";
 const MIN_SAMPLE_INTERVAL_METERS = 40;
 const MAX_SAMPLES_PER_SEGMENT = 25;
@@ -823,7 +829,7 @@ const fetchGroundElevation = async () => {
     }
 };
 const debouncedFetch = debounce(fetchGroundElevation, 400);
-watch(() => waypoints.value, debouncedFetch, { deep: true, immediate: true });
+watch(positionSignature, debouncedFetch, { immediate: true });
 </script>
 
 <style scoped>
