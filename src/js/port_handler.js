@@ -41,6 +41,7 @@ const PortHandler = new (function () {
         portOverride: getConfig("portOverride", "/dev/rfcomm0").portOverride,
         virtualMspVersion: getConfig("virtualMspVersion", "1.46.0").virtualMspVersion,
         autoConnect: getConfig("autoConnect", false).autoConnect,
+        wifiTcpAddress: getConfig("wifiTcpAddress", "tcp://10.3.2.1").wifiTcpAddress,
     };
 
     this.portPickerDisabled = false;
@@ -54,6 +55,7 @@ const PortHandler = new (function () {
     this.showBluetoothOption = checkBluetoothSupport();
     this.showSerialOption = checkSerialSupport();
     this.showUsbOption = checkUsbSupport();
+    this.showWiFiOption = isAndroid() || true; // TCP/WiFi: Android에서 항상 사용 가능
 
     console.log(`${this.logHead} Bluetooth available: ${this.showBluetoothOption}`);
     console.log(`${this.logHead} Serial available: ${this.showSerialOption}`);

@@ -21,6 +21,7 @@
             :show-bluetooth-option="showBluetoothOption"
             :show-serial-option="showSerialOption"
             :show-usb-option="showUsbOption"
+            :show-wi-fi-option="showWiFiOption"
             @update:modelValue="updateModelValue(null, $event)"
         />
     </div>
@@ -76,6 +77,10 @@ export default defineComponent({
         showUsbOption: {
             type: Boolean,
             default: true,
+        },
+        showWiFiOption: {
+            type: Boolean,
+            default: false,
         },
         disabled: {
             type: Boolean,

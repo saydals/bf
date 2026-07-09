@@ -51,19 +51,27 @@
             @confirm="onDialogConfirm"
         />
         <BleProfileDialog v-model="bleProfileDialogOpen" />
+        <WifiDialog
+            v-model="wifiDialogOpen"
+            :saved-address="wifiAddress"
+            :error="wifiError"
+            @connect="onWifiDialogConnect"
+        />
     </div>
 </template>
 
 <script>
-import { defineComponent, computed, ref } from "vue";
+import { defineComponent, computed, ref, onMounted, onUnmounted } from "vue";
 import { useConnectionStore } from "../../stores/connection";
 import PortHandler from "../../js/port_handler";
 import { connectDisconnect, disconnect } from "../../js/serial_backend";
 import { i18n } from "../../js/localization";
-import { set as setConfig } from "../../js/ConfigStorage";
+import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
+import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
 import BleProfileDialog from "./BleProfileDialog.vue";
+import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
     PortHandler.portPicker.selectedPort = path;
@@ -89,7 +97,7 @@ function toggleAutoConnect(value) {
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog, BleProfileDialog },
+    components: { ConnectOptionsDialog, BleProfileDialog, WifiDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
@@ -141,6 +149,55 @@ export default defineComponent({
         const dialogMode = ref("virtual");
         const bleProfileDialogOpen = ref(false);
         const portPicker = computed(() => PortHandler.portPicker);
+
+        // WiFi 상태
+        const wifiDialogOpen = ref(false);
+        const wifiAddress = ref("");
+        const wifiError = ref("");
+        const wifiAutoConnectAttempted = ref(false);
+        const wifiLastFailed = ref(false);
+
+        function onWifiClick() {
+            // 이미 WiFi 연결 시도 중이면 중복 실행 방지
+            if (wifiAutoConnectAttempted.value) return;
+            const saved = getConfig("wifiTcpAddress", "").wifiTcpAddress;
+            if (saved && !wifiLastFailed.value) {
+                // 저장된 주소 → 자동 연결 시도 (이전 실패 이력이 없을 때만)
+                wifiAutoConnectAttempted.value = true;
+                wifiError.value = "";
+                PortHandler.portPicker.selectedPort = saved;
+                connectDisconnect();
+                // 12초 후 연결 실패 감지 (serial_backend 10초 타임아웃 이후)
+                wifiTimeoutId = setTimeout(() => {
+                    if (wifiAutoConnectAttempted.value) {
+                        wifiAutoConnectAttempted.value = false;
+                        if (!connectionStore.connectionValid) {
+                            wifiLastFailed.value = true;
+                            wifiAddress.value = saved;
+                            wifiError.value = i18n.getMessage("connectionFailed").replace(/<[^>]*>/g, "");
+                            wifiDialogOpen.value = true;
+                        }
+                    }
+                }, 12000);
+            } else {
+                // 저장 주소 없음 or 이전 연결 실패 → 다이얼로그 표시
+                wifiAddress.value = saved || "tcp://10.3.2.1";
+                wifiError.value = "";
+                wifiLastFailed.value = false;
+                wifiDialogOpen.value = true;
+            }
+        }
+
+        function onWifiDialogConnect(address) {
+            // 주소 저장
+            setConfig({ wifiTcpAddress: address });
+            PortHandler.portPicker.wifiTcpAddress = address;
+            // 연결
+            wifiError.value = "";
+            wifiLastFailed.value = false;
+            PortHandler.portPicker.selectedPort = address;
+            connectDisconnect();
+        }
 
         function openConnectDialog(mode) {
             dialogMode.value = mode;
@@ -196,6 +253,13 @@ export default defineComponent({
 
         function buildPermissionItems() {
             const items = [];
+            if (PortHandler.showWiFiOption) {
+                items.push({
+                    label: i18n.getMessage("portsSelectWiFi"),
+                    icon: "i-lucide-wifi",
+                    onSelect: onWifiClick,
+                });
+            }
             if (PortHandler.showSerialOption) {
                 items.push({
                     label: i18n.getMessage("portsSelectPermission"),
@@ -209,7 +273,6 @@ export default defineComponent({
                     icon: "i-lucide-bluetooth",
                     onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
-                // 신규: BLE 모듈 종류 설정 진입점
                 items.push({
                     label: i18n.getMessage("bleProfileDialogTitle"),
                     icon: "i-lucide-settings-2",
@@ -245,6 +308,15 @@ export default defineComponent({
             return items;
         });
 
+        // WiFi PortsInput 드롭다운 이벤트 처리
+        let wifiTimeoutId = null;
+        onMounted(() => {
+            EventBus.$on("ports-input:request-permission-wifi", onWifiClick);
+        });
+        onUnmounted(() => {
+            if (wifiTimeoutId) clearTimeout(wifiTimeoutId);
+        });
+
         async function onConnectClick() {
             if (portPickerDisabled.value) {
                 return;
@@ -269,6 +341,11 @@ export default defineComponent({
                 return;
             }
 
+            if (selectedPort.value === "wifi") {
+                onWifiClick();
+                return;
+            }
+
             connectDisconnect();
         }
 
@@ -287,6 +364,10 @@ export default defineComponent({
             onDialogConfirm,
             bleProfileDialogOpen,
             bluetoothPorts,
+            wifiDialogOpen,
+            wifiAddress,
+            wifiError,
+            onWifiDialogConnect,
         };
     },
 });
