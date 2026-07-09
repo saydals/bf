@@ -50,6 +50,7 @@
             :initial-port-override="portPicker.portOverride"
             @confirm="onDialogConfirm"
         />
+        <BleProfileDialog v-model="bleProfileDialogOpen" :bluetooth-ports="bluetoothPorts" />
     </div>
 </template>
 
@@ -62,6 +63,7 @@ import { i18n } from "../../js/localization";
 import { set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
+import BleProfileDialog from "./BleProfileDialog.vue";
 
 function selectAndConnect(path) {
     PortHandler.portPicker.selectedPort = path;
@@ -87,7 +89,7 @@ function toggleAutoConnect(value) {
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog },
+    components: { ConnectOptionsDialog, BleProfileDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
@@ -137,6 +139,7 @@ export default defineComponent({
 
         const dialogOpen = ref(false);
         const dialogMode = ref("virtual");
+        const bleProfileDialogOpen = ref(false);
         const portPicker = computed(() => PortHandler.portPicker);
 
         function openConnectDialog(mode) {
@@ -206,6 +209,14 @@ export default defineComponent({
                     icon: "i-lucide-bluetooth",
                     onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
+                // 신규: BLE 모듈 종류 설정 진입점
+                items.push({
+                    label: i18n.getMessage("bleProfileDialogTitle"),
+                    icon: "i-lucide-settings-2",
+                    onSelect: () => {
+                        bleProfileDialogOpen.value = true;
+                    },
+                });
             }
             if (PortHandler.showUsbOption) {
                 items.push({
@@ -274,6 +285,8 @@ export default defineComponent({
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
+            bleProfileDialogOpen,
+            bluetoothPorts,
         };
     },
 });
