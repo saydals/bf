@@ -50,7 +50,7 @@
             :initial-port-override="portPicker.portOverride"
             @confirm="onDialogConfirm"
         />
-        <BleProfileDialog v-model="bleProfileDialogOpen" />
+        <BleProfileDialog v-model="bleProfileDialogOpen" :bluetooth-ports="bluetoothPorts" />
     </div>
 </template>
 

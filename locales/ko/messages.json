@@ -9491,8 +9491,5 @@
   },
   "bleProfileDialogProfile": {
     "message": "프로필"
-  },
-  "bleProfileDialogEmpty": {
-    "message": "블루투스 기기가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
   }
 }
