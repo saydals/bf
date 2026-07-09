@@ -12,6 +12,12 @@ const defaultBluetoothDevices = [
         susceptibleToCrcCorruption: true,
     },
     {
+        name: "DX-BT04-E",
+        serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
+        writeCharacteristic: "0000ffe2-0000-1000-8000-00805f9b34fb",
+        readCharacteristic: "0000ffe1-0000-1000-8000-00805f9b34fb",
+    },
+    {
         name: "HC-05",
         serviceUuid: "00001101-0000-1000-8000-00805f9b34fb",
         writeCharacteristic: "00001101-0000-1000-8000-00805f9b34fb",
@@ -52,6 +58,12 @@ const defaultBluetoothDevices = [
         serviceUuid: "0000db32-0000-1000-8000-00805f9b34fb",
         writeCharacteristic: "0000db33-0000-1000-8000-00805f9b34fb",
         readCharacteristic: "0000db34-0000-1000-8000-00805f9b34fb",
+    },
+    {
+        name: "Generic BLE Serial",
+        serviceUuid: "",
+        writeCharacteristic: "",
+        readCharacteristic: "",
     },
 ];
 

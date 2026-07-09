@@ -255,7 +255,27 @@ class WebBluetooth extends EventTarget {
         });
 
         if (!this.deviceDescription) {
-            throw new Error("Unsupported device");
+            // Check if there's an FFE0-based service (common BLE serial profile)
+            const ffe0Service = this.services.find(
+                (service) => service.uuid.includes("ffe0") || service.uuid.includes("FFE0"),
+            );
+
+            if (ffe0Service) {
+                this.service = ffe0Service;
+                this.deviceDescription = bluetoothDevices.find((device) => device.name === "CC2541") || {
+                    name: "BLE Serial (FFE0)",
+                    writeCharacteristic: "0000ffe1-0000-1000-8000-00805f9b34fb",
+                    readCharacteristic: "0000ffe2-0000-1000-8000-00805f9b34fb",
+                };
+                console.log(`${this.logHead} Auto-matched FFE0 service, using CC2541 profile`);
+            } else if (this.services.length > 0) {
+                // Fallback: use first service with generic BLE Serial profile
+                this.service = this.services[0];
+                this.deviceDescription = bluetoothDevices.find((device) => device.name === "Generic BLE Serial");
+                console.log(`${this.logHead} Using generic BLE profile for`, this.service.uuid);
+            } else {
+                throw new Error("Unsupported device");
+            }
         }
 
         gui_log(i18n.getMessage("bluetoothConnectionType", [this.deviceDescription.name]));
@@ -279,6 +299,43 @@ class WebBluetooth extends EventTarget {
             }
             return this.writeCharacteristic && this.readCharacteristic;
         });
+
+        // Auto-detect characteristics by properties if UUID matching failed
+        if (!this.writeCharacteristic || !this.readCharacteristic) {
+            for (const char of characteristics) {
+                // Auto-match write characteristic
+                if (!this.writeCharacteristic && !this.deviceDescription.writeCharacteristic) {
+                    if (char.properties.write || char.properties.writeWithoutResponse) {
+                        this.writeCharacteristic = char;
+                        console.log(`${this.logHead} Auto-selected write characteristic:`, char.uuid);
+                        continue;
+                    }
+                }
+
+                // Auto-match read/notify characteristic
+                if (!this.readCharacteristic && !this.deviceDescription.readCharacteristic) {
+                    if (char.properties.notify || char.properties.read) {
+                        this.readCharacteristic = char;
+                        console.log(`${this.logHead} Auto-selected read characteristic:`, char.uuid);
+                        continue;
+                    }
+                }
+            }
+        }
+
+        // Fallback by properties when UUID-based device description didn't match reality
+        if (!this.writeCharacteristic || !this.readCharacteristic) {
+            for (const char of characteristics) {
+                if (!this.writeCharacteristic && (char.properties.write || char.properties.writeWithoutResponse)) {
+                    this.writeCharacteristic = char;
+                    console.log(`${this.logHead} Fallback write characteristic:`, char.uuid);
+                }
+                if (!this.readCharacteristic && (char.properties.notify || char.properties.read)) {
+                    this.readCharacteristic = char;
+                    console.log(`${this.logHead} Fallback read characteristic:`, char.uuid);
+                }
+            }
+        }
 
         if (!this.writeCharacteristic) {
             throw new Error(
