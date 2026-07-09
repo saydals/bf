@@ -61,7 +61,10 @@ class Websocket extends EventTarget {
         this.address = path;
         console.log(`${this.logHead} Connecting to ${this.address}`);
 
-        this.ws = new WebSocket(this.address, ["binary", "wsSerial"]);
+        // WebSocket은 tcp:// 스킴을 지원하지 않으므로 ws://로 변환
+        const wsUrl = path.replace(/^tcp:/i, "ws:");
+
+        this.ws = new WebSocket(wsUrl, ["binary", "wsSerial"]);
         let socket = this;
 
         this.ws.onopen = function (e) {
