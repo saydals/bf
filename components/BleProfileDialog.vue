@@ -6,20 +6,14 @@
                     {{ $t("bleProfileDialogHelp") }}
                 </p>
 
-                <p
-                    v-if="deviceItems.length === 0 && overrideOnlyDevices.length === 0"
-                    class="ble-profile-dialog__empty"
-                >
+                <p v-if="allDeviceItems.length === 0" class="ble-profile-dialog__empty">
                     {{ $t("bleProfileDialogEmpty") }}
                 </p>
 
-                <label
-                    class="ble-profile-dialog__field"
-                    v-if="deviceItems.length > 0 || overrideOnlyDevices.length > 0"
-                >
+                <label class="ble-profile-dialog__field" v-if="allDeviceItems.length > 0">
                     <span>{{ $t("bleProfileDialogDevice") }}</span>
                     <USelect
-                        :items="[...deviceItems, ...overrideOnlyDevices]"
+                        :items="allDeviceItems"
                         v-model="selectedDeviceKey"
                         size="sm"
                         :ui="{ content: 'max-h-96' }"
@@ -48,6 +42,7 @@ import { defineComponent, computed, ref, watch } from "vue";
 import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
 import { get as getConfig } from "../../js/ConfigStorage";
 import { i18n } from "../../js/localization";
+import PortHandler from "../../js/port_handler";
 
 const OVERRIDE_STORAGE_KEY = "bleProfileOverrides";
 
@@ -57,10 +52,6 @@ export default defineComponent({
         modelValue: {
             type: Boolean,
             required: true,
-        },
-        bluetoothPorts: {
-            type: Array,
-            default: () => [],
         },
     },
     emits: ["update:modelValue"],
@@ -75,27 +66,28 @@ export default defineComponent({
         const selectedDeviceKey = ref("");
         const selectedProfile = ref("");
 
-        // 기기 목록: 현재 검색된 블루투스 기기 (address=MAC을 키로 사용)
-        const deviceItems = computed(() =>
-            (props.bluetoothPorts || []).map((d) => ({
-                value: d.address || d.path,
-                label: d.displayName || d.path,
-            })),
-        );
+        const allDeviceItems = computed(() => {
+            const items = [];
 
-        // 이전에 오버라이드 저장된 기기 중 현재 스캔 목록에 없는 것도 표시
-        const overrideOnlyDevices = computed(() => {
+            // 1) 현재 스캔된 기기 (address를 키로 사용)
+            const ports = PortHandler.currentBluetoothPorts || [];
+            for (const d of ports) {
+                const key = d.address || d.path;
+                items.push({ value: key, label: d.displayName || key });
+            }
+
+            // 2) 이전 저장된 오버라이드 기기 중 스캔 목록에 없는 것
             const stored = getConfig(OVERRIDE_STORAGE_KEY)?.[OVERRIDE_STORAGE_KEY] ?? {};
-            const scannedKeys = new Set(deviceItems.value.map((d) => d.value));
-            return Object.keys(stored)
-                .filter((key) => !scannedKeys.has(key))
-                .map((key) => ({
-                    value: key,
-                    label: `${stored[key]} (${key})`,
-                }));
+            const scannedKeys = new Set(items.map((d) => d.value));
+            for (const key of Object.keys(stored)) {
+                if (!scannedKeys.has(key)) {
+                    items.push({ value: key, label: `${stored[key]  } (${  key  })` });
+                }
+            }
+
+            return items;
         });
 
-        // 프로필 목록: 자동 감지 + 모든 등록된 BLE 프로필 (value=프로필명, label=표시명)
         const profileItems = computed(() =>
             getSelectableProfiles().map((p) => ({
                 value: p.name,
@@ -103,7 +95,6 @@ export default defineComponent({
             })),
         );
 
-        // 기기 변경 시 저장된 오버라이드 불러오기
         watch(selectedDeviceKey, (newKey) => {
             const override = getProfileOverride(newKey);
             selectedProfile.value = override?.name ?? "";
@@ -120,8 +111,7 @@ export default defineComponent({
             title,
             selectedDeviceKey,
             selectedProfile,
-            deviceItems,
-            overrideOnlyDevices,
+            allDeviceItems,
             profileItems,
             save,
         };
