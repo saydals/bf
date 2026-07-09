@@ -248,55 +248,57 @@ class WebBluetooth extends EventTarget {
         console.log(`${this.logHead} Get primary services`);
 
         this.services = await this.server.getPrimaryServices();
+        this.deviceDescription = null;
 
-        this.service = this.services.find((service) => {
-            this.deviceDescription = bluetoothDevices.find((device) => device.serviceUuid == service.uuid);
-            return this.deviceDescription;
-        });
+        // 1. 광고된 기기 이름으로 프로필 매칭 시도 (DX-BT04-E 등)
+        const advertisedName = this.device?.name?.toLowerCase() ?? "";
+        if (advertisedName) {
+            this.deviceDescription = bluetoothDevices.find(
+                (device) => device.name && advertisedName.includes(device.name.toLowerCase()),
+            );
+        }
 
         if (!this.deviceDescription) {
-            // 1. 장치 이름으로 프로필 매칭 시도 (DX-BT04-E 등)
-            if (this.device && this.device.name) {
-                this.deviceDescription = bluetoothDevices.find((device) => this.device.name.includes(device.name));
-            }
+            // 2. 이름으로 못 찾았을 때만 serviceUuid 매칭
+            this.service = this.services.find((service) => {
+                this.deviceDescription = bluetoothDevices.find((device) => device.serviceUuid == service.uuid);
+                return this.deviceDescription;
+            });
+        } else {
+            // 이름으로 매칭된 경우, 해당 프로필의 serviceUuid를 가진 서비스를 선택
+            this.service =
+                this.services.find((service) => service.uuid.includes(this.deviceDescription.serviceUuid)) ||
+                this.services[0];
+        }
 
-            // 2. 이름으로 매칭되지 않았으나 FFE0 서비스가 있는 경우
-            if (!this.deviceDescription) {
-                const ffe0Service = this.services.find(
-                    (service) => service.uuid.includes("ffe0") || service.uuid.includes("FFE0"),
-                );
+        // 3. 위 두 방법으로도 못 찾았을 때의 폴백 (FFE0 자동 감지 / 첫 서비스 사용)
+        if (!this.deviceDescription) {
+            const ffe0Service = this.services.find(
+                (service) => service.uuid.includes("ffe0") || service.uuid.includes("FFE0"),
+            );
 
-                if (ffe0Service) {
-                    this.service = ffe0Service;
-                    // CC2541 강제 주입 대신 빈 프로필을 할당하여 getCharacteristics()에서 속성 기반 매칭하도록 유도
-                    this.deviceDescription = {
-                        name: "BLE Serial (FFE0 Auto)",
-                        writeCharacteristic: "",
-                        readCharacteristic: "",
-                    };
-                    console.log(`${this.logHead} Found FFE0 service. Deferring characteristic matching to properties.`);
-                } else if (this.services.length > 0) {
-                    // Fallback: use first service
-                    this.service = this.services[0];
-                    this.deviceDescription = {
-                        name: "Generic BLE Serial",
-                        writeCharacteristic: "",
-                        readCharacteristic: "",
-                    };
-                    console.log(`${this.logHead} Using generic BLE profile for`, this.service.uuid);
-                } else {
-                    throw new Error("Unsupported device: No services found");
-                }
+            if (ffe0Service) {
+                this.service = ffe0Service;
+                this.deviceDescription = {
+                    name: "BLE Serial (FFE0 Auto)",
+                    writeCharacteristic: "",
+                    readCharacteristic: "",
+                };
+                console.log(`${this.logHead} Found FFE0 service. Deferring characteristic matching to properties.`);
+            } else if (this.services.length > 0) {
+                this.service = this.services[0];
+                this.deviceDescription = {
+                    name: "Generic BLE Serial",
+                    writeCharacteristic: "",
+                    readCharacteristic: "",
+                };
+                console.log(`${this.logHead} Using generic BLE profile for`, this.service.uuid);
             } else {
-                // 이름으로 매칭된 경우, 해당 프로필의 서비스를 선택
-                this.service =
-                    this.services.find((service) => service.uuid.includes(this.deviceDescription.serviceUuid)) ||
-                    this.services[0];
+                throw new Error("Unsupported device: No services found");
             }
         }
 
         gui_log(i18n.getMessage("bluetoothConnectionType", [this.deviceDescription.name]));
-
         console.log(`${this.logHead} Connected to service:`, this.service.uuid);
 
         return this.service;

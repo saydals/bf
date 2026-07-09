@@ -58,14 +58,27 @@
                     }"
                 />
             </div>
+            <div v-if="isBluetoothPortSelected" id="ble-profile-select">
+                <USelect
+                    :items="bleProfiles"
+                    v-model="selectedBleProfile"
+                    :disabled="disabled"
+                    size="xs"
+                    class="min-w-24"
+                    :ui="{
+                        content: 'max-h-96',
+                    }"
+                />
+            </div>
         </div>
     </div>
 </template>
 
 <script>
-import { defineComponent, ref, watch } from "vue";
+import { defineComponent, ref, watch, computed } from "vue";
 import { set as setConfig } from "../../js/ConfigStorage";
 import { EventBus } from "../eventBus";
+import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
 
 export default defineComponent({
     props: {
@@ -119,6 +132,7 @@ export default defineComponent({
         const selectedPort = ref(props.modelValue.selectedPort); // Access through modelValue
         const selectedBauds = ref(props.modelValue.selectedBauds); // Access through modelValue
         const autoConnect = ref(props.modelValue.autoConnect); // Access through modelValue
+        const selectedBleProfile = ref("");
         const baudRates = ref([
             { value: "1000000", label: "1000000" },
             { value: "500000", label: "500000" },
@@ -134,6 +148,14 @@ export default defineComponent({
             { value: "2400", label: "2400" },
             { value: "1200", label: "1200" },
         ]);
+        const bleProfiles = ref(getSelectableProfiles());
+
+        const isBluetoothPortSelected = computed(() => {
+            if (!selectedPort.value) return false;
+            if (selectedPort.value === "virtual" || selectedPort.value === "noselection") return false;
+            if (selectedPort.value.startsWith("requestpermission")) return false;
+            return props.connectedBluetoothDevices.some((device) => device.path === selectedPort.value);
+        });
 
         // Keep UI in sync when PortHandler (or parent) updates selectedPort, e.g. after WebUSB permission dialog
         watch(
@@ -156,6 +178,18 @@ export default defineComponent({
             setConfig({ autoConnect: newValue });
         });
 
+        watch(selectedBleProfile, (newValue) => {
+            emit("update:modelValue", { ...props.modelValue, selectedBleProfile: newValue });
+            if (selectedPort.value && selectedPort.value !== "noselection") {
+                setProfileOverride(selectedPort.value, newValue || null);
+            }
+        });
+
+        // Load saved override when port changes
+        watch(selectedPort, (newValue) => {
+            selectedBleProfile.value = getProfileOverride(newValue)?.name ?? "";
+        });
+
         const onChangePort = () => {
             const value = selectedPort.value;
 
@@ -174,7 +208,10 @@ export default defineComponent({
             selectedPort,
             selectedBauds,
             autoConnect,
+            selectedBleProfile,
             baudRates,
+            bleProfiles,
+            isBluetoothPortSelected,
             onChangePort,
         };
     },

@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { bluetoothDevices } from "./devices";
+import { getProfileOverride } from "./blePreferences";
 
 const logHead = "[CAPACITORBLE]";
 const plugin = Capacitor?.Plugins?.BetaflightBle;
@@ -66,6 +67,7 @@ class CapacitorBle extends EventTarget {
             const devices = result?.devices || [];
 
             this.devices = devices.map((d) => {
+                const override = getProfileOverride(d.address);
                 return {
                     path: `bluetooth-${d.address}`,
                     displayName: d.name || d.address,
@@ -73,9 +75,10 @@ class CapacitorBle extends EventTarget {
                     productId: 0,
                     address: d.address,
                     serviceUuid: d.serviceUuid,
-                    writeCharacteristic: d.writeCharacteristic,
-                    notifyCharacteristic: d.notifyCharacteristic,
+                    writeCharacteristic: override?.writeCharacteristic ?? d.writeCharacteristic,
+                    notifyCharacteristic: override?.readCharacteristic ?? d.notifyCharacteristic,
                     rssi: d.rssi,
+                    profileOverride: override?.name ?? null,
                 };
             });
 
@@ -107,14 +110,30 @@ class CapacitorBle extends EventTarget {
             return false;
         }
 
-        this.deviceDescription = bluetoothDevices.find((d) => d.serviceUuid === device.serviceUuid) || null;
+        this.profileOverride = getProfileOverride(device.address);
+
+        const writeCharacteristic = this.profileOverride?.writeCharacteristic ?? device.writeCharacteristic;
+        const notifyCharacteristic = this.profileOverride?.readCharacteristic ?? device.notifyCharacteristic;
+        this.deviceDescription =
+            bluetoothDevices.find(
+                (d) => d.serviceUuid === device.serviceUuid || d.name === this.profileOverride?.name,
+            ) || null;
+
+        if (this.profileOverride) {
+            console.log(
+                `${logHead} Using manual profile override for ${device.displayName}:`,
+                this.profileOverride.name,
+                `write=${  writeCharacteristic}`,
+                `notify=${  notifyCharacteristic}`,
+            );
+        }
 
         try {
             const result = await plugin.connect({
                 address: device.address,
                 serviceUuid: device.serviceUuid,
-                writeCharacteristic: device.writeCharacteristic,
-                notifyCharacteristic: device.notifyCharacteristic,
+                writeCharacteristic,
+                notifyCharacteristic,
             });
 
             const success = !!result?.success;
