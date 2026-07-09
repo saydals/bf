@@ -43,15 +43,6 @@
                 />
             </UDropdownMenu>
         </UFieldGroup>
-        <div v-if="isBluetoothSelected" class="sidebar-connect__ble-profile">
-            <USelect
-                :items="bleProfileItems"
-                v-model="selectedBleProfile"
-                size="xs"
-                class="min-w-full"
-                :ui="{ content: 'max-h-96' }"
-            />
-        </div>
         <ConnectOptionsDialog
             v-model="dialogOpen"
             :mode="dialogMode"
@@ -63,7 +54,7 @@
 </template>
 
 <script>
-import { defineComponent, computed, ref, watch } from "vue";
+import { defineComponent, computed, ref } from "vue";
 import { useConnectionStore } from "../../stores/connection";
 import PortHandler from "../../js/port_handler";
 import { connectDisconnect, disconnect } from "../../js/serial_backend";
@@ -71,7 +62,6 @@ import { i18n } from "../../js/localization";
 import { set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
-import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
 
 function selectAndConnect(path) {
     PortHandler.portPicker.selectedPort = path;
@@ -149,32 +139,6 @@ export default defineComponent({
         const dialogMode = ref("virtual");
         const portPicker = computed(() => PortHandler.portPicker);
 
-        // BLE 프로필 수동 선택
-        const selectedBleProfile = ref("");
-        const bleProfileItems = ref(getSelectableProfiles());
-        const isBluetoothSelected = computed(() => {
-            const path = selectedPort.value;
-            if (!path || path === "noselection" || path === "virtual" || path === "manual") return false;
-            if (path.startsWith("requestpermission")) return false;
-            return bluetoothPorts.value.some((d) => d.path === path);
-        });
-
-        // 기기 변경 시 저장된 오버라이드 불러오기
-        watch(selectedPort, (newValue) => {
-            if (isBluetoothSelected.value) {
-                selectedBleProfile.value = getProfileOverride(newValue)?.name ?? "";
-            } else {
-                selectedBleProfile.value = "";
-            }
-        });
-
-        // 프로필 변경 시 오버라이드 저장
-        watch(selectedBleProfile, (newValue) => {
-            if (isBluetoothSelected.value) {
-                setProfileOverride(selectedPort.value, newValue || null);
-            }
-        });
-
         function openConnectDialog(mode) {
             dialogMode.value = mode;
             dialogOpen.value = true;
@@ -206,10 +170,7 @@ export default defineComponent({
                     devices.push({
                         label: d.displayName,
                         icon: "i-lucide-bluetooth",
-                        // 블루투스 기기는 자동 연결하지 않고 포트만 설정 (BLE 프로필 선택 기회 제공)
-                        onSelect: () => {
-                            PortHandler.portPicker.selectedPort = d.path;
-                        },
+                        onSelect: () => selectAndConnect(d.path),
                     });
                 }
             }
@@ -313,9 +274,6 @@ export default defineComponent({
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
-            isBluetoothSelected,
-            selectedBleProfile,
-            bleProfileItems,
         };
     },
 });
@@ -393,15 +351,5 @@ html.dark .sidebar-connect :deep(button.color-error:hover) {
 }
 .tab_container.reveal .sidebar-connect__group {
     width: 100% !important;
-}
-
-.sidebar-connect__ble-profile {
-    padding: 0.25rem 0 0 0;
-}
-
-@media (max-width: 1055px) {
-    .sidebar-connect__ble-profile {
-        padding: 0.25rem 0;
-    }
 }
 </style>
