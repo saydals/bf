@@ -16,13 +16,18 @@
                         :items="allDeviceItems"
                         v-model="selectedDeviceKey"
                         size="sm"
-                        :ui="{ content: 'max-h-96' }"
+                        :ui="{ content: 'z-[3100] max-h-96' }"
                     />
                 </label>
 
                 <label class="ble-profile-dialog__field" v-if="selectedDeviceKey">
                     <span>{{ $t("bleProfileDialogProfile") }}</span>
-                    <USelect :items="profileItems" v-model="selectedProfile" size="sm" :ui="{ content: 'max-h-96' }" />
+                    <USelect
+                        :items="profileItems"
+                        v-model="selectedProfile"
+                        size="sm"
+                        :ui="{ content: 'z-[3100] max-h-96' }"
+                    />
                 </label>
             </div>
         </template>
@@ -81,7 +86,7 @@ export default defineComponent({
             const scannedKeys = new Set(items.map((d) => d.value));
             for (const key of Object.keys(stored)) {
                 if (!scannedKeys.has(key)) {
-                    items.push({ value: key, label: `${stored[key]  } (${  key  })` });
+                    items.push({ value: key, label: `${stored[key]} (${key})` });
                 }
             }
 
@@ -99,6 +104,25 @@ export default defineComponent({
             const override = getProfileOverride(newKey);
             selectedProfile.value = override?.name ?? "";
         });
+
+        // 다이얼로그가 열릴 때 현재 선택된 블루투스 기기를 자동 선택
+        watch(
+            () => props.modelValue,
+            (isOpen) => {
+                if (!isOpen) return;
+
+                const currentPath = PortHandler.portPicker.selectedPort;
+                if (currentPath?.startsWith("bluetooth")) {
+                    const currentPort = (PortHandler.currentBluetoothPorts || []).find((p) => p.path === currentPath);
+                    if (currentPort) {
+                        selectedDeviceKey.value = currentPort.address || currentPort.path;
+                        return;
+                    }
+                }
+
+                selectedDeviceKey.value = allDeviceItems.value[0]?.value ?? "";
+            },
+        );
 
         function save() {
             if (!selectedDeviceKey.value) return;
