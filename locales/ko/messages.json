@@ -92,16 +92,32 @@
     "description": "Configure a Virtual Flight Controller without the need of a physical FC."
   },
   "portsSelectPermission": {
-    "message": "--- USB 장치를 찾을 수 없습니다 ---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access the device."
+    "message": "USB 장치 연결",
+    "description": "Option in the port selection dropdown to request permission to access a USB/serial device."
   },
   "portsSelectPermissionBluetooth": {
-    "message": "--- 블루투스 장치를 찾을 수 없습니다---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access a Bluetooth device."
+    "message": "BLE 모듈 설정",
+    "description": "Option in the port selection dropdown to request permission to access a Bluetooth device."
   },
   "portsSelectPermissionDFU": {
-    "message": "--- 내 DFU 장치를 찾을 수 없습니다 ---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access a DFU device."
+    "message": "DFU 장치 연결",
+    "description": "Option in the port selection dropdown to request permission to access a DFU device."
+  },
+  "portsSelectWiFi": {
+    "message": "WiFi 장치 연결",
+    "description": "Option in the port selection dropdown for WiFi/TCP connection."
+  },
+  "wifiDialogTitle": {
+    "message": "WiFi 연결",
+    "description": "Title of the WiFi TCP address input dialog."
+  },
+  "wifiTcpAddressLabel": {
+    "message": "TCP 주소",
+    "description": "Label for the TCP address input field in the WiFi dialog."
+  },
+  "wifiSavedAddress": {
+    "message": "저장된 주소",
+    "description": "Label showing the saved TCP address when connection fails."
   },
   "portsEepromSaved": {
     "message": "$t(eeprom_saved_ok.message)",
@@ -9494,5 +9510,8 @@
   },
   "bleProfileDialogEmpty": {
     "message": "블루투스 기기가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
+  },
+  "retry": {
+    "message": "재시도"
   }
 }

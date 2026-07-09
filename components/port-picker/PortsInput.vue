@@ -27,6 +27,7 @@
                       }))
                     : []),
                 { type: 'separator' },
+                ...(showWiFiOption ? [{ label: $t('portsSelectWiFi'), value: 'wifi' }] : []),
                 ...(showSerialOption ? [{ label: $t('portsSelectPermission'), value: 'requestpermissionserial' }] : []),
                 ...(showBluetoothOption
                     ? [{ label: $t('portsSelectPermissionBluetooth'), value: 'requestpermissionbluetooth' }]
@@ -126,6 +127,10 @@ export default defineComponent({
             type: Boolean,
             default: true,
         },
+        showWiFiOption: {
+            type: Boolean,
+            default: false,
+        },
     },
     emits: ["update:modelValue"],
     setup(props, { emit }) {
@@ -198,6 +203,10 @@ export default defineComponent({
                 const type = value.replace("requestpermission", "");
                 EventBus.$emit(`ports-input:request-permission-${type}`);
                 // Reset selection to "No Selection" (watch(selectedPort) emits update:modelValue)
+                selectedPort.value = "noselection";
+            } else if (value === "wifi") {
+                // WiFi는 바로 액션 트리거 (다이얼로그 표시)
+                EventBus.$emit("ports-input:request-permission-wifi");
                 selectedPort.value = "noselection";
             } else {
                 EventBus.$emit("ports-input:change", value);

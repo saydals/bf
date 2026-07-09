@@ -95,16 +95,32 @@
     "description": "Configure a Virtual Flight Controller without the need of a physical FC."
   },
   "portsSelectPermission": {
-    "message": "--- I can't find my USB device ---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access the device."
+    "message": "USB device connection",
+    "description": "Option in the port selection dropdown to request permission to access a USB/serial device."
   },
   "portsSelectPermissionBluetooth": {
-    "message": "--- I can't find my Bluetooth device---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access a Bluetooth device."
+    "message": "BLE module settings",
+    "description": "Option in the port selection dropdown to request permission to access a Bluetooth device."
   },
   "portsSelectPermissionDFU": {
-    "message": "--- I can't find my DFU device ---",
-    "description": "Option in the port selection dropdown to allow the user to give permissions to the system to access a DFU device."
+    "message": "DFU device connection",
+    "description": "Option in the port selection dropdown to request permission to access a DFU device."
+  },
+  "portsSelectWiFi": {
+    "message": "WiFi device connection",
+    "description": "Option in the port selection dropdown for WiFi/TCP connection."
+  },
+  "wifiDialogTitle": {
+    "message": "WiFi Connection",
+    "description": "Title of the WiFi TCP address input dialog."
+  },
+  "wifiTcpAddressLabel": {
+    "message": "TCP Address",
+    "description": "Label for the TCP address input field in the WiFi dialog."
+  },
+  "wifiSavedAddress": {
+    "message": "Saved address",
+    "description": "Label showing the saved TCP address when connection fails."
   },
   "portsEepromSaved": {
     "message": "$t(eeprom_saved_ok.message)",
@@ -9815,5 +9831,8 @@
   },
   "bleProfileDialogEmpty": {
     "message": "No Bluetooth devices available. Scan for devices first from the connection dropdown."
+  },
+  "retry": {
+    "message": "Retry"
   }
 }
