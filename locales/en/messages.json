@@ -9812,5 +9812,8 @@
   },
   "bleProfileDialogProfile": {
     "message": "Profile"
+  },
+  "bleProfileDialogEmpty": {
+    "message": "No Bluetooth devices available. Scan for devices first from the connection dropdown."
   }
 }
