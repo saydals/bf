@@ -99,7 +99,7 @@
     "description": "Option in the port selection dropdown to request permission to access a USB/serial device."
   },
   "portsSelectPermissionBluetooth": {
-    "message": "BLE module settings",
+    "message": "Bluetooth device connection",
     "description": "Option in the port selection dropdown to request permission to access a Bluetooth device."
   },
   "portsSelectPermissionDFU": {

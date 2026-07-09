@@ -27,12 +27,12 @@
                       }))
                     : []),
                 { type: 'separator' },
-                ...(showWiFiOption ? [{ label: $t('portsSelectWiFi'), value: 'wifi' }] : []),
                 ...(showSerialOption ? [{ label: $t('portsSelectPermission'), value: 'requestpermissionserial' }] : []),
                 ...(showBluetoothOption
                     ? [{ label: $t('portsSelectPermissionBluetooth'), value: 'requestpermissionbluetooth' }]
                     : []),
                 ...(showUsbOption ? [{ label: $t('portsSelectPermissionDFU'), value: 'requestpermissionusb' }] : []),
+                ...(showWiFiOption ? [{ label: $t('portsSelectWiFi'), value: 'wifi' }] : []),
             ]"
             v-model="selectedPort"
             :disabled="disabled"
