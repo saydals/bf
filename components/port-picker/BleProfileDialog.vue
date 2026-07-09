@@ -6,20 +6,29 @@
                     {{ $t("bleProfileDialogHelp") }}
                 </p>
 
-                <label class="ble-profile-dialog__field">
-                    <span>{{ $t("bleProfileDialogDevice") }}</span>
-                    <USelect :items="deviceItems" v-model="selectedDeviceKey" size="sm" :ui="{ content: 'max-h-96' }" />
-                </label>
+                <p
+                    v-if="deviceItems.length === 0 && overrideOnlyDevices.length === 0"
+                    class="ble-profile-dialog__empty"
+                >
+                    {{ $t("bleProfileDialogEmpty") }}
+                </p>
 
-                <label class="ble-profile-dialog__field">
-                    <span>{{ $t("bleProfileDialogProfile") }}</span>
+                <label
+                    class="ble-profile-dialog__field"
+                    v-if="deviceItems.length > 0 || overrideOnlyDevices.length > 0"
+                >
+                    <span>{{ $t("bleProfileDialogDevice") }}</span>
                     <USelect
-                        :items="profileItems"
-                        v-model="selectedProfile"
-                        :disabled="!selectedDeviceKey"
+                        :items="[...deviceItems, ...overrideOnlyDevices]"
+                        v-model="selectedDeviceKey"
                         size="sm"
                         :ui="{ content: 'max-h-96' }"
                     />
+                </label>
+
+                <label class="ble-profile-dialog__field" v-if="selectedDeviceKey">
+                    <span>{{ $t("bleProfileDialogProfile") }}</span>
+                    <USelect :items="profileItems" v-model="selectedProfile" size="sm" :ui="{ content: 'max-h-96' }" />
                 </label>
             </div>
         </template>
@@ -37,7 +46,10 @@
 <script>
 import { defineComponent, computed, ref, watch } from "vue";
 import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
+import { get as getConfig } from "../../js/ConfigStorage";
 import { i18n } from "../../js/localization";
+
+const OVERRIDE_STORAGE_KEY = "bleProfileOverrides";
 
 export default defineComponent({
     name: "BleProfileDialog",
@@ -63,13 +75,25 @@ export default defineComponent({
         const selectedDeviceKey = ref("");
         const selectedProfile = ref("");
 
-        // 기기 목록: 현재 검색된 블루투스 기기
+        // 기기 목록: 현재 검색된 블루투스 기기 (address=MAC을 키로 사용)
         const deviceItems = computed(() =>
             (props.bluetoothPorts || []).map((d) => ({
-                value: d.path,
+                value: d.address || d.path,
                 label: d.displayName || d.path,
             })),
         );
+
+        // 이전에 오버라이드 저장된 기기 중 현재 스캔 목록에 없는 것도 표시
+        const overrideOnlyDevices = computed(() => {
+            const stored = getConfig(OVERRIDE_STORAGE_KEY)?.[OVERRIDE_STORAGE_KEY] ?? {};
+            const scannedKeys = new Set(deviceItems.value.map((d) => d.value));
+            return Object.keys(stored)
+                .filter((key) => !scannedKeys.has(key))
+                .map((key) => ({
+                    value: key,
+                    label: `${stored[key]} (${key})`,
+                }));
+        });
 
         // 프로필 목록: 자동 감지 + 모든 등록된 BLE 프로필 (value=프로필명, label=표시명)
         const profileItems = computed(() =>
@@ -97,6 +121,7 @@ export default defineComponent({
             selectedDeviceKey,
             selectedProfile,
             deviceItems,
+            overrideOnlyDevices,
             profileItems,
             save,
         };
@@ -114,6 +139,15 @@ export default defineComponent({
 .ble-profile-dialog__help {
     font-size: 0.875rem;
     color: var(--text-muted);
+    margin: 0;
+}
+
+.ble-profile-dialog__empty {
+    font-size: 0.875rem;
+    color: var(--warning-foreground);
+    background: var(--warning);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
     margin: 0;
 }
 
