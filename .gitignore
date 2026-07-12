@@ -56,3 +56,5 @@ components.d.ts
 /*.pem
 /CLAUDE.md
 /.claude
+app.apk
+app-release.apk
