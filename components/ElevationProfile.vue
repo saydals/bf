@@ -181,6 +181,7 @@
                     :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
+                    <div>지상고도: {{ formatAltitude(tooltipData.groundElev) }}</div>
                     <div>{{ $t("flightPlanRelativeAltLabel") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
                     <div>{{ $t("flightPlanSpeedLabel") }}: {{ formatSpeedMps(tooltipData.speed) }}</div>
                 </div>
@@ -377,7 +378,7 @@ const dragState = ref({
     speedInterval: null,
 });
 
-const tooltipData = ref({ visible: false, x: 0, y: 0, order: 0, altitude: 0, speed: 0 });
+const tooltipData = ref({ visible: false, x: 0, y: 0, order: 0, altitude: 0, speed: 0, groundElev: 0 });
 
 const profilePoints = computed(() => {
     if (!waypoints.value.length) return [];
@@ -515,6 +516,7 @@ const updateTooltipPosition = (e, wp) => {
     if (x < 4) x = 4;
     if (x + 150 > innerWidth - 4) x = innerWidth - 154;
     if (y < 4) y = r.bottom + 20;
+    const groundElev = getGroundElevAtPoint(wp.distance);
     tooltipData.value = {
         visible: true,
         x,
@@ -522,6 +524,7 @@ const updateTooltipPosition = (e, wp) => {
         order: (wp.order ?? 0) + 1,
         altitude: wp.altitude ?? 0,
         speed: wp.speed ?? 0,
+        groundElev,
     };
 };
 
