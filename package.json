@@ -20,6 +20,8 @@
     "android:run": "vite build && node capacitor.config.generator.mjs && npx cap run android",
     "android:sync": "vite build && node capacitor.config.generator.mjs && npx cap sync android",
     "android:release": "vite build && node capacitor.config.generator.mjs && npx cap build android --release",
+    "android:apk": "vite build && npx cap sync android && cd android && ./gradlew assembleDebug && cd .. && cp android/app/build/outputs/apk/debug/app-debug.apk ./app.apk",
+    "android:apk:release": "vite build && npx cap sync android && cd android && ./gradlew assembleRelease && cd .. && cp android/app/build/outputs/apk/release/app-release-unsigned.apk ./app-release.apk",
     "tauri": "tauri",
     "tauri:dev": "node scripts/check-tauri-prereqs.mjs && cross-env TAURI_DEV=1 tauri dev",
     "tauri:build": "node scripts/check-tauri-prereqs.mjs && tauri build",

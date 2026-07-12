@@ -550,45 +550,63 @@ function onOpen(openInfo) {
 
         console.log(`${logHead} Requesting configuration data`);
 
-        MSP.send_message(MSPCodes.MSP_API_VERSION, false, false, function () {
-            gui_log(i18n.getMessage("apiVersionReceived", FC.CONFIG.apiVersion));
+        // Safety: if FC is stuck in CLI mode, send exit\r\n to escape before requesting MSP
+        // This prevents infinite hang when previous session left FC in CLI mode
+        const escapeBuffer = new ArrayBuffer(5);
+        const escapeView = new Uint8Array(escapeBuffer);
+        escapeView[0] = 0x65; // e
+        escapeView[1] = 0x78; // x
+        escapeView[2] = 0x69; // i
+        escapeView[3] = 0x74; // t
+        escapeView[4] = 0x0d; // \r
+        serial.send(escapeBuffer, false);
+        // Also send \n for compatibility
+        const lfBuffer = new ArrayBuffer(1);
+        const lfView = new Uint8Array(lfBuffer);
+        lfView[0] = 0x0a; // \n
+        serial.send(lfBuffer, false);
 
-            // "0.0.0" is the uninitialised default (no valid version received), and any
-            // unparseable string (e.g. "null.null.0" from a corrupt/truncated payload)
-            // would make the semver.gte() below throw. Reject both robustly instead of
-            // matching a specific garbage substring.
-            if (FC.CONFIG.apiVersion === "0.0.0" || !semver.valid(FC.CONFIG.apiVersion)) {
-                abortConnection();
-                return;
-            }
+        setTimeout(() => {
+            MSP.send_message(MSPCodes.MSP_API_VERSION, false, false, function () {
+                gui_log(i18n.getMessage("apiVersionReceived", FC.CONFIG.apiVersion));
 
-            if (semver.gte(FC.CONFIG.apiVersion, CONFIGURATOR.API_VERSION_ACCEPTED)) {
-                MSP.send_message(MSPCodes.MSP_FC_VARIANT, false, false, function () {
-                    if (FC.CONFIG.flightControllerIdentifier === "BTFL") {
-                        MSP.send_message(MSPCodes.MSP_FC_VERSION, false, false, function () {
-                            gui_log(
-                                i18n.getMessage("fcInfoReceived", [
-                                    FC.CONFIG.flightControllerIdentifier,
-                                    FC.CONFIG.flightControllerVersion,
-                                ]),
-                            );
+                // "0.0.0" is the uninitialised default (no valid version received), and any
+                // unparseable string (e.g. "null.null.0" from a corrupt/truncated payload)
+                // would make the semver.gte() below throw. Reject both robustly instead of
+                // matching a specific garbage substring.
+                if (FC.CONFIG.apiVersion === "0.0.0" || !semver.valid(FC.CONFIG.apiVersion)) {
+                    abortConnection();
+                    return;
+                }
 
-                            MSP.send_message(MSPCodes.MSP_BUILD_INFO, false, false, function () {
-                                gui_log(i18n.getMessage("buildInfoReceived", [FC.CONFIG.buildInfo]));
+                if (semver.gte(FC.CONFIG.apiVersion, CONFIGURATOR.API_VERSION_ACCEPTED)) {
+                    MSP.send_message(MSPCodes.MSP_FC_VARIANT, false, false, function () {
+                        if (FC.CONFIG.flightControllerIdentifier === "BTFL") {
+                            MSP.send_message(MSPCodes.MSP_FC_VERSION, false, false, function () {
+                                gui_log(
+                                    i18n.getMessage("fcInfoReceived", [
+                                        FC.CONFIG.flightControllerIdentifier,
+                                        FC.CONFIG.flightControllerVersion,
+                                    ]),
+                                );
 
-                                MSP.send_message(MSPCodes.MSP_BOARD_INFO, false, false, processBoardInfo);
+                                MSP.send_message(MSPCodes.MSP_BUILD_INFO, false, false, function () {
+                                    gui_log(i18n.getMessage("buildInfoReceived", [FC.CONFIG.buildInfo]));
+
+                                    MSP.send_message(MSPCodes.MSP_BOARD_INFO, false, false, processBoardInfo);
+                                });
                             });
-                        });
-                    } else {
-                        showVersionMismatchAndCli(
-                            i18n.getMessage("firmwareTypeNotSupported", [CONFIGURATOR.API_VERSION_ACCEPTED]),
-                        );
-                    }
-                });
-            } else {
-                showVersionMismatchAndCli(i18n.getMessage("firmwareUpgradeRequired"));
-            }
-        });
+                        } else {
+                            showVersionMismatchAndCli(
+                                i18n.getMessage("firmwareTypeNotSupported", [CONFIGURATOR.API_VERSION_ACCEPTED]),
+                            );
+                        }
+                    });
+                } else {
+                    showVersionMismatchAndCli(i18n.getMessage("firmwareUpgradeRequired"));
+                }
+            });
+        }, 200);
     } else {
         abortConnection();
     }
