@@ -170,12 +170,12 @@ export default defineConfig({
                 theme_color: "#ffffff",
                 icons: [
                     {
-                        src: "/images/pwa/pwa-192-192.png",
+                        src: "images/pwa/pwa-192-192.png",
                         sizes: "192x192",
                         type: "image/png",
                     },
                     {
-                        src: "/images/pwa/pwa-512-512.png",
+                        src: "images/pwa/pwa-512-512.png",
                         sizes: "512x512",
                         type: "image/png",
                     },
