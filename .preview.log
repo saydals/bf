@@ -1,0 +1,10 @@
+
+> betaflight-app@2026.6.0-alpha preview
+> vite preview
+
+⚠ SSL certificates not found - Running in HTTP mode
+  WebAuthn features will not be available without HTTPS
+  See WEBAUTHN_SETUP.md for certificate setup instructions
+  Server will be available at: http://localhost:8080
+  ➜  Local:   http://localhost:8080/
+  ➜  Network: http://172.29.243.97:8080/
