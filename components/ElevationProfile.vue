@@ -516,7 +516,7 @@ const updateTooltipPosition = (e, wp) => {
     if (x < 4) x = 4;
     if (x + 150 > innerWidth - 4) x = innerWidth - 154;
     if (y < 4) y = r.bottom + 20;
-    const groundElev = getGroundElevAtPoint(wp.distance);
+    const tooltipGroundElev = calcGroundElev(wp.altitude ?? 0, wp.distance);
     tooltipData.value = {
         visible: true,
         x,
@@ -524,7 +524,7 @@ const updateTooltipPosition = (e, wp) => {
         order: (wp.order ?? 0) + 1,
         altitude: wp.altitude ?? 0,
         speed: wp.speed ?? 0,
-        groundElev,
+        groundElev: tooltipGroundElev,
     };
 };
 
@@ -532,6 +532,12 @@ const updateTooltipPosition = (e, wp) => {
 // 🟢 위로 드래그 = 고도 올림 = 녹색
 // 🔵 아래로 드래그 = 고도 내림 = 파란색
 // 🩷 좌우 드래그 = 속도 변경 = 분홍
+// 지상고도 = 기체AMSL - 지면AMSL
+const calcGroundElev = (altitude, distance) => {
+    const terrainAMSL = getGroundElevAtPoint(distance);
+    const aircraftAMSL = altitude + wp1GroundElevation.value;
+    return Math.round(aircraftAMSL - terrainAMSL);
+};
 const getMarkerColor = (p) => {
     if (dragState.value.active && dragState.value.wpUid === p.uid) {
         if (dragState.value.type === "altitude") {
@@ -679,6 +685,7 @@ const handleAltDragMove = (e) => {
         updateWaypoint(wp.uid, { altitude: alt });
         dragState.value.startY = e.clientY;
         tooltipData.value.altitude = alt;
+        tooltipData.value.groundElev = calcGroundElev(alt, wp.distance);
     }
 };
 
