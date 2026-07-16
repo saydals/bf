@@ -156,6 +156,15 @@ export default defineComponent({
                     });
                 }
             }
+            if (PortHandler.showUsbOption) {
+                for (const d of usbPorts.value) {
+                    devices.push({
+                        label: d.displayName,
+                        icon: "i-lucide-cpu",
+                        onSelect: () => selectAndConnect(d.path),
+                    });
+                }
+            }
             if (PortHandler.showBluetoothOption) {
                 for (const d of bluetoothPorts.value) {
                     devices.push({
@@ -258,7 +267,6 @@ export default defineComponent({
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
-            bluetoothPorts,
         };
     },
 });
