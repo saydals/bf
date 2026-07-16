@@ -113,9 +113,6 @@ export default defineComponent({
                 return i18n.getMessage("disconnectVirtual");
             }
             const path = connectedTo.value || "";
-            if (path.startsWith("bluetooth")) {
-                return i18n.getMessage("disconnectBluetooth");
-            }
             if (/^(tcp|ws|wss):\/\//.test(path)) {
                 return i18n.getMessage("disconnectManual");
             }
