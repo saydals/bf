@@ -76,7 +76,7 @@ export default defineComponent({
                 for (const d of sppDeviceList.value) {
                     const label = d.displayName || d.name || d.address || "Unknown";
                     devices.push({
-                        value: d.path || d.address,
+                        value: `spp:${  d.path || d.address}`,
                         label: label,
                     });
                 }
