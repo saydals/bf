@@ -93,6 +93,11 @@ export default defineComponent({
                 } else {
                     // Web: 브라우저 BLE 선택창 호출 (requestDevice)
                     await PortHandler.requestDevicePermission("bluetooth");
+                    // 선택된 포트가 있으면 연결
+                    const selPort = PortHandler.portPicker.selectedPort;
+                    if (selPort && selPort !== "noselection") {
+                        selectedDevicePath.value = selPort;
+                    }
                 }
 
                 scanning.value = false;
