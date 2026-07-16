@@ -12,17 +12,23 @@ import MSP from "../msp";
 import FC from "../fc";
 import { bit_check } from "../bit";
 import { gui_log } from "../gui_log";
+import { MspCancelledError } from "../msp/mspErrors";
 import MSPCodes from "../msp/MSPCodes";
 import PortUsage from "../port_usage";
 import { serial } from "../serial";
+import { getConnectionState } from "../connection_state";
+// NOTE: the flashing path must NOT depend on serial_backend (the MSP-connection
+// orchestrator). During flashing the received bytes are always MSP, so we feed
+// MSP.read directly instead of serial_backend.read_serial.
 import { DFU_AUTH_REQUIRED } from "../protocols/usbdfu";
 import PortHandler from "../port_handler";
-import { read_serial } from "../serial_backend";
 import NotificationManager from "../utils/notifications";
 import { get as getConfig } from "../ConfigStorage";
 
 function readSerialAdapter(event) {
-    read_serial(event.detail.buffer);
+    // Flashing bytes are always MSP — feed MSP directly (no serial_backend dependency).
+    // The serial facade wraps every receive as { data, protocolType }, so read .data.
+    MSP.read(event.detail.data);
 }
 
 function onMSPConnectionError() {
@@ -87,6 +93,9 @@ class STM32Protocol {
      * @param {boolean} resetRebootMode - Whether to reset the reboot mode
      */
     handleError(resetRebootMode = true) {
+        // Flash aborted/failed — release the FLASHING state alongside the lock so
+        // the connection state hard-block can't strand a later connect (endFlashing is idempotent).
+        getConnectionState().endFlashing();
         GUI.connect_lock = false;
         if (resetRebootMode) {
             this.rebootMode = 0;
@@ -113,6 +122,9 @@ class STM32Protocol {
         serial.removeEventListener("disconnect", this._boundHandleDisconnect);
 
         if (disconnectionResult && this.rebootMode) {
+            // The flasher now owns the raw port — stand the MSP reconnect down and
+            // enter FLASHING (hard-blocks connect/reboot until the flash completes).
+            getConnectionState().beginDeviceReplacement();
             try {
                 // Poll for an already-authorized DFU device (no user gesture needed).
                 // Keep timeout short (~4s) so the Flash button's transient user
@@ -170,17 +182,31 @@ class STM32Protocol {
         const buffer = [];
         buffer.push8(this.rebootMode);
         setTimeout(() => {
-            MSP.promise(MSPCodes.MSP_SET_REBOOT, buffer).then(() => {
-                // if firmware doesn't flush MSP/serial send buffers and gracefully shutdown VCP connections we won't get a reply, so don't wait for it.
+            const disconnectFromMsp = () => {
                 this.mspConnector.disconnect((disconnectionResult) => {
                     console.log(`${this.logHead} Disconnecting from MSP`, disconnectionResult);
                 });
-            });
+            };
+            MSP.promise(MSPCodes.MSP_SET_REBOOT, buffer)
+                .then(() => {
+                    // if firmware doesn't flush MSP/serial send buffers and gracefully shutdown VCP connections we won't get a reply, so don't wait for it.
+                    disconnectFromMsp();
+                })
+                .catch((error) => {
+                    if (error instanceof MspCancelledError && error.reason === "disconnected") {
+                        // Expected: the FC drops the serial link as part of rebooting.
+                        disconnectFromMsp();
+                    } else {
+                        console.error(`${this.logHead} MSP_SET_REBOOT request failed:`, error);
+                        this.handleError();
+                    }
+                });
             console.log(`${this.logHead} Reboot request received by device`);
         }, 100);
     }
 
     onAbort() {
+        getConnectionState().endFlashing();
         GUI.connect_lock = false;
         this.rebootMode = 0;
         console.log(`${this.logHead} User cancelled because selected target does not match verified board`);
@@ -191,44 +217,50 @@ class STM32Protocol {
     lookingForCapabilitiesViaMSP() {
         console.log(`${this.logHead} Looking for capabilities via MSP`);
 
-        MSP.promise(MSPCodes.MSP_BOARD_INFO).then(() => {
-            if (bit_check(FC.CONFIG.targetCapabilities, FC.TARGET_CAPABILITIES_FLAGS.HAS_FLASH_BOOTLOADER)) {
-                // Board has flash bootloader
-                gui_log(i18n.getMessage("deviceRebooting_flashBootloader"));
-                console.log(`${this.logHead} flash bootloader detected`);
-                this.rebootMode = 4; // MSP_REBOOT_BOOTLOADER_FLASH
-            } else {
-                gui_log(i18n.getMessage("deviceRebooting_romBootloader"));
-                console.log(`${this.logHead} no flash bootloader detected`);
-                this.rebootMode = 1; // MSP_REBOOT_BOOTLOADER_ROM;
-            }
-
-            const selectedBoard =
-                this.serialOptions.selectedBoard && this.serialOptions.selectedBoard !== "0"
-                    ? this.serialOptions.selectedBoard
-                    : "NONE";
-            const connectedBoard = FC.CONFIG.boardName ? FC.CONFIG.boardName : "UNKNOWN";
-
-            try {
-                if (
-                    selectedBoard !== connectedBoard &&
-                    !this.serialOptions.localFirmwareLoaded &&
-                    this.serialOptions.showDialogVerifyBoard
-                ) {
-                    this.serialOptions.showDialogVerifyBoard(
-                        selectedBoard,
-                        connectedBoard,
-                        this.reboot.bind(this),
-                        this.onAbort.bind(this),
-                    );
+        getConnectionState().endFlashing();
+        MSP.promise(MSPCodes.MSP_BOARD_INFO)
+            .then(() => {
+                if (bit_check(FC.CONFIG.targetCapabilities, FC.TARGET_CAPABILITIES_FLAGS.HAS_FLASH_BOOTLOADER)) {
+                    // Board has flash bootloader
+                    gui_log(i18n.getMessage("deviceRebooting_flashBootloader"));
+                    console.log(`${this.logHead} flash bootloader detected`);
+                    this.rebootMode = 4; // MSP_REBOOT_BOOTLOADER_FLASH
                 } else {
+                    gui_log(i18n.getMessage("deviceRebooting_romBootloader"));
+                    console.log(`${this.logHead} no flash bootloader detected`);
+                    this.rebootMode = 1; // MSP_REBOOT_BOOTLOADER_ROM;
+                }
+
+                const selectedBoard =
+                    this.serialOptions.selectedBoard && this.serialOptions.selectedBoard !== "0"
+                        ? this.serialOptions.selectedBoard
+                        : "NONE";
+                const connectedBoard = FC.CONFIG.boardName ? FC.CONFIG.boardName : "UNKNOWN";
+
+                try {
+                    if (
+                        selectedBoard !== connectedBoard &&
+                        !this.serialOptions.localFirmwareLoaded &&
+                        this.serialOptions.showDialogVerifyBoard
+                    ) {
+                        this.serialOptions.showDialogVerifyBoard(
+                            selectedBoard,
+                            connectedBoard,
+                            this.reboot.bind(this),
+                            this.onAbort.bind(this),
+                        );
+                    } else {
+                        this.reboot();
+                    }
+                } catch (e) {
+                    console.error(e);
                     this.reboot();
                 }
-            } catch (e) {
-                console.error(e);
-                this.reboot();
-            }
-        });
+            })
+            .catch((error) => {
+                console.error(`${this.logHead} MSP_BOARD_INFO request failed:`, error);
+                this.handleError();
+            });
     }
 
     handleMSPConnect() {
@@ -1017,6 +1049,8 @@ class STM32Protocol {
         }
     }
     cleanup() {
+        // Flash complete — leave FLASHING so normal connect/reboot resume.
+        getConnectionState().endFlashing();
         PortUsage.reset();
 
         // unlocking connect button

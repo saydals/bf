@@ -96,12 +96,49 @@ export class ConnectionState {
 
     // ---- Reboot / reconnect window ----------------------------------------
 
-    /** Begin a reboot. No-op if a reboot/reconnect is already in flight. */
-    requestReboot() {
+    /** The reboot reconnect window: { startedAt, durationMs } while a reboot is in
+     * progress, null otherwise. Single source of truth for how long the reconnect
+     * may take — the retry loop, the reboot dialog and abortConnection's dialog
+     * suppression all read the same snapshot, taken once per reboot. */
+    _rebootWindow = null;
+
+    /**
+     * Begin a reboot: (re)open the reconnect window for `windowMs`. The phase change is
+     * a no-op if a reboot/reconnect is already in flight, but the window is always
+     * refreshed — a second save inside the window restarts the clock, matching the
+     * retry loop's own restart.
+     * @param {number} [windowMs=10000] - how long the reconnect may take
+     */
+    requestReboot(windowMs = 10000) {
         if (this.isReconnecting) {
+            // Always refresh the window even when already reconnecting: a second save
+            // inside the window restarts the clock.
+            this._rebootWindow = { startedAt: Date.now(), durationMs: windowMs };
             return;
         }
+        this._rebootWindow = { startedAt: Date.now(), durationMs: windowMs };
         this.setPhase(State.REBOOTING);
+    }
+
+    /** A reboot reconnect window is open (from requestReboot until concludeReboot). */
+    get isRebootWindowOpen() {
+        return this._rebootWindow !== null;
+    }
+
+    /** Duration of the open reboot window (0 if none) — snapshotted at requestReboot. */
+    get rebootWindowMs() {
+        return this._rebootWindow?.durationMs ?? 0;
+    }
+
+    /** Start timestamp of the open reboot window (0 if none). */
+    get rebootWindowStartedAt() {
+        return this._rebootWindow?.startedAt ?? 0;
+    }
+
+    /** The open reboot window has run past its duration. False when no window is open. */
+    get rebootWindowExpired() {
+        const window = this._rebootWindow;
+        return window !== null && Date.now() - window.startedAt > window.durationMs;
     }
 
     /** Enter the reconnect-wait phase (from a reboot, or a CLI save-and-reconnect). */
@@ -111,6 +148,7 @@ export class ConnectionState {
 
     /** Settle a reboot/reconnect window: reconnected -> CONNECTED, else -> IDLE. */
     concludeReboot(reconnected) {
+        this._rebootWindow = null;
         this.setPhase(reconnected ? State.CONNECTED : State.IDLE);
     }
 
@@ -178,6 +216,7 @@ export class ConnectionState {
 
     /** Hard shutdown for page unload (pagehide): collapse to IDLE, ungated. */
     shutdown() {
+        this._rebootWindow = null;
         this._linkOpen.value = false;
         if (this._state.value !== State.IDLE) {
             this.setPhase(State.IDLE);

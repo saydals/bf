@@ -119,10 +119,15 @@ export function initializeSerialBackend() {
     // On page unload (refresh / tab close) close the serial port so the FC
     // gets a clean disconnect and reconnection works without a physical replug.
     window.addEventListener("pagehide", () => {
-        if (isConnected && !GUI.connect_lock) {
-            console.log(`${logHead} Page unloading while connected — force-closing serial port`);
-            serial.forceClose();
-        }
+        // Unconditional shutdown — ungated by isConnected/connect_lock. A page
+        // unload mid-reconnect (loop still running) or while the flasher holds the
+        // lock must still cancel the loop, stop timers and force-close the transport,
+        // otherwise the FC is left holding a half-open port until a physical replug.
+        console.log(`${logHead} Page unloading — shutting down connection state and force-closing transport`);
+        getConnectionState().shutdown();
+        stopRebootReconnect();
+        closeRebootDialog();
+        serial.forceClose();
     });
 }
 
