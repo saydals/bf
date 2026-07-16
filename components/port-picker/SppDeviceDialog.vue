@@ -30,9 +30,6 @@
                 <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
                     {{ $t("cancel") }}
                 </UButton>
-                <UButton color="success" variant="soft" size="sm" :disabled="!selectedDevicePath" @click="onConnect">
-                    {{ $t("connect") }}
-                </UButton>
             </div>
         </template>
     </UModal>
@@ -62,7 +59,7 @@ export default defineComponent({
         const scanning = ref(false);
 
         const sppDevices = computed(() => {
-            // 시스템에 등록된 모든 블루투스 장치 목록을 표시
+            // 블루투스 장치만 표시 (시리얼 포트 제외)
             const devices = [];
             const btPorts = PortHandler.currentBluetoothPorts || [];
 
@@ -75,50 +72,39 @@ export default defineComponent({
                 });
             }
 
-            // 시리얼 포트도 함께 표시
-            const serialPorts = PortHandler.currentSerialPorts || [];
-            for (const d of serialPorts) {
-                const label = d.displayName || d.path;
-                if (!devices.some((dev) => dev.value === d.path)) {
-                    devices.push({
-                        value: d.path,
-                        label: label,
-                        icon: "i-lucide-usb",
-                    });
-                }
-            }
-
             return devices;
         });
 
-        // 다이얼로그가 열릴 때 자동 선택
+        // 다이얼로그가 열릴 때 블루투스 장치 목록 갱신
         watch(
             () => props.modelValue,
-            (isOpen) => {
+            async (isOpen) => {
                 if (!isOpen) return;
 
                 scanning.value = true;
                 selectedDevicePath.value = "";
 
-                // 장치 목록 갱신 후 첫 번째 항목 선택
-                setTimeout(() => {
-                    scanning.value = false;
-                    if (sppDevices.value.length > 0) {
-                        selectedDevicePath.value = sppDevices.value[0].value;
-                    }
-                }, 300);
+                // 장치 검색 실행
+                await PortHandler.updateDeviceList("bluetooth");
+
+                scanning.value = false;
+                // 첫 번째 장치 자동 선택 (사용자가 선택하면 즉시 연결됨)
+                if (sppDevices.value.length > 0) {
+                    selectedDevicePath.value = sppDevices.value[0].value;
+                }
             },
         );
 
-        function onCancel() {
-            open.value = false;
-        }
-
-        function onConnect() {
-            if (!selectedDevicePath.value) return;
-            PortHandler.portPicker.selectedPort = selectedDevicePath.value;
+        // 장치를 선택하면 즉시 연결
+        watch(selectedDevicePath, (newPath) => {
+            if (!newPath || newPath === "") return;
+            PortHandler.portPicker.selectedPort = newPath;
             open.value = false;
             connectDisconnect();
+        });
+
+        function onCancel() {
+            open.value = false;
         }
 
         return {
@@ -127,7 +113,6 @@ export default defineComponent({
             sppDevices,
             scanning,
             onCancel,
-            onConnect,
         };
     },
 });

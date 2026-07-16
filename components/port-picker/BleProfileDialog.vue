@@ -28,9 +28,6 @@
                 <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
                     {{ $t("cancel") }}
                 </UButton>
-                <UButton color="primary" variant="soft" size="sm" :disabled="!selectedDevicePath" @click="onConnect">
-                    {{ $t("connect") }}
-                </UButton>
             </div>
         </template>
     </UModal>
@@ -41,7 +38,6 @@ import { defineComponent, computed, ref, watch } from "vue";
 import { i18n } from "../../js/localization";
 import PortHandler from "../../js/port_handler";
 import { connectDisconnect } from "../../js/serial_backend";
-import { serial } from "../../js/serial";
 
 export default defineComponent({
     name: "BleProfileDialog",
@@ -82,43 +78,36 @@ export default defineComponent({
             return items;
         });
 
-        // 다이얼로그가 열릴 때 BLE 장치 스캔
+        // 다이얼로그가 열릴 때 블루투스 장치 목록 갱신
         watch(
             () => props.modelValue,
-            (isOpen) => {
+            async (isOpen) => {
                 if (!isOpen) return;
 
                 scanning.value = true;
                 selectedDevicePath.value = "";
 
-                // BLE 장치 스캔 실행
-                serial.scanBLEDevices?.(() => {
-                    scanning.value = false;
-                    // 스캔 완료 후 자동 선택
-                    if (filteredDevices.value.length > 0) {
-                        selectedDevicePath.value = filteredDevices.value[0].value;
-                    }
-                });
+                // BLE 장치 검색 실행
+                await PortHandler.updateDeviceList("bluetooth");
 
-                // 타임아웃 안전장치
-                setTimeout(() => {
-                    scanning.value = false;
-                    if (!selectedDevicePath.value && filteredDevices.value.length > 0) {
-                        selectedDevicePath.value = filteredDevices.value[0].value;
-                    }
-                }, 5000);
+                scanning.value = false;
+                // 첫 번째 장치 자동 선택 (사용자가 선택하면 즉시 연결됨)
+                if (filteredDevices.value.length > 0) {
+                    selectedDevicePath.value = filteredDevices.value[0].value;
+                }
             },
         );
 
-        function onCancel() {
-            open.value = false;
-        }
-
-        function onConnect() {
-            if (!selectedDevicePath.value) return;
-            PortHandler.portPicker.selectedPort = selectedDevicePath.value;
+        // 장치를 선택하면 즉시 연결
+        watch(selectedDevicePath, (newPath) => {
+            if (!newPath || newPath === "") return;
+            PortHandler.portPicker.selectedPort = newPath;
             open.value = false;
             connectDisconnect();
+        });
+
+        function onCancel() {
+            open.value = false;
         }
 
         return {
@@ -128,7 +117,6 @@ export default defineComponent({
             filteredDevices,
             scanning,
             onCancel,
-            onConnect,
         };
     },
 });
