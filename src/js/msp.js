@@ -488,6 +488,59 @@ const MSP = {
             }
         }
     },
+    MAX_RETRIES: 3,
+
+    _buffer_matches(entry, view) {
+        if (entry.requestBuffer?.byteLength !== view.byteLength) {
+            return false;
+        }
+        const entryView = new Uint8Array(entry.requestBuffer);
+        for (let i = 0; i < view.byteLength; i++) {
+            if (entryView[i] !== view[i]) {
+                return false;
+            }
+        }
+        return true;
+    },
+
+    /**
+     * Arm the retry timer for an MSP request entry.
+     * On timeout, resend the request if attempts remain, else reject the callback.
+     */
+    _arm_timer(obj) {
+        obj.timer = setTimeout(() => {
+            if (obj._settled) {
+                return;
+            }
+            if (obj.attempts < this.MAX_RETRIES) {
+                obj.attempts++;
+                console.warn(
+                    `MSP: data request timed-out (attempt ${obj.attempts - 1}/${this.MAX_RETRIES}): ${obj.code} ID: ${serial.connectionId} TAB: ${GUI.active_tab}`,
+                );
+                serial.send(obj.requestBuffer, (sendInfo) => {
+                    if (sendInfo.bytesSent === obj.requestBuffer.byteLength && obj.callbackSent) {
+                        obj.callbackSent();
+                    }
+                });
+                this._arm_timer(obj);
+            } else {
+                console.error(
+                    `MSP: data request failed after ${this.MAX_RETRIES} attempts: ${obj.code} ID: ${serial.connectionId} TAB: ${GUI.active_tab}`,
+                );
+                // Remove the entry from callbacks
+                const index = this.callbacks.indexOf(obj);
+                if (index !== -1) {
+                    this.callbacks.splice(index, 1);
+                }
+                try {
+                    obj.callback?.(null, new Error(`MSP request timed out: ${obj.code}`));
+                } catch (callbackError) {
+                    console.error("MSP callback threw on timeout:", callbackError);
+                }
+            }
+        }, this.TIMEOUT);
+    },
+
     send_message(code, data, callback_sent, callback_msp) {
         if (code === undefined || !serial.connected || CONFIGURATOR.virtualMode) {
             if (callback_msp) {
@@ -498,39 +551,20 @@ const MSP = {
 
         const bufferOut = code <= 254 ? this.encode_message_v1(code, data) : this.encode_message_v2(code, data);
         const view = new Uint8Array(bufferOut);
-        const keyCrc = this.crc8_dvb_s2_data(view, 0, view.length);
-        const requestExists = this.callbacks.some(
-            (i) =>
-                i.code === code &&
-                i.requestBuffer?.byteLength === bufferOut.byteLength &&
-                this.crc8_dvb_s2_data(new Uint8Array(i.requestBuffer), 0, i.requestBuffer.byteLength) === keyCrc,
-        );
+        const requestExists = this.callbacks.some((i) => i.code === code && this._buffer_matches(i, view));
 
         const obj = {
             code,
             requestBuffer: bufferOut,
             callback: callback_msp,
+            callbackSent: callback_sent,
             start: performance.now(),
+            attempts: 1,
+            _settled: false,
         };
 
         if (!requestExists) {
-            obj.timer = setTimeout(() => {
-                console.warn(
-                    `MSP: data request timed-out: ${code} ID: ${serial.connectionId} TAB: ${GUI.active_tab} QUEUE: ${this.callbacks.length} (${this.callbacks.map((e) => e.code)})`,
-                );
-                serial.send(bufferOut, (_sendInfo) => {
-                    obj.stop = performance.now();
-                    const executionTime = Math.round(obj.stop - obj.start);
-                    // We should probably give up connection if the request takes too long ?
-                    if (executionTime > 5000) {
-                        console.warn(
-                            `MSP: data request took too long: ${code} ID: ${serial.connectionId} TAB: ${GUI.active_tab} EXECUTION TIME: ${executionTime}ms`,
-                        );
-                    }
-
-                    clearTimeout(obj.timer); // prevent leaks
-                });
-            }, this.TIMEOUT);
+            this._arm_timer(obj);
         }
 
         this.callbacks.push(obj);
@@ -548,26 +582,47 @@ const MSP = {
     },
     /**
      * resolves: {command: code, data: data, length: message_length}
+     * rejects: Error on timeout or disconnect
      */
     async promise(code, data) {
-        return new Promise((resolve) => {
-            this.send_message(code, data, false, (_data) => {
-                resolve(_data);
+        if (code === undefined || !serial.connected || CONFIGURATOR.virtualMode) {
+            return undefined;
+        }
+        return new Promise((resolve, reject) => {
+            this.send_message(code, data, false, (response, error) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(response);
+                }
             });
         });
     },
-    callbacks_cleanup() {
-        for (const callback of this.callbacks) {
-            clearTimeout(callback.timer);
-        }
-
+    callbacks_cleanup(error) {
+        const pending = this.callbacks;
         this.callbacks = [];
+
+        for (const entry of pending) {
+            clearTimeout(entry.timer);
+            entry._settled = true;
+            if (error && entry.callback) {
+                try {
+                    entry.callback(null, error);
+                } catch (callbackError) {
+                    console.error("MSP callback threw during cleanup:", callbackError);
+                }
+            }
+        }
     },
     disconnect_cleanup() {
         this.state = 0; // reset packet state for "clean" initial entry (this is only required if user hot-disconnects)
         this.packet_error = 0; // reset CRC packet error counter for next session
-
-        this.callbacks_cleanup();
+        // Tag the error so callers can distinguish an EXPECTED close-driven drain — a `save`/
+        // `exit` reboots the FC, closing the port before it can reply — from a genuine command
+        // failure. The save still succeeded; the board is just restarting.
+        const closedError = new Error("Serial connection closed");
+        closedError.connectionClosed = true;
+        this.callbacks_cleanup(closedError);
         this._drain_cli_queue(new Error("Serial connection closed"));
     },
 };

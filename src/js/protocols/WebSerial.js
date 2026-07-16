@@ -35,6 +35,14 @@ async function* streamAsyncIterable(reader, keepReadingFlag) {
  * WebSerial protocol implementation for the Serial base class
  */
 class WebSerial extends EventTarget {
+    // Stable id per physical SerialPort object. The browser reuses the same
+    // SerialPort instance across an MCU-reboot USB re-enumeration, so keying the
+    // id off object identity yields an id that survives device-list rebuilds —
+    // unlike a bare counter that would reset every time loadDevices() runs.
+    // WeakMap so entries are collected once the browser drops the SerialPort.
+    #portIds = new WeakMap();
+    #nextPortId = 0;
+
     constructor() {
         super();
 
@@ -103,11 +111,27 @@ class WebSerial extends EventTarget {
     /**
      * Return the raw W3C SerialPort for a given path, so callers that need direct
      * port access (e.g. esptool-js for ESP32 flashing) can own open/close and signals.
-     * @param {string} path - port path (e.g. "serial")
+     * @param {string} path - port path (e.g. "serial_0")
      * @returns {SerialPort|undefined}
      */
     getNativePort(path) {
         return this.ports.find((device) => device.path === path)?.port;
+    }
+
+    /**
+     * Return the stable id for a SerialPort object, minting one on first sighting
+     * and reusing it for the same object thereafter. The same reused SerialPort
+     * across a re-enumeration therefore always maps to the same path.
+     * @param {SerialPort} port
+     * @returns {string} stable id, e.g. "serial_0"
+     */
+    #getStablePortId(port) {
+        let id = this.#portIds.get(port);
+        if (id === undefined) {
+            id = `serial_${this.#nextPortId++}`;
+            this.#portIds.set(port, id);
+        }
+        return id;
     }
 
     createPort(port) {
@@ -116,7 +140,7 @@ class WebSerial extends EventTarget {
             ? vendorIdNames[portInfo.usbVendorId]
             : `VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId}`;
         return {
-            path: "serial",
+            path: this.#getStablePortId(port),
             displayName: `Betaflight ${displayName}`,
             vendorId: portInfo.usbVendorId,
             productId: portInfo.usbProductId,

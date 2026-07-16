@@ -559,12 +559,12 @@ function onOpen(openInfo) {
         escapeView[2] = 0x69; // i
         escapeView[3] = 0x74; // t
         escapeView[4] = 0x0d; // \r
-        serial.send(escapeBuffer, false);
+        serial.send(escapeBuffer, null);
         // Also send \n for compatibility
         const lfBuffer = new ArrayBuffer(1);
         const lfView = new Uint8Array(lfBuffer);
         lfView[0] = 0x0a; // \n
-        serial.send(lfBuffer, false);
+        serial.send(lfBuffer, null);
 
         setTimeout(() => {
             MSP.send_message(MSPCodes.MSP_API_VERSION, false, false, function () {
