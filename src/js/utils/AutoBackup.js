@@ -353,6 +353,12 @@ class AutoBackup {
             if (this.callback) {
                 this.callback(true);
             }
+        } else if (port.startsWith("usb")) {
+            // Skip backup for a DFU/USB bootloader port — there is no live MSP session
+            console.log("AutoBackup: Skipping backup on USB/DFU port");
+            if (this.callback) {
+                this.callback(true);
+            }
         } else {
             gui_log(i18n.getMessage("firmwareFlasherNoPortSelected"));
         }
