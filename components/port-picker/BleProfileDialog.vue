@@ -41,6 +41,7 @@
 import { defineComponent, computed, ref, watch } from "vue";
 import { i18n } from "../../js/localization";
 import PortHandler from "../../js/port_handler";
+import { isAndroid } from "../../js/utils/checkCompatibility";
 import { connectDisconnect } from "../../js/serial_backend";
 
 export default defineComponent({
@@ -86,7 +87,13 @@ export default defineComponent({
                 scanning.value = true;
                 selectedDevicePath.value = "";
 
-                await PortHandler.updateDeviceList("bluetooth");
+                if (isAndroid()) {
+                    // APK: BLE 스캔 자동 실행 → 목록 표시
+                    await PortHandler.updateDeviceList("bluetooth");
+                } else {
+                    // Web: 브라우저 BLE 선택창 호출 (requestDevice)
+                    await PortHandler.requestDevicePermission("bluetooth");
+                }
 
                 scanning.value = false;
             },
