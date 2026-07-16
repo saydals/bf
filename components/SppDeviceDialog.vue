@@ -14,15 +14,18 @@
                     {{ $t("sppDialogEmpty") }}
                 </p>
 
-                <label class="spp-dialog__field" v-else>
-                    <span>{{ $t("sppDialogDevice") }}</span>
-                    <USelect
-                        :items="sppDevices"
-                        v-model="selectedDevicePath"
-                        size="sm"
-                        :ui="{ content: 'z-[9999] max-h-96' }"
-                    />
-                </label>
+                <div v-else class="spp-dialog__list">
+                    <div
+                        v-for="d in sppDevices"
+                        :key="d.value"
+                        class="spp-dialog__item"
+                        :class="{ 'spp-dialog__item--selected': selectedDevicePath === d.value }"
+                        @click="selectedDevicePath = d.value"
+                    >
+                        <span class="spp-dialog__item-icon">🔗</span>
+                        <span class="spp-dialog__item-label">{{ d.label }}</span>
+                    </div>
+                </div>
             </div>
         </template>
         <template #footer>
@@ -62,7 +65,6 @@ export default defineComponent({
         const scanning = ref(false);
 
         const sppDevices = computed(() => {
-            // 블루투스 장치만 표시 (시리얼 포트 제외)
             const devices = [];
             const btPorts = PortHandler.currentBluetoothPorts || [];
 
@@ -71,14 +73,12 @@ export default defineComponent({
                 devices.push({
                     value: d.path,
                     label: label,
-                    icon: "i-lucide-bluetooth",
                 });
             }
 
             return devices;
         });
 
-        // 다이얼로그가 열릴 때 등록된 블루투스 장치 목록 갱신
         watch(
             () => props.modelValue,
             async (isOpen) => {
@@ -146,15 +146,50 @@ export default defineComponent({
     margin: 0;
 }
 
-.spp-dialog__field {
+.spp-dialog__list {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    max-height: 18rem;
+    overflow-y: auto;
 }
 
-.spp-dialog__field span {
+.spp-dialog__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.spp-dialog__item:hover {
+    background: var(--muted-200);
+}
+
+html.dark .spp-dialog__item:hover {
+    background: var(--muted-800);
+}
+
+.spp-dialog__item--selected {
+    background: var(--primary-100);
+    border: 1px solid var(--primary-400);
+}
+
+html.dark .spp-dialog__item--selected {
+    background: var(--primary-900);
+    border: 1px solid var(--primary-600);
+}
+
+.spp-dialog__item-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.spp-dialog__item-label {
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .spp-dialog__actions {

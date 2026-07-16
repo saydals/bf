@@ -12,15 +12,18 @@
                     {{ $t("bleProfileDialogEmpty") }}
                 </p>
 
-                <label class="ble-profile-dialog__field" v-else>
-                    <span>{{ $t("bleProfileDialogDevice") }}</span>
-                    <USelect
-                        :items="filteredDevices"
-                        v-model="selectedDevicePath"
-                        size="sm"
-                        :ui="{ content: 'z-[9999] max-h-96' }"
-                    />
-                </label>
+                <div v-else class="ble-profile-dialog__list">
+                    <div
+                        v-for="d in filteredDevices"
+                        :key="d.value"
+                        class="ble-profile-dialog__item"
+                        :class="{ 'ble-profile-dialog__item--selected': selectedDevicePath === d.value }"
+                        @click="selectedDevicePath = d.value"
+                    >
+                        <span class="ble-profile-dialog__item-icon">🔗</span>
+                        <span class="ble-profile-dialog__item-label">{{ d.label }}</span>
+                    </div>
+                </div>
             </div>
         </template>
         <template #footer>
@@ -62,9 +65,6 @@ export default defineComponent({
         const selectedDevicePath = ref("");
         const scanning = ref(false);
 
-        /**
-         * 블루투스 검색으로 보여주는 모든 BLE 장치 목록을 필터링 없이 표시
-         */
         const filteredDevices = computed(() => {
             const ports = PortHandler.currentBluetoothPorts || [];
             const items = [];
@@ -74,14 +74,12 @@ export default defineComponent({
                 items.push({
                     value: d.path,
                     label: label,
-                    icon: "i-lucide-bluetooth",
                 });
             }
 
             return items;
         });
 
-        // 다이얼로그가 열릴 때 BLE 장치 스캔 실행
         watch(
             () => props.modelValue,
             async (isOpen) => {
@@ -150,15 +148,50 @@ export default defineComponent({
     margin: 0;
 }
 
-.ble-profile-dialog__field {
+.ble-profile-dialog__list {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    max-height: 18rem;
+    overflow-y: auto;
 }
 
-.ble-profile-dialog__field span {
+.ble-profile-dialog__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ble-profile-dialog__item:hover {
+    background: var(--muted-200);
+}
+
+html.dark .ble-profile-dialog__item:hover {
+    background: var(--muted-800);
+}
+
+.ble-profile-dialog__item--selected {
+    background: var(--primary-100);
+    border: 1px solid var(--primary-400);
+}
+
+html.dark .ble-profile-dialog__item--selected {
+    background: var(--primary-900);
+    border: 1px solid var(--primary-600);
+}
+
+.ble-profile-dialog__item-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.ble-profile-dialog__item-label {
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 500;
 }
 
 .ble-profile-dialog__actions {
