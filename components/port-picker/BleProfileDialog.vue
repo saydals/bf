@@ -64,37 +64,17 @@ export default defineComponent({
         const scanning = ref(false);
 
         /**
-         * BLE 장치 목록을 가져와 필터링합니다.
-         * 규칙:
-         * 1. displayName이 없는 장치 (이름이 주소와 같은 경우) 제외
-         * 2. SPP 장치로 간주되는 장치 제외
+         * 블루투스 검색으로 보여주는 모든 BLE 장치 목록을 필터링 없이 표시
          */
         const filteredDevices = computed(() => {
             const ports = PortHandler.currentBluetoothPorts || [];
             const items = [];
 
             for (const d of ports) {
-                // 필터 1: 이름이 없는 장치 제외 (displayName이 address와 동일한 경우)
-                const hasName = d.displayName && d.displayName !== (d.address || "");
-                if (!hasName) continue;
-
-                // 필터 2: SPP 장치 제외
-                const name = (d.displayName || "").toLowerCase();
-                const isSppDevice =
-                    name.includes("spp") ||
-                    name.includes("hc-0") ||
-                    name.includes("hc-1") ||
-                    name.includes("hc 0") ||
-                    name.includes("hc 1") ||
-                    name.includes("linvor") ||
-                    name.includes("ble-spp") ||
-                    name.startsWith("rn42") ||
-                    name.startsWith("rn41");
-                if (isSppDevice) continue;
-
+                const label = d.displayName || d.address || d.path;
                 items.push({
                     value: d.path,
-                    label: d.displayName,
+                    label: label,
                     icon: "i-lucide-bluetooth",
                 });
             }

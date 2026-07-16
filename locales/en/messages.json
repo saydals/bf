@@ -9821,7 +9821,7 @@
     "message": "BLE device connection"
   },
   "bleProfileDialogHelp": {
-    "message": "Scan for BLE devices. Devices without a name or SPP devices are hidden automatically."
+    "message": "Scan for BLE devices and select one to connect."
   },
   "bleProfileDialogDevice": {
     "message": "Device"

@@ -62,38 +62,29 @@ export default defineComponent({
         const scanning = ref(false);
 
         const sppDevices = computed(() => {
-            // 현재 연결된 시리얼 포트 중 SPP 장치로 간주할 수 있는 목록을 표시
-            // (currentBluetoothPorts 중 displayName이 있는 장치 또는
-            //  시리얼 포트 목록을 SPP 장치로 표시)
+            // 시스템에 등록된 모든 블루투스 장치 목록을 표시
             const devices = [];
-
-            // Bluetooth SPP 장치: BLE 장치 풀에서 SPP 성격의 장치는 제외하고,
-            // displayName이 있는 bluetooth 장치 중에서 SPP 필터 적용
             const btPorts = PortHandler.currentBluetoothPorts || [];
 
             for (const d of btPorts) {
-                // displayName이 있거나 address가 아닌 실제 이름이 있는 장치
-                if (d.displayName && d.displayName !== (d.address || "")) {
-                    devices.push({
-                        value: d.path,
-                        label: d.displayName,
-                        icon: "i-lucide-bluetooth",
-                    });
-                }
+                const label = d.displayName || d.address || d.path;
+                devices.push({
+                    value: d.path,
+                    label: label,
+                    icon: "i-lucide-bluetooth",
+                });
             }
 
-            // 시리얼 포트도 SPP로 표시 가능 (USB 시리얼 포함)
+            // 시리얼 포트도 함께 표시
             const serialPorts = PortHandler.currentSerialPorts || [];
             for (const d of serialPorts) {
-                if (d.displayName) {
-                    // 이미 추가된 경로는 제외
-                    if (!devices.some((dev) => dev.value === d.path)) {
-                        devices.push({
-                            value: d.path,
-                            label: d.displayName,
-                            icon: "i-lucide-usb",
-                        });
-                    }
+                const label = d.displayName || d.path;
+                if (!devices.some((dev) => dev.value === d.path)) {
+                    devices.push({
+                        value: d.path,
+                        label: label,
+                        icon: "i-lucide-usb",
+                    });
                 }
             }
 
