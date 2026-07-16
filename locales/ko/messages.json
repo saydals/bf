@@ -96,8 +96,8 @@
     "description": "Option in the port selection dropdown to request permission to access a USB/serial device."
   },
   "portsSelectPermissionBluetooth": {
-    "message": "BLE 장치 연결",
-    "description": "Option in the port selection dropdown to request permission to access a Bluetooth device."
+    "message": "SPP 장치 연결",
+    "description": "Option in the port selection dropdown to connect to Bluetooth SPP devices."
   },
   "portsSelectPermissionDFU": {
     "message": "DFU 장치 연결",
@@ -9497,19 +9497,39 @@
     "message": "날씨"
   },
   "bleProfileDialogTitle": {
-    "message": "BLE 모듈 종류 설정"
+    "message": "BLE 장치 연결"
   },
   "bleProfileDialogHelp": {
-    "message": "연결된 블루투스 기기를 선택하고 올바른 모듈 프로필을 지정하세요."
+    "message": "BLE 장치를 검색합니다. 이름이 없거나 SPP 장치는 자동으로 숨겨집니다."
   },
   "bleProfileDialogDevice": {
-    "message": "기기"
+    "message": "장치"
   },
   "bleProfileDialogProfile": {
     "message": "프로필"
   },
   "bleProfileDialogEmpty": {
-    "message": "블루투스 기기가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
+    "message": "BLE 장치를 찾을 수 없습니다. 기기에서 BLE가 활성화되어 있는지 확인하세요."
+  },
+  "sppDialogTitle": {
+    "message": "SPP 장치 연결",
+    "description": "Title for the SPP device list dialog."
+  },
+  "sppDialogHelp": {
+    "message": "페어링된 SPP 장치를 선택하세요.",
+    "description": "Help text for the SPP device list dialog."
+  },
+  "sppDialogDevice": {
+    "message": "장치",
+    "description": "Label for the device select field in the SPP dialog."
+  },
+  "sppDialogEmpty": {
+    "message": "사용 가능한 SPP 장치가 없습니다. 블루투스 SPP가 활성화되어 있고 페어링되었는지 확인하세요.",
+    "description": "Empty state message for the SPP device list dialog."
+  },
+  "sppDialogScanning": {
+    "message": "SPP 장치 검색 중...",
+    "description": "Loading message while scanning SPP devices."
   },
   "retry": {
     "message": "재시도"

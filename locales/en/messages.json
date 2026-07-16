@@ -99,8 +99,8 @@
     "description": "Option in the port selection dropdown to request permission to access a USB/serial device."
   },
   "portsSelectPermissionBluetooth": {
-    "message": "Bluetooth device connection",
-    "description": "Option in the port selection dropdown to request permission to access a Bluetooth device."
+    "message": "SPP device connection",
+    "description": "Option in the port selection dropdown to connect to Bluetooth SPP devices."
   },
   "portsSelectPermissionDFU": {
     "message": "DFU device connection",
@@ -9818,10 +9818,10 @@
     "message": "Last fetched"
   },
   "bleProfileDialogTitle": {
-    "message": "BLE Module Type Settings"
+    "message": "BLE device connection"
   },
   "bleProfileDialogHelp": {
-    "message": "Select a paired Bluetooth device and assign the correct module profile."
+    "message": "Scan for BLE devices. Devices without a name or SPP devices are hidden automatically."
   },
   "bleProfileDialogDevice": {
     "message": "Device"
@@ -9830,7 +9830,27 @@
     "message": "Profile"
   },
   "bleProfileDialogEmpty": {
-    "message": "No Bluetooth devices available. Scan for devices first from the connection dropdown."
+    "message": "No BLE devices found. Make sure BLE is enabled on your device."
+  },
+  "sppDialogTitle": {
+    "message": "SPP device connection",
+    "description": "Title for the SPP device list dialog."
+  },
+  "sppDialogHelp": {
+    "message": "Select a paired SPP device from the list below.",
+    "description": "Help text for the SPP device list dialog."
+  },
+  "sppDialogDevice": {
+    "message": "Device",
+    "description": "Label for the device select field in the SPP dialog."
+  },
+  "sppDialogEmpty": {
+    "message": "No SPP devices available. Make sure Bluetooth SPP is enabled and paired.",
+    "description": "Empty state message for the SPP device list dialog."
+  },
+  "sppDialogScanning": {
+    "message": "Scanning for SPP devices...",
+    "description": "Loading message while scanning SPP devices."
   },
   "retry": {
     "message": "Retry"
