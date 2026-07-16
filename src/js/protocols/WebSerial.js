@@ -136,9 +136,14 @@ class WebSerial extends EventTarget {
 
     createPort(port) {
         const portInfo = port.getInfo();
-        const displayName = vendorIdNames[portInfo.usbVendorId]
-            ? vendorIdNames[portInfo.usbVendorId]
-            : `VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId}`;
+        let displayName;
+        if (portInfo.usbVendorId !== undefined && portInfo.usbProductId !== undefined) {
+            displayName = vendorIdNames[portInfo.usbVendorId]
+                ? vendorIdNames[portInfo.usbVendorId]
+                : `VID:${portInfo.usbVendorId} PID:${portInfo.usbProductId}`;
+        } else {
+            displayName = "Serial Device";
+        }
         return {
             path: this.#getStablePortId(port),
             displayName: `Betaflight ${displayName}`,
