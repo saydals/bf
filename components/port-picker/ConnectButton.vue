@@ -51,7 +51,6 @@
             @confirm="onDialogConfirm"
         />
         <BleProfileDialog v-model="bleProfileDialogOpen" />
-        <SppDeviceDialog v-model="sppDialogOpen" />
         <WifiDialog
             v-model="wifiDialogOpen"
             :saved-address="wifiAddress"
@@ -72,7 +71,6 @@ import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
 import BleProfileDialog from "./BleProfileDialog.vue";
-import SppDeviceDialog from "./SppDeviceDialog.vue";
 import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
@@ -99,7 +97,7 @@ function toggleAutoConnect(value) {
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog, BleProfileDialog, SppDeviceDialog, WifiDialog },
+    components: { ConnectOptionsDialog, BleProfileDialog, WifiDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
@@ -113,6 +111,9 @@ export default defineComponent({
                 return i18n.getMessage("disconnectVirtual");
             }
             const path = connectedTo.value || "";
+            if (path.startsWith("bluetooth")) {
+                return i18n.getMessage("disconnectBluetooth");
+            }
             if (/^(tcp|ws|wss):\/\//.test(path)) {
                 return i18n.getMessage("disconnectManual");
             }
@@ -147,7 +148,6 @@ export default defineComponent({
         const dialogOpen = ref(false);
         const dialogMode = ref("virtual");
         const bleProfileDialogOpen = ref(false);
-        const sppDialogOpen = ref(false);
         const portPicker = computed(() => PortHandler.portPicker);
 
         // WiFi 상태
@@ -264,13 +264,11 @@ export default defineComponent({
                 items.push({
                     label: i18n.getMessage("portsSelectPermissionBluetooth"),
                     icon: "i-lucide-bluetooth",
-                    onSelect: () => {
-                        sppDialogOpen.value = true;
-                    },
+                    onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
                 items.push({
                     label: i18n.getMessage("bleProfileDialogTitle"),
-                    icon: "i-lucide-bluetooth-searching",
+                    icon: "i-lucide-settings-2",
                     onSelect: () => {
                         bleProfileDialogOpen.value = true;
                     },
@@ -365,7 +363,6 @@ export default defineComponent({
             onDisconnectClick: disconnect,
             onDialogConfirm,
             bleProfileDialogOpen,
-            sppDialogOpen,
             bluetoothPorts,
             wifiDialogOpen,
             wifiAddress,

@@ -6,43 +6,51 @@
                     {{ $t("bleProfileDialogHelp") }}
                 </p>
 
-                <p v-if="scanning" class="ble-profile-dialog__scanning">{{ $t("bleScan") }}...</p>
-
-                <p v-else-if="filteredDevices.length === 0" class="ble-profile-dialog__empty">
+                <p v-if="allDeviceItems.length === 0" class="ble-profile-dialog__empty">
                     {{ $t("bleProfileDialogEmpty") }}
                 </p>
 
-                <div v-else class="ble-profile-dialog__list">
-                    <div
-                        v-for="d in filteredDevices"
-                        :key="d.value"
-                        class="ble-profile-dialog__item"
-                        :class="{ 'ble-profile-dialog__item--selected': selectedDevicePath === d.value }"
-                        @click="selectedDevicePath = d.value"
-                    >
-                        <span class="ble-profile-dialog__item-icon">🔗</span>
-                        <span class="ble-profile-dialog__item-label">{{ d.label }}</span>
-                    </div>
-                </div>
+                <label class="ble-profile-dialog__field" v-if="allDeviceItems.length > 0">
+                    <span>{{ $t("bleProfileDialogDevice") }}</span>
+                    <USelect
+                        :items="allDeviceItems"
+                        v-model="selectedDeviceKey"
+                        size="sm"
+                        :ui="{ content: 'z-[9999] max-h-96' }"
+                    />
+                </label>
+
+                <label class="ble-profile-dialog__field">
+                    <span>{{ $t("bleProfileDialogProfile") }}</span>
+                    <USelect
+                        :items="profileItems"
+                        v-model="selectedProfile"
+                        :disabled="!selectedDeviceKey"
+                        size="sm"
+                        :ui="{ content: 'z-[9999] max-h-96' }"
+                    />
+                </label>
             </div>
         </template>
         <template #footer>
-            <div class="ble-profile-dialog__actions">
-                <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
-                    {{ $t("cancel") }}
-                </UButton>
-                <!-- 선택 시 자동 연결 -->
-            </div>
+            <UButton color="neutral" variant="soft" @click="open = false">
+                {{ $t("cancel") }}
+            </UButton>
+            <UButton color="primary" :disabled="!selectedDeviceKey" @click="save">
+                {{ $t("save") }}
+            </UButton>
         </template>
     </UModal>
 </template>
 
 <script>
 import { defineComponent, computed, ref, watch } from "vue";
+import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
+import { get as getConfig } from "../../js/ConfigStorage";
 import { i18n } from "../../js/localization";
 import PortHandler from "../../js/port_handler";
-import { isAndroid } from "../../js/utils/checkCompatibility";
-import { connectDisconnect } from "../../js/serial_backend";
+
+const OVERRIDE_STORAGE_KEY = "bleProfileOverrides";
 
 export default defineComponent({
     name: "BleProfileDialog",
@@ -61,68 +69,76 @@ export default defineComponent({
 
         const title = computed(() => i18n.getMessage("bleProfileDialogTitle"));
 
-        const selectedDevicePath = ref("");
-        const scanning = ref(false);
+        const selectedDeviceKey = ref("");
+        const selectedProfile = ref("");
 
-        const filteredDevices = computed(() => {
-            const ports = PortHandler.currentBluetoothPorts || [];
+        const allDeviceItems = computed(() => {
             const items = [];
 
+            // 1) 현재 스캔된 기기 (address를 키로 사용)
+            const ports = PortHandler.currentBluetoothPorts || [];
             for (const d of ports) {
-                const label = d.displayName || d.address || d.path;
-                items.push({
-                    value: d.path,
-                    label: label,
-                });
+                const key = d.productId || d.address || d.path;
+                items.push({ value: key, label: d.displayName || key });
+            }
+
+            // 2) 이전 저장된 오버라이드 기기 중 스캔 목록에 없는 것
+            const stored = getConfig(OVERRIDE_STORAGE_KEY)?.[OVERRIDE_STORAGE_KEY] ?? {};
+            const scannedKeys = new Set(items.map((d) => d.value));
+            for (const key of Object.keys(stored)) {
+                if (!scannedKeys.has(key)) {
+                    items.push({ value: key, label: `${stored[key]} (${key})` });
+                }
             }
 
             return items;
         });
 
+        const profileItems = computed(() =>
+            getSelectableProfiles().map((p) => ({
+                value: p.name,
+                label: p.label,
+            })),
+        );
+
+        watch(selectedDeviceKey, (newKey) => {
+            const override = getProfileOverride(newKey);
+            selectedProfile.value = override?.name ?? "";
+        });
+
+        // 다이얼로그가 열릴 때 현재 선택된 블루투스 기기를 자동 선택
         watch(
             () => props.modelValue,
-            async (isOpen) => {
+            (isOpen) => {
                 if (!isOpen) return;
 
-                scanning.value = true;
-                selectedDevicePath.value = "";
-
-                if (isAndroid()) {
-                    // APK: BLE 스캔 자동 실행 → 목록 표시
-                    await PortHandler.updateDeviceList("bluetooth");
-                } else {
-                    // Web: 브라우저 BLE 선택창 호출 (requestDevice)
-                    await PortHandler.requestDevicePermission("bluetooth");
-                    // 선택된 포트가 있으면 연결
-                    const selPort = PortHandler.portPicker.selectedPort;
-                    if (selPort && selPort !== "noselection") {
-                        selectedDevicePath.value = selPort;
+                const currentPath = PortHandler.portPicker.selectedPort;
+                if (currentPath?.startsWith("bluetooth")) {
+                    const currentPort = (PortHandler.currentBluetoothPorts || []).find((p) => p.path === currentPath);
+                    if (currentPort) {
+                        selectedDeviceKey.value = currentPort.productId || currentPort.address || currentPort.path;
+                        return;
                     }
                 }
 
-                scanning.value = false;
+                selectedDeviceKey.value = allDeviceItems.value[0]?.value ?? "";
             },
         );
 
-        // 장치 선택 시 즉시 연결 (SPP와 통일)
-        watch(selectedDevicePath, (newPath) => {
-            if (!newPath || newPath === "") return;
-            PortHandler.portPicker.selectedPort = newPath;
-            open.value = false;
-            connectDisconnect();
-        });
-
-        function onCancel() {
+        function save() {
+            if (!selectedDeviceKey.value) return;
+            setProfileOverride(selectedDeviceKey.value, selectedProfile.value || null);
             open.value = false;
         }
 
         return {
             open,
             title,
-            selectedDevicePath,
-            filteredDevices,
-            scanning,
-            onCancel,
+            selectedDeviceKey,
+            selectedProfile,
+            allDeviceItems,
+            profileItems,
+            save,
         };
     },
 });
@@ -133,19 +149,11 @@ export default defineComponent({
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    min-width: min(26rem, 80vw);
 }
 
 .ble-profile-dialog__help {
     font-size: 0.875rem;
     color: var(--text-muted);
-    margin: 0;
-}
-
-.ble-profile-dialog__scanning {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    font-style: italic;
     margin: 0;
 }
 
@@ -158,55 +166,14 @@ export default defineComponent({
     margin: 0;
 }
 
-.ble-profile-dialog__list {
+.ble-profile-dialog__field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    max-height: 18rem;
-    overflow-y: auto;
 }
 
-.ble-profile-dialog__item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    transition: background 0.15s;
-}
-
-.ble-profile-dialog__item:hover {
-    background: var(--muted-200);
-}
-
-html.dark .ble-profile-dialog__item:hover {
-    background: var(--muted-800);
-}
-
-.ble-profile-dialog__item--selected {
-    background: var(--primary-100);
-    border: 1px solid var(--primary-400);
-}
-
-html.dark .ble-profile-dialog__item--selected {
-    background: var(--primary-900);
-    border: 1px solid var(--primary-600);
-}
-
-.ble-profile-dialog__item-icon {
-    font-size: 1.1rem;
-    line-height: 1;
-}
-
-.ble-profile-dialog__item-label {
+.ble-profile-dialog__field span {
     font-size: 0.875rem;
-    font-weight: 500;
-}
-
-.ble-profile-dialog__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
+    font-weight: 600;
 }
 </style>
