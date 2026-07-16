@@ -45,6 +45,7 @@
 import { defineComponent, computed, ref, watch } from "vue";
 import PortHandler from "../../js/port_handler";
 import { connectDisconnect } from "../../js/serial_backend";
+import { isAndroid } from "../../js/utils/checkCompatibility";
 
 export default defineComponent({
     name: "SppDeviceDialog",
@@ -63,17 +64,43 @@ export default defineComponent({
 
         const selectedDevicePath = ref("");
         const scanning = ref(false);
+        const sppDeviceList = ref([]);
+
+        const isAndroidEnv = isAndroid();
 
         const sppDevices = computed(() => {
             const devices = [];
-            const btPorts = PortHandler.currentBluetoothPorts || [];
 
-            for (const d of btPorts) {
-                const label = d.displayName || d.address || d.path;
-                devices.push({
-                    value: d.path,
-                    label: label,
-                });
+            if (isAndroidEnv) {
+                // APK (안드로이드): getBondedDevices()로 페어링된 장치 목록
+                for (const d of sppDeviceList.value) {
+                    const label = d.displayName || d.name || d.address || "Unknown";
+                    devices.push({
+                        value: d.path || d.address,
+                        label: label,
+                    });
+                }
+            } else {
+                // Web (데스크톱): 시리얼 포트 + 블루투스 포트 표시 (SPP = COM 포트)
+                const serialPorts = PortHandler.currentSerialPorts || [];
+                for (const d of serialPorts) {
+                    const label = d.displayName || d.path;
+                    devices.push({
+                        value: d.path,
+                        label: label,
+                    });
+                }
+
+                const btPorts = PortHandler.currentBluetoothPorts || [];
+                for (const d of btPorts) {
+                    const label = d.displayName || d.address || d.path;
+                    if (!devices.some((dev) => dev.value === d.path)) {
+                        devices.push({
+                            value: d.path,
+                            label: label,
+                        });
+                    }
+                }
             }
 
             return devices;
@@ -86,8 +113,19 @@ export default defineComponent({
 
                 scanning.value = true;
                 selectedDevicePath.value = "";
+                sppDeviceList.value = [];
 
-                await PortHandler.updateDeviceList("bluetooth");
+                if (isAndroidEnv) {
+                    // APK: 페어링된 장치 목록 조회 (BLE 스캔 없음, 시스템 저장된 기기)
+                    const { default: CapacitorBle } = await import("../../js/protocols/CapacitorBle");
+                    const ble = new CapacitorBle();
+                    const devices = await ble.getBondedDevices();
+                    sppDeviceList.value = devices || [];
+                } else {
+                    // Web: 시리얼/블루투스 장치 목록 갱신
+                    await PortHandler.updateDeviceList("bluetooth");
+                    await PortHandler.updateDeviceList("serial");
+                }
 
                 scanning.value = false;
             },
