@@ -1510,6 +1510,12 @@ export default defineComponent({
                 return;
             }
 
+            // Always start a flash from a clean port selection so the flasher shows the
+            // device-permission (WebUSB requestDevice) picker instead of auto-connecting to
+            // an already-selected DFU/USB port. Matches the original behaviour where pressing
+            // "Flash firmware" always prompts for device selection.
+            PortHandler.portPicker.selectedPort = "noselection";
+
             // Reset any previous backup cache before starting a new flash
             resetLastBackupData();
 
