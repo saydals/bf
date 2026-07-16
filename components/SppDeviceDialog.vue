@@ -33,9 +33,7 @@
                 <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
                     {{ $t("cancel") }}
                 </UButton>
-                <UButton color="success" variant="soft" size="sm" :disabled="!selectedDevicePath" @click="onConnect">
-                    {{ $t("connect") }}
-                </UButton>
+                <!-- 선택 시 자동 연결 -->
             </div>
         </template>
     </UModal>
@@ -76,7 +74,7 @@ export default defineComponent({
                 for (const d of sppDeviceList.value) {
                     const label = d.displayName || d.name || d.address || "Unknown";
                     devices.push({
-                        value: `spp:${  d.path || d.address}`,
+                        value: `spp:${d.path || d.address}`,
                         label: label,
                     });
                 }
@@ -130,6 +128,14 @@ export default defineComponent({
                 scanning.value = false;
             },
         );
+
+        // 선택하면 즉시 연결
+        watch(selectedDevicePath, (newPath) => {
+            if (!newPath || newPath === "") return;
+            PortHandler.portPicker.selectedPort = newPath;
+            open.value = false;
+            connectDisconnect();
+        });
 
         function onCancel() {
             open.value = false;
