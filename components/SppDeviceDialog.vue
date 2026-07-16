@@ -44,6 +44,7 @@ import { defineComponent, computed, ref, watch } from "vue";
 import PortHandler from "../../js/port_handler";
 import { connectDisconnect } from "../../js/serial_backend";
 import { isAndroid } from "../../js/utils/checkCompatibility";
+import { sppList, sppIsEnabled } from "../../js/spp_central";
 
 export default defineComponent({
     name: "SppDeviceDialog",
@@ -114,11 +115,29 @@ export default defineComponent({
                 sppDeviceList.value = [];
 
                 if (isAndroidEnv) {
-                    // APK: 페어링된 장치 목록 조회 (BLE 스캔 없음, 시스템 저장된 기기)
-                    const { default: CapacitorBle } = await import("../../js/protocols/CapacitorBle");
-                    const ble = new CapacitorBle();
-                    const devices = await ble.getBondedDevices();
-                    sppDeviceList.value = devices || [];
+                    // APK: 페어링된 SPP 장치 목록 조회 (cordova-plugin-bluetooth-serial)
+                    await new Promise((resolve) => {
+                        const timer = setTimeout(() => resolve(), 3000);
+                        sppIsEnabled(
+                            () => {
+                                sppList(
+                                    (devices) => {
+                                        clearTimeout(timer);
+                                        sppDeviceList.value = devices || [];
+                                        resolve();
+                                    },
+                                    () => {
+                                        clearTimeout(timer);
+                                        resolve();
+                                    },
+                                );
+                            },
+                            () => {
+                                clearTimeout(timer);
+                                resolve();
+                            },
+                        );
+                    });
                 } else {
                     // Web: 시리얼/블루투스 장치 목록 갱신
                     await PortHandler.updateDeviceList("bluetooth");
