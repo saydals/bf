@@ -30,6 +30,9 @@
                 <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
                     {{ $t("cancel") }}
                 </UButton>
+                <UButton color="success" variant="soft" size="sm" :disabled="!selectedDevicePath" @click="onConnect">
+                    {{ $t("connect") }}
+                </UButton>
             </div>
         </template>
     </UModal>
@@ -75,7 +78,7 @@ export default defineComponent({
             return devices;
         });
 
-        // 다이얼로그가 열릴 때 블루투스 장치 목록 갱신
+        // 다이얼로그가 열릴 때 등록된 블루투스 장치 목록 갱신
         watch(
             () => props.modelValue,
             async (isOpen) => {
@@ -84,27 +87,21 @@ export default defineComponent({
                 scanning.value = true;
                 selectedDevicePath.value = "";
 
-                // 장치 검색 실행
                 await PortHandler.updateDeviceList("bluetooth");
 
                 scanning.value = false;
-                // 첫 번째 장치 자동 선택 (사용자가 선택하면 즉시 연결됨)
-                if (sppDevices.value.length > 0) {
-                    selectedDevicePath.value = sppDevices.value[0].value;
-                }
             },
         );
 
-        // 장치를 선택하면 즉시 연결
-        watch(selectedDevicePath, (newPath) => {
-            if (!newPath || newPath === "") return;
-            PortHandler.portPicker.selectedPort = newPath;
-            open.value = false;
-            connectDisconnect();
-        });
-
         function onCancel() {
             open.value = false;
+        }
+
+        function onConnect() {
+            if (!selectedDevicePath.value) return;
+            PortHandler.portPicker.selectedPort = selectedDevicePath.value;
+            open.value = false;
+            connectDisconnect();
         }
 
         return {
@@ -113,6 +110,7 @@ export default defineComponent({
             sppDevices,
             scanning,
             onCancel,
+            onConnect,
         };
     },
 });

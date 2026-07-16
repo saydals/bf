@@ -28,6 +28,9 @@
                 <UButton color="neutral" variant="soft" size="sm" @click="onCancel">
                     {{ $t("cancel") }}
                 </UButton>
+                <UButton color="primary" variant="soft" size="sm" :disabled="!selectedDevicePath" @click="onConnect">
+                    {{ $t("connect") }}
+                </UButton>
             </div>
         </template>
     </UModal>
@@ -78,7 +81,7 @@ export default defineComponent({
             return items;
         });
 
-        // 다이얼로그가 열릴 때 블루투스 장치 목록 갱신
+        // 다이얼로그가 열릴 때 BLE 장치 스캔 실행
         watch(
             () => props.modelValue,
             async (isOpen) => {
@@ -87,27 +90,21 @@ export default defineComponent({
                 scanning.value = true;
                 selectedDevicePath.value = "";
 
-                // BLE 장치 검색 실행
                 await PortHandler.updateDeviceList("bluetooth");
 
                 scanning.value = false;
-                // 첫 번째 장치 자동 선택 (사용자가 선택하면 즉시 연결됨)
-                if (filteredDevices.value.length > 0) {
-                    selectedDevicePath.value = filteredDevices.value[0].value;
-                }
             },
         );
 
-        // 장치를 선택하면 즉시 연결
-        watch(selectedDevicePath, (newPath) => {
-            if (!newPath || newPath === "") return;
-            PortHandler.portPicker.selectedPort = newPath;
-            open.value = false;
-            connectDisconnect();
-        });
-
         function onCancel() {
             open.value = false;
+        }
+
+        function onConnect() {
+            if (!selectedDevicePath.value) return;
+            PortHandler.portPicker.selectedPort = selectedDevicePath.value;
+            open.value = false;
+            connectDisconnect();
         }
 
         return {
@@ -117,6 +114,7 @@ export default defineComponent({
             filteredDevices,
             scanning,
             onCancel,
+            onConnect,
         };
     },
 });
