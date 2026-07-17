@@ -8,8 +8,26 @@
                 </div>
             </div>
             <div class="map-zoom-controls">
-                <button class="zoom-btn" @click="zoomIn" :title="$t('flightPlanZoomIn')">+</button>
-                <button class="zoom-btn" @click="zoomOut" :title="$t('flightPlanZoomOut')">−</button>
+                <button
+                    class="zoom-btn"
+                    @mousedown="startZoomIn"
+                    @mouseup="stopZoom"
+                    @mouseleave="stopZoom"
+                    @click.prevent
+                    :title="$t('flightPlanZoomIn')"
+                >
+                    +
+                </button>
+                <button
+                    class="zoom-btn"
+                    @mousedown="startZoomOut"
+                    @mouseup="stopZoom"
+                    @mouseleave="stopZoom"
+                    @click.prevent
+                    :title="$t('flightPlanZoomOut')"
+                >
+                    −
+                </button>
             </div>
         </div>
         <div class="map-instructions">
@@ -145,15 +163,32 @@ const isNearPathLine = (pixel, tolerancePx) => {
     return false;
 };
 
-// --- Zoom controls ---
-const zoomIn = () => {
+// --- Zoom controls (click → 1 step, hold → continuous) ---
+let zoomTimer = null;
+const doZoomIn = () => {
     if (mapInstance.value?.mapView) {
-        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() + 1, duration: 250 });
+        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() + 1, duration: 150 });
     }
 };
-const zoomOut = () => {
+const doZoomOut = () => {
     if (mapInstance.value?.mapView) {
-        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() - 1, duration: 250 });
+        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() - 1, duration: 150 });
+    }
+};
+const startZoomIn = () => {
+    doZoomIn();
+    if (zoomTimer) clearInterval(zoomTimer);
+    zoomTimer = setInterval(doZoomIn, 220);
+};
+const startZoomOut = () => {
+    doZoomOut();
+    if (zoomTimer) clearInterval(zoomTimer);
+    zoomTimer = setInterval(doZoomOut, 220);
+};
+const stopZoom = () => {
+    if (zoomTimer) {
+        clearInterval(zoomTimer);
+        zoomTimer = null;
     }
 };
 
