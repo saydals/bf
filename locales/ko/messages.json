@@ -3450,6 +3450,9 @@
   "flightPlanMap": {
     "message": "비행 계획 지도"
   },
+  "units": {
+    "message": "단위"
+  },
   "flightPlanMapInstructions": {
     "message": "웨이포인트를 추가하려면 클릭하시고 삭제하려면 누르고 계세요."
   },

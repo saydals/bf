@@ -66,7 +66,7 @@
             </UButton>
 
             <div class="ml-auto flex items-center gap-1">
-                <span class="text-xs text-surface-700">단위:</span>
+                <span class="text-xs text-surface-700">{{ $t("units") }}:</span>
                 <UButton
                     variant="soft"
                     color="neutral"

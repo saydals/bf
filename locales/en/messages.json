@@ -3563,6 +3563,9 @@
   "flightPlanMap": {
     "message": "Flight Plan Map"
   },
+  "units": {
+    "message": "Units"
+  },
   "flightPlanMapInstructions": {
     "message": "Click to add waypoints. Long press to delete."
   },
