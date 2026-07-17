@@ -3460,7 +3460,7 @@
     "message": "Mapa de Plano de Voo"
   },
   "flightPlanMapInstructions": {
-    "message": "Clique para adicionar pontos de referência. Pressione longamente para excluir."
+    "message": "Clique para adicionar pontos de referência. Arraste os marcadores de pontos de referência para movê-los."
   },
   "flightPlanLoading": {
     "message": "Por favor aguarde..."

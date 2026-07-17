@@ -3451,7 +3451,7 @@
     "message": "비행 계획 지도"
   },
   "flightPlanMapInstructions": {
-    "message": "웨이포인트를 추가하려면 클릭하세요. 삭제하려면 길게 누르세요."
+    "message": "웨이포인트를 추가하려면 클릭하세요. 웨이포인트를 이동하려면 마커를 드래그하세요."
   },
   "flightPlanLoading": {
     "message": "잠시 기다려주세요..."

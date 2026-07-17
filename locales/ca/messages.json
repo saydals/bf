@@ -3468,7 +3468,7 @@
     "message": "Mapa del pla de vol"
   },
   "flightPlanMapInstructions": {
-    "message": "Feu clic per afegir punts de referència. Mantingueu premut per eliminar."
+    "message": "Feu clic per afegir punts de referència. Arrossegueu els marcadors de punts de referència per moure'ls."
   },
   "flightPlanLoading": {
     "message": "Espereu, si us plau..."

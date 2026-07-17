@@ -8,9 +8,14 @@
             </div>
 
             <div class="flex flex-col gap-[25px]">
-                <FlightPlanMap />
+                <!-- Top row: Map and Waypoint List (stretch to matching heights) -->
+                <div class="grid grid-cols-1 xl:grid-cols-[1.15fr_1fr] gap-4">
+                    <FlightPlanMap />
+                    <WaypointList />
+                </div>
+
+                <!-- Full-width Elevation Profile -->
                 <ElevationProfile />
-                <WaypointList />
             </div>
         </div>
 

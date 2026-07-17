@@ -3464,7 +3464,7 @@
     "message": "Kort over flyveplan"
   },
   "flightPlanMapInstructions": {
-    "message": "Klik for at tilføje vejpunkt. Langt tryk for at slette."
+    "message": "Klik for at tilføje vejpunkt. Træk et vejpunkt for at flytte det"
   },
   "flightPlanLoading": {
     "message": "Vent venligst ..."
