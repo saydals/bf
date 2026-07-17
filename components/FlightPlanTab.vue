@@ -8,11 +8,8 @@
             </div>
 
             <div class="flex flex-col gap-[25px]">
-                <div class="grid grid-cols-1 xl:grid-cols-[1.15fr_1fr] gap-4">
-                    <FlightPlanMap />
-                    <ElevationProfile />
-                </div>
-
+                <FlightPlanMap />
+                <ElevationProfile />
                 <WaypointList />
             </div>
         </div>
