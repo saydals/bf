@@ -61,7 +61,7 @@ const PortHandler = new (function () {
     console.log(`${this.logHead} Serial available: ${this.showSerialOption}`);
     console.log(`${this.logHead} DFU available: ${this.showUsbOption}`);
 
-    this.showVirtualMode = getConfig("showVirtualMode", false).showVirtualMode;
+    this.showVirtualMode = getConfig("showVirtualMode", true).showVirtualMode;
     this.showManualMode = getConfig("showManualMode", false).showManualMode;
     this.showAllSerialDevices = getConfig("showAllSerialDevices", false).showAllSerialDevices;
 
