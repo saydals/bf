@@ -75,7 +75,7 @@
                         variant="soft"
                         color="error"
                         :aria-label="$t('delete')"
-                        @dblclick.stop="handleRemove(waypoint.uid)"
+                        @click.stop="handleRemove(waypoint.uid)"
                     />
                 </div>
             </div>
