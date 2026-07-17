@@ -13,7 +13,7 @@
                     @mousedown="startZoomIn"
                     @mouseup="stopZoom"
                     @mouseleave="stopZoom"
-                    @click="zoom10In"
+                    @click="zoom3In"
                     :title="$t('flightPlanZoomIn')"
                 >
                     +
@@ -23,7 +23,7 @@
                     @mousedown="startZoomOut"
                     @mouseup="stopZoom"
                     @mouseleave="stopZoom"
-                    @click="zoom10Out"
+                    @click="zoom3Out"
                     :title="$t('flightPlanZoomOut')"
                 >
                     −
@@ -167,46 +167,46 @@ const isNearPathLine = (pixel, tolerancePx) => {
 let zoomTimer = null;
 let zoomHoldDelay = null;
 
-const zoom10In = () => {
+const zoom3In = () => {
     if (zoomTimer || zoomHoldDelay) return; // hold 중이면 클릭 무시
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 10), duration: 150 });
+        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 3), duration: 150 });
     }
 };
-const zoom10Out = () => {
+const zoom3Out = () => {
     if (zoomTimer || zoomHoldDelay) return;
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 10), duration: 150 });
+        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 3), duration: 150 });
     }
 };
 
-const zoom1In = () => {
+const zoom05In = () => {
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 1), duration: 80 });
+        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 0.5), duration: 80 });
     }
 };
-const zoom1Out = () => {
+const zoom05Out = () => {
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 1), duration: 80 });
+        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 0.5), duration: 80 });
     }
 };
 
 const startZoomIn = () => {
-    zoom1In();
+    zoom05In();
     clearTimeout(zoomHoldDelay);
     zoomHoldDelay = setTimeout(() => {
-        zoomTimer = setInterval(zoom1In, 200);
+        zoomTimer = setInterval(zoom05In, 200);
     }, 250);
 };
 const startZoomOut = () => {
-    zoom1Out();
+    zoom05Out();
     clearTimeout(zoomHoldDelay);
     zoomHoldDelay = setTimeout(() => {
-        zoomTimer = setInterval(zoom1Out, 200);
+        zoomTimer = setInterval(zoom05Out, 200);
     }, 250);
 };
 const stopZoom = () => {
