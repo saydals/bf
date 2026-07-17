@@ -10,20 +10,18 @@
             <div class="map-zoom-controls">
                 <button
                     class="zoom-btn"
-                    @mousedown="startZoomIn"
-                    @mouseup="stopZoom"
+                    @mousedown.prevent="startZoomIn"
+                    @mouseup="handleZoomInMouseUp"
                     @mouseleave="stopZoom"
-                    @click="zoom3In"
                     :title="$t('flightPlanZoomIn')"
                 >
                     +
                 </button>
                 <button
                     class="zoom-btn"
-                    @mousedown="startZoomOut"
-                    @mouseup="stopZoom"
+                    @mousedown.prevent="startZoomOut"
+                    @mouseup="handleZoomOutMouseUp"
                     @mouseleave="stopZoom"
-                    @click="zoom3Out"
                     :title="$t('flightPlanZoomOut')"
                 >
                     −
@@ -34,10 +32,22 @@
             <p v-html="$t('flightPlanMapInstructions')"></p>
         </div>
     </UiBox>
+
+    <!-- Delete Confirmation Dialog -->
+    <Dialog v-model="showDeleteDialog" title="">
+        <p>삭제 확인</p>
+        <template #footer>
+            <div class="flex gap-2 justify-end">
+                <UButton variant="soft" color="neutral" @click="cancelDelete"> 아니오 </UButton>
+                <UButton color="error" @click="confirmDelete"> 예 </UButton>
+            </div>
+        </template>
+    </Dialog>
 </template>
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
+import Dialog from "@/components/elements/Dialog.vue";
 import { initMap } from "@/js/utils/map";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Feature } from "ol";
@@ -56,6 +66,7 @@ const {
     addWaypointAtLocation,
     updateWaypoint,
     insertWaypointAfter,
+    removeWaypoint,
 } = useFlightPlan();
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
@@ -163,19 +174,20 @@ const isNearPathLine = (pixel, tolerancePx) => {
     return false;
 };
 
-// --- Zoom controls (click → 10m, hold → 1m) ---
+// --- Zoom controls (click → 3x, hold → 0.5x repeat) ---
 let zoomTimer = null;
 let zoomHoldDelay = null;
+let zoomStartTime = 0;
+
+const isLongPress = () => Date.now() - zoomStartTime > 250;
 
 const zoom3In = () => {
-    if (zoomTimer || zoomHoldDelay) return; // hold 중이면 클릭 무시
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
         mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 3), duration: 150 });
     }
 };
 const zoom3Out = () => {
-    if (zoomTimer || zoomHoldDelay) return;
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
         mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 3), duration: 150 });
@@ -196,15 +208,17 @@ const zoom05Out = () => {
 };
 
 const startZoomIn = () => {
-    zoom05In();
+    zoomStartTime = Date.now();
     clearTimeout(zoomHoldDelay);
+    clearInterval(zoomTimer);
     zoomHoldDelay = setTimeout(() => {
         zoomTimer = setInterval(zoom05In, 200);
     }, 250);
 };
 const startZoomOut = () => {
-    zoom05Out();
+    zoomStartTime = Date.now();
     clearTimeout(zoomHoldDelay);
+    clearInterval(zoomTimer);
     zoomHoldDelay = setTimeout(() => {
         zoomTimer = setInterval(zoom05Out, 200);
     }, 250);
@@ -214,6 +228,18 @@ const stopZoom = () => {
     clearInterval(zoomTimer);
     zoomHoldDelay = null;
     zoomTimer = null;
+};
+const handleZoomInMouseUp = () => {
+    stopZoom();
+    if (!isLongPress()) {
+        zoom3In();
+    }
+};
+const handleZoomOutMouseUp = () => {
+    stopZoom();
+    if (!isLongPress()) {
+        zoom3Out();
+    }
 };
 
 const mapRef = ref(null);
@@ -226,6 +252,10 @@ const isDragging = ref(false);
 const dragStartCoordinate = ref(null);
 const lastValidDragCoord = ref(null); // 마지막 정상좌표 (pointercancel 복구용)
 const isLoading = ref(true);
+const showDeleteDialog = ref(false);
+const waypointToDelete = ref(null);
+let pendingDeleteTimer = null;
+const pendingDeleteUid = ref(null);
 
 // Helper function to initialize map with given coordinates
 const initializeMapAtLocation = (latitude, longitude, logMessage) => {
@@ -324,6 +354,19 @@ onMounted(async () => {
     }
 });
 
+const confirmDelete = () => {
+    if (waypointToDelete.value) {
+        removeWaypoint(waypointToDelete.value);
+        waypointToDelete.value = null;
+    }
+    showDeleteDialog.value = false;
+    updateMapFeatures(false);
+};
+const cancelDelete = () => {
+    waypointToDelete.value = null;
+    showDeleteDialog.value = false;
+};
+
 // Setup map layers and event handlers
 const setupMapLayers = () => {
     if (!mapInstance.value) {
@@ -364,7 +407,31 @@ const setupMapLayers = () => {
     });
 
     // Manual drag handling using pointer events
-    // Handle pointer down - start dragging
+    // Handle pointer down - start dragging or pending delete
+    const startPendingDeleteTimer = (uid) => {
+        cancelPendingDelete();
+        pendingDeleteUid.value = uid;
+        pendingDeleteTimer = setTimeout(() => {
+            if (pendingDeleteUid.value === uid) {
+                isDragging.value = false;
+                draggingWaypointUid.value = null;
+                dragStartCoordinate.value = null;
+                lastValidDragCoord.value = null;
+                if (dragPanInteraction.value) dragPanInteraction.value.setActive(true);
+                waypointToDelete.value = uid;
+                showDeleteDialog.value = true;
+                updateMapFeatures(false);
+            }
+            pendingDeleteUid.value = null;
+            pendingDeleteTimer = null;
+        }, 2000);
+    };
+    const cancelPendingDelete = () => {
+        clearTimeout(pendingDeleteTimer);
+        pendingDeleteTimer = null;
+        pendingDeleteUid.value = null;
+    };
+
     mapInstance.value.map.on("pointerdown", (event) => {
         const feature = mapInstance.value.map.forEachFeatureAtPixel(event.pixel, (feat) => feat, {
             layerFilter: (layer) => layer === waypointLayer.value,
@@ -374,6 +441,7 @@ const setupMapLayers = () => {
             const waypointUid = feature.get("waypointUid");
             if (waypointUid) {
                 event.preventDefault();
+                cancelPendingDelete();
                 isDragging.value = true;
                 draggingWaypointUid.value = waypointUid;
                 dragStartCoordinate.value = [...event.coordinate];
@@ -387,6 +455,9 @@ const setupMapLayers = () => {
                 // 스타일만 변경 (전체 마커 삭제 안함 → 객체 참조 유지)
                 updateDraggingStyle(waypointUid, true);
 
+                // Start 2s pending delete timer
+                startPendingDeleteTimer(waypointUid);
+
                 console.log("Started dragging waypoint:", waypointUid);
             }
         }
@@ -399,6 +470,16 @@ const setupMapLayers = () => {
             const [cx, cy] = event.coordinate || [];
             if (!isFinite(cx) || !isFinite(cy) || Math.abs(cx) > 3e7 || Math.abs(cy) > 3e7) {
                 return;
+            }
+
+            // Cancel pending delete if waypoint moved significantly
+            if (pendingDeleteUid.value === draggingWaypointUid.value && dragStartCoordinate.value) {
+                const startPx = mapInstance.value.map.getPixelFromCoordinate(dragStartCoordinate.value);
+                const currentPx = mapInstance.value.map.getPixelFromCoordinate([cx, cy]);
+                const dist = Math.hypot(currentPx[0] - startPx[0], currentPx[1] - startPx[1]);
+                if (dist > 3) {
+                    cancelPendingDelete();
+                }
             }
 
             lastValidDragCoord.value = [cx, cy];
@@ -428,6 +509,7 @@ const setupMapLayers = () => {
 
     // 드래그 종료 공통 로직
     const endDrag = (finalCoord, wasCancelled = false) => {
+        cancelPendingDelete();
         if (!isDragging.value || !draggingWaypointUid.value) return;
         const uid = draggingWaypointUid.value;
 
