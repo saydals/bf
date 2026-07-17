@@ -3388,6 +3388,9 @@
   "flightPlanMap": {
     "message": "Mapa del plan de vuelo"
   },
+  "units": {
+    "message": "Unidades"
+  },
   "flightPlanMapInstructions": {
     "message": "Pulsa para añadir puntos de ruta. Mantén pulsado para eliminar."
   },

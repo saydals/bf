@@ -3423,6 +3423,9 @@
   "flightPlanMap": {
     "message": "Карта плану польоту"
   },
+  "units": {
+    "message": "Одиниці"
+  },
   "flightPlanMapInstructions": {
     "message": "Натисніть, щоб додати точки маршруту. Тримаючи натиснутим, щоб видалити."
   },

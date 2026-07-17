@@ -3383,6 +3383,9 @@
   "flightPlanMap": {
     "message": "ფრენის გეგმის რუკა"
   },
+  "units": {
+    "message": "ერთეულები"
+  },
   "flightPlanMapInstructions": {
     "message": "დააწკაპუნეთ წერტილების დასამატებლად. დაჭირეთ გაგრძელებით წასაშლელად."
   },

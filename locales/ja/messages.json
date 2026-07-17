@@ -3089,6 +3089,9 @@
   "flightPlanMap": {
     "message": "フライトプラン マップ"
   },
+  "units": {
+    "message": "単位"
+  },
   "flightPlanMapInstructions": {
     "message": "クリックしてウェイポイントを追加します。長押しで削除します。"
   },

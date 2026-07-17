@@ -10,6 +10,9 @@
   "on": {
     "message": "開啟"
   },
+  "units": {
+    "message": "單位"
+  },
   "off": {
     "message": "關閉"
   },

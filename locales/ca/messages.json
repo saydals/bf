@@ -3467,6 +3467,9 @@
   "flightPlanMap": {
     "message": "Mapa del pla de vol"
   },
+  "units": {
+    "message": "Unitats"
+  },
   "flightPlanMapInstructions": {
     "message": "Feu clic per afegir punts de referència. Mantingueu premut per eliminar."
   },

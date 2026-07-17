@@ -3463,6 +3463,9 @@
   "flightPlanMap": {
     "message": "Kort over flyveplan"
   },
+  "units": {
+    "message": "Enheder"
+  },
   "flightPlanMapInstructions": {
     "message": "Klik for at tilføje vejpunkter. Hold nede for at slette."
   },
