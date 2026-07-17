@@ -419,7 +419,9 @@ const setupMapLayers = () => {
             } else {
                 // Check if hovering near the path line for "+" insert cursor
                 const nearLine = isNearPathLine(event.pixel, 12);
-                mapInstance.value.map.getTargetElement().style.cursor = nearLine ? "copy" : "";
+                mapInstance.value.map.getTargetElement().style.cursor = nearLine
+                    ? 'url("/images/plus-cursor.svg") 16 16, copy'
+                    : "";
             }
         }
     });
