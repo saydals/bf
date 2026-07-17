@@ -22,10 +22,10 @@ export const useSettingsStore = defineStore("settings", () => {
         }
     })();
 
-    const unitMode = ref(stored.unitMode ?? "nautical"); // "metric" or "nautical"
-    const altitudeUnit = ref(stored.altitudeUnit ?? "ft"); // "m" or "ft"
-    const distanceUnit = ref(stored.distanceUnit ?? "nm"); // "km" or "nm"
-    const speedUnit = ref(stored.speedUnit ?? "kt"); // "kmh" or "kt"
+    const unitMode = ref(stored.unitMode ?? "metric"); // "metric" or "nautical"
+    const altitudeUnit = ref(stored.altitudeUnit ?? "m"); // "m" or "ft"
+    const distanceUnit = ref(stored.distanceUnit ?? "km"); // "km" or "nm"
+    const speedUnit = ref(stored.speedUnit ?? "mps"); // "mps", "kmh" or "kt"
 
     function saveSettings() {
         const payload = {
@@ -45,7 +45,7 @@ export const useSettingsStore = defineStore("settings", () => {
             unitMode.value = "metric";
             altitudeUnit.value = "m";
             distanceUnit.value = "km";
-            speedUnit.value = "kmh";
+            speedUnit.value = "mps";
         } else {
             unitMode.value = "nautical";
             altitudeUnit.value = "ft";
@@ -78,6 +78,9 @@ export const useSettingsStore = defineStore("settings", () => {
      * @returns {string} e.g. "10kt" or "18.5km/h"
      */
     function formatSpeed(kt) {
+        if (speedUnit.value === "mps") {
+            return `${(kt * KT_TO_MPS).toFixed(1)}m/s`;
+        }
         if (speedUnit.value === "kmh") {
             return `${(kt * KT_TO_KMH).toFixed(1)}km/h`;
         }
@@ -161,7 +164,9 @@ export const useSettingsStore = defineStore("settings", () => {
      * @returns {string} "kt" or "km/h"
      */
     function speedSymbol() {
-        return speedUnit.value === "kmh" ? "km/h" : "kt";
+        if (speedUnit.value === "mps") return "m/s";
+        if (speedUnit.value === "kmh") return "km/h";
+        return "kt";
     }
 
     /**
