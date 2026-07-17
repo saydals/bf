@@ -968,5 +968,4 @@ onUnmounted(() => {
         min-height: 320px;
     }
 }
-}
 </style>
