@@ -34,7 +34,7 @@
     </UiBox>
 
     <!-- Delete Confirmation Dialog -->
-    <Dialog v-model="showDeleteDialog" title="삭제 확인" size="xs">
+    <Dialog v-model="showDeleteDialog" title="삭제 확인" show-close="false" width="w-[30vw]">
         <template #footer>
             <div class="flex gap-2 justify-end">
                 <UButton variant="soft" color="neutral" @click="cancelDelete"> 아니오 </UButton>
