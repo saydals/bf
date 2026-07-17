@@ -118,7 +118,7 @@ const findClosestSegment = (pixel) => {
     if (wpList.length < 2) return null;
     const coord = mapInstance.value.map.getCoordinateFromPixel(pixel);
     const coordLl = toLonLat(coord);
-    const toleranceM = mapInstance.value.mapView.getResolution() * 20;
+    const toleranceM = mapInstance.value.mapView.getResolution() * 12;
 
     let best = null;
     for (let i = 0; i < wpList.length - 1; i++) {
