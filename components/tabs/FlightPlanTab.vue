@@ -66,12 +66,12 @@
             </UButton>
 
             <div class="ml-auto flex items-center gap-1">
-                <span class="text-xs text-surface-700">{{ $t("units") }}:</span>
+                <span class="text-xs text-surface-700">단위:</span>
                 <UButton
                     variant="soft"
                     color="neutral"
                     size="xs"
-                    :label="settings.unitMode === 'nautical' ? '🧭 nm/ft/kt' : '⚡ km/m/kmh'"
+                    :label="settings.unitMode === 'nautical' ? '🌊 ft/nm/kt' : '⚡ m/km/m·s'"
                     @click="settings.toggleUnitMode()"
                 />
             </div>
