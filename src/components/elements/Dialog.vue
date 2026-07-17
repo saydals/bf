@@ -26,7 +26,7 @@ const props = defineProps({
     },
     title: {
         type: String,
-        required: true,
+        default: "",
     },
     closeable: {
         type: Boolean,
