@@ -13,7 +13,7 @@
                     @mousedown="startZoomIn"
                     @mouseup="stopZoom"
                     @mouseleave="stopZoom"
-                    @click.prevent
+                    @click="zoom10In"
                     :title="$t('flightPlanZoomIn')"
                 >
                     +
@@ -23,7 +23,7 @@
                     @mousedown="startZoomOut"
                     @mouseup="stopZoom"
                     @mouseleave="stopZoom"
-                    @click.prevent
+                    @click="zoom10Out"
                     :title="$t('flightPlanZoomOut')"
                 >
                     −
@@ -163,35 +163,57 @@ const isNearPathLine = (pixel, tolerancePx) => {
     return false;
 };
 
-// --- Zoom controls (click → 1 step, hold → continuous) ---
+// --- Zoom controls (click → 10m, hold → 1m) ---
 let zoomTimer = null;
-const doZoomIn = () => {
+let zoomHoldDelay = null;
+
+const zoom10In = () => {
+    if (zoomTimer || zoomHoldDelay) return; // hold 중이면 클릭 무시
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 50), duration: 150 });
+        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 10), duration: 150 });
     }
 };
-const doZoomOut = () => {
+const zoom10Out = () => {
+    if (zoomTimer || zoomHoldDelay) return;
     if (mapInstance.value?.mapView) {
         const res = mapInstance.value.mapView.getResolution();
-        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 50), duration: 150 });
+        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 10), duration: 150 });
     }
 };
+
+const zoom1In = () => {
+    if (mapInstance.value?.mapView) {
+        const res = mapInstance.value.mapView.getResolution();
+        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 1), duration: 80 });
+    }
+};
+const zoom1Out = () => {
+    if (mapInstance.value?.mapView) {
+        const res = mapInstance.value.mapView.getResolution();
+        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 1), duration: 80 });
+    }
+};
+
 const startZoomIn = () => {
-    doZoomIn();
-    if (zoomTimer) clearInterval(zoomTimer);
-    zoomTimer = setInterval(doZoomIn, 220);
+    zoom1In();
+    clearTimeout(zoomHoldDelay);
+    zoomHoldDelay = setTimeout(() => {
+        zoomTimer = setInterval(zoom1In, 200);
+    }, 250);
 };
 const startZoomOut = () => {
-    doZoomOut();
-    if (zoomTimer) clearInterval(zoomTimer);
-    zoomTimer = setInterval(doZoomOut, 220);
+    zoom1Out();
+    clearTimeout(zoomHoldDelay);
+    zoomHoldDelay = setTimeout(() => {
+        zoomTimer = setInterval(zoom1Out, 200);
+    }, 250);
 };
 const stopZoom = () => {
-    if (zoomTimer) {
-        clearInterval(zoomTimer);
-        zoomTimer = null;
-    }
+    clearTimeout(zoomHoldDelay);
+    clearInterval(zoomTimer);
+    zoomHoldDelay = null;
+    zoomTimer = null;
 };
 
 const mapRef = ref(null);
