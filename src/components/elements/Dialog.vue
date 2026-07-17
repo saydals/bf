@@ -4,10 +4,11 @@
         :title="title"
         :close="closeable"
         :dismissible="closeable"
+        :size="size"
         :ui="{ overlay: 'z-3000', content: 'z-3001' }"
         @update:open="onOpenChange"
     >
-        <template #body>
+        <template v-if="$slots.default" #body>
             <slot></slot>
         </template>
         <template v-if="$slots.footer" #footer>
@@ -31,6 +32,10 @@ const props = defineProps({
     closeable: {
         type: Boolean,
         default: true,
+    },
+    size: {
+        type: String,
+        default: "md",
     },
 });
 
