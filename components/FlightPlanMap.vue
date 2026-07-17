@@ -418,7 +418,7 @@ const setupMapLayers = () => {
                 mapInstance.value.map.getTargetElement().style.cursor = "move";
             } else {
                 // Check if hovering near the path line for "+" insert cursor
-                const nearLine = isNearPathLine(event.pixel, 24);
+                const nearLine = isNearPathLine(event.pixel, 12);
                 mapInstance.value.map.getTargetElement().style.cursor = nearLine ? "copy" : "";
             }
         }
