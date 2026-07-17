@@ -118,7 +118,7 @@ const findClosestSegment = (pixel) => {
     if (wpList.length < 2) return null;
     const coord = mapInstance.value.map.getCoordinateFromPixel(pixel);
     const coordLl = toLonLat(coord);
-    const toleranceM = mapInstance.value.mapView.getResolution() * 12;
+    const toleranceM = mapInstance.value.mapView.getResolution() * 24;
 
     let best = null;
     for (let i = 0; i < wpList.length - 1; i++) {
@@ -418,7 +418,7 @@ const setupMapLayers = () => {
                 mapInstance.value.map.getTargetElement().style.cursor = "move";
             } else {
                 // Check if hovering near the path line for "+" insert cursor
-                const nearLine = isNearPathLine(event.pixel, 12);
+                const nearLine = isNearPathLine(event.pixel, 24);
                 mapInstance.value.map.getTargetElement().style.cursor = nearLine ? "copy" : "";
             }
         }
