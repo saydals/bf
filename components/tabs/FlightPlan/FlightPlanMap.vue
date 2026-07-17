@@ -7,31 +7,25 @@
                     {{ $t("flightPlanLoading") }}
                 </div>
             </div>
-            <div class="map-controls">
-                <div class="map-rotate-controls">
-                    <button class="rotate-btn" @click="rotateLeft" :title="$t('flightPlanRotateLeft')">↺</button>
-                    <button class="rotate-btn" @click="rotateRight" :title="$t('flightPlanRotateRight')">↻</button>
-                </div>
-                <div class="map-zoom-controls">
-                    <button
-                        class="zoom-btn"
-                        @mousedown.prevent="startZoomIn"
-                        @mouseup="handleZoomInMouseUp"
-                        @mouseleave="stopZoom"
-                        :title="$t('flightPlanZoomIn')"
-                    >
-                        +
-                    </button>
-                    <button
-                        class="zoom-btn"
-                        @mousedown.prevent="startZoomOut"
-                        @mouseup="handleZoomOutMouseUp"
-                        @mouseleave="stopZoom"
-                        :title="$t('flightPlanZoomOut')"
-                    >
-                        −
-                    </button>
-                </div>
+            <div class="map-zoom-controls">
+                <button
+                    class="zoom-btn"
+                    @mousedown.prevent="startZoomIn"
+                    @mouseup="handleZoomInMouseUp"
+                    @mouseleave="stopZoom"
+                    :title="$t('flightPlanZoomIn')"
+                >
+                    +
+                </button>
+                <button
+                    class="zoom-btn"
+                    @mousedown.prevent="startZoomOut"
+                    @mouseup="handleZoomOutMouseUp"
+                    @mouseleave="stopZoom"
+                    :title="$t('flightPlanZoomOut')"
+                >
+                    −
+                </button>
             </div>
         </div>
         <div class="map-instructions">
@@ -244,20 +238,6 @@ const handleZoomOutMouseUp = () => {
     stopZoom();
     if (!isLongPress()) {
         zoom3Out();
-    }
-};
-
-const rotateLeft = () => {
-    if (mapInstance.value?.mapView) {
-        const currentRotation = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: currentRotation + Math.PI / 12, duration: 200 }); // 15 degrees
-    }
-};
-
-const rotateRight = () => {
-    if (mapInstance.value?.mapView) {
-        const currentRotation = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: currentRotation - Math.PI / 12, duration: 200 }); // 15 degrees
     }
 };
 
@@ -915,39 +895,6 @@ onUnmounted(() => {
 
 .zoom-btn:active {
     background: var(--surface-300);
-}
-
-.map-controls {
-    position: absolute;
-    left: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    z-index: 500;
-}
-
-.map-rotate-controls {
-    display: flex;
-    flex-direction: row;
-    gap: 2px;
-}
-
-.rotate-btn {
-    width: 30px;
-    height: 30px;
-    background: var(--surface-100);
-    border: 1px solid var(--surface-500);
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.rotate-btn:hover {
-    background: var(--surface-200);
 }
 
 @media (max-width: 1055px) {
