@@ -1,7 +1,7 @@
 <template>
     <UiBox :title="$t('flightPlanMap')" class="flight-plan-map">
         <div class="map-container">
-            <div ref="mapRef" class="map"></div>
+            <div ref="mapRef" class="map" style="min-height: 480px"></div>
             <div v-if="isLoading" class="map-loading">
                 <div class="loading-message">
                     {{ $t("flightPlanLoading") }}
