@@ -94,6 +94,15 @@
 
         <template #footer>
             <div class="flex gap-2 justify-end">
+                <UButton
+                    v-if="editMode"
+                    color="error"
+                    variant="soft"
+                    :disabled="!editingWaypointUid"
+                    @click="handleDelete"
+                >
+                    {{ $t("delete") }}
+                </UButton>
                 <UButton variant="soft" color="neutral" @click="handleCancel">
                     {{ $t("cancel") }}
                 </UButton>
@@ -120,6 +129,7 @@ const {
     showEditorDialog,
     addWaypoint,
     updateWaypoint,
+    removeWaypoint,
     cancelEdit,
     isModifierWaypointType,
 } = useFlightPlan();
@@ -291,6 +301,14 @@ const handleSave = () => {
         resetForm();
         showEditorDialog.value = false;
     }
+};
+
+// Handle delete (edit mode only) — removes the waypoint and closes the editor
+const handleDelete = () => {
+    if (editingWaypointUid.value) {
+        removeWaypoint(editingWaypointUid.value);
+    }
+    showEditorDialog.value = false;
 };
 
 // Handle cancel
