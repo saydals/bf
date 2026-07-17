@@ -27,6 +27,10 @@
                     −
                 </button>
             </div>
+            <div class="map-rotate-controls">
+                <button class="rotate-btn" @click="rotateLeft" :title="$t('flightPlanRotateLeft')">↺</button>
+                <button class="rotate-btn" @click="rotateRight" :title="$t('flightPlanRotateRight')">↻</button>
+            </div>
         </div>
         <div class="map-instructions">
             <p v-html="$t('flightPlanMapInstructions')"></p>
@@ -238,6 +242,19 @@ const handleZoomOutMouseUp = () => {
     stopZoom();
     if (!isLongPress()) {
         zoom3Out();
+    }
+};
+
+const rotateLeft = () => {
+    if (mapInstance.value?.mapView) {
+        const r = mapInstance.value.mapView.getRotation();
+        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 12, duration: 200 });
+    }
+};
+const rotateRight = () => {
+    if (mapInstance.value?.mapView) {
+        const r = mapInstance.value.mapView.getRotation();
+        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 12, duration: 200 });
     }
 };
 
@@ -894,6 +911,39 @@ onUnmounted(() => {
 }
 
 .zoom-btn:active {
+    background: var(--surface-300);
+}
+
+.map-rotate-controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    z-index: 500;
+}
+
+.rotate-btn {
+    width: 30px;
+    height: 30px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rotate-btn:hover {
+    background: var(--surface-200);
+}
+
+.rotate-btn:active {
     background: var(--surface-300);
 }
 

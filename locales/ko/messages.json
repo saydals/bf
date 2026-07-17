@@ -3453,6 +3453,12 @@
   "flightPlanMapInstructions": {
     "message": "웨이포인트를 추가하려면 클릭하시고 삭제하려면 누르고 계세요."
   },
+  "flightPlanRotateLeft": {
+    "message": "좌회전"
+  },
+  "flightPlanRotateRight": {
+    "message": "우회전"
+  },
   "flightPlanLoading": {
     "message": "잠시 기다려주세요..."
   },

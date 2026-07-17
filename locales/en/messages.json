@@ -3566,6 +3566,12 @@
   "flightPlanMapInstructions": {
     "message": "Click to add waypoints. Long press to delete."
   },
+  "flightPlanRotateLeft": {
+    "message": "Rotate Left"
+  },
+  "flightPlanRotateRight": {
+    "message": "Rotate Right"
+  },
   "flightPlanLoading": {
     "message": "Please wait..."
   },
