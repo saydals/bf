@@ -3428,7 +3428,7 @@
     "message": "飞行计划图"
   },
   "flightPlanMapInstructions": {
-    "message": "点击以添加航点。拖动航点标记以移动它们。"
+    "message": "点击以添加航点。长按以删除。"
   },
   "flightPlanLoading": {
     "message": "请稍候……"

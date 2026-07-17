@@ -3564,7 +3564,7 @@
     "message": "Flight Plan Map"
   },
   "flightPlanMapInstructions": {
-    "message": "Click to add waypoints. Drag waypoint markers to move them."
+    "message": "Click to add waypoints. Long press to delete."
   },
   "flightPlanLoading": {
     "message": "Please wait..."

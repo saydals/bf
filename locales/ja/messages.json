@@ -3090,7 +3090,7 @@
     "message": "フライトプラン マップ"
   },
   "flightPlanMapInstructions": {
-    "message": "クリックしてウェイポイントを追加します。ウェイポイントマーカーをドラッグして移動します。"
+    "message": "クリックしてウェイポイントを追加します。長押しで削除します。"
   },
   "flightPlanLoading": {
     "message": "しばらくお待ちください..."

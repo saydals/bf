@@ -3452,7 +3452,7 @@
     "message": "Piano di volo"
   },
   "flightPlanMapInstructions": {
-    "message": "Fare clic per aggiungere waypoint. Trascinare i waypoint per spostarli."
+    "message": "Fai clic per aggiungere waypoint. Premi a lungo per eliminare."
   },
   "flightPlanLoading": {
     "message": "Attendi..."
