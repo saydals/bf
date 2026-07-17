@@ -30,10 +30,10 @@
             <div class="map-rotate-controls">
                 <button class="rotate-btn" @click="rotateLeft" :title="$t('flightPlanRotateLeft')">↺</button>
                 <button class="rotate-btn" @click="rotateRight" :title="$t('flightPlanRotateRight')">↻</button>
-                <div class="north-arrow" :style="{ transform: `rotate(${-northAngle}rad)` }">
-                    <span class="north-arrow-label">N</span>
-                    <span class="north-arrow-pointer">↑</span>
-                </div>
+            </div>
+            <div class="north-arrow" :style="{ transform: `rotate(${-northAngle}rad)` }">
+                <span class="north-arrow-label">N</span>
+                <span class="north-arrow-pointer">↑</span>
             </div>
         </div>
         <div class="map-instructions">
@@ -935,12 +935,14 @@ onUnmounted(() => {
 }
 
 .north-arrow {
-    width: 30px;
-    height: 30px;
-    margin-left: 4px;
+    position: absolute;
+    top: 46px;
+    left: 10px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
     background: var(--surface-100);
-    border: 1px solid var(--surface-500);
-    border-radius: 4px;
+    border: 2px solid var(--surface-500);
     color: var(--text);
     display: flex;
     flex-direction: column;
@@ -953,12 +955,12 @@ onUnmounted(() => {
 }
 
 .north-arrow-label {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
 }
 
 .north-arrow-pointer {
-    font-size: 16px;
+    font-size: 20px;
     color: #d00;
     line-height: 1;
 }
