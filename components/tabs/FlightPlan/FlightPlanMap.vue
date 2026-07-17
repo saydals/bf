@@ -94,6 +94,34 @@ const interpolatePoint = (lat1, lon1, lat2, lon2, fraction) => {
     };
 };
 
+const findClosestSegment = (pixel) => {
+    if (!mapInstance.value || !mapInstance.value.mapView) return null;
+    const wpList = positionalWaypoints.value;
+    if (wpList.length < 2) return null;
+    const coord = mapInstance.value.map.getCoordinateFromPixel(pixel);
+    const coordLl = toLonLat(coord);
+    const toleranceM = mapInstance.value.mapView.getResolution() * 20;
+
+    let best = null;
+    for (let i = 0; i < wpList.length - 1; i++) {
+        const a = wpList[i],
+            b = wpList[i + 1];
+        const { dist, fraction } = pointToSegmentDistance(
+            coordLl[1],
+            coordLl[0],
+            a.latitude,
+            a.longitude,
+            b.latitude,
+            b.longitude,
+        );
+        if (dist <= toleranceM && (!best || dist < best.dist)) {
+            best = { a, b, dist, fraction };
+        }
+    }
+    return best;
+};
+
+// Check if the given pixel is near any path line segment (for cursor)
 const isNearPathLine = (pixel, tolerancePx) => {
     if (!mapInstance.value || !mapInstance.value.mapView) return false;
     const wpList = positionalWaypoints.value;
@@ -377,70 +405,31 @@ const setupMapLayers = () => {
     // Pointer cancel → safe end drag
     mapInstance.value.map.on("pointercancel", () => endDrag(lastValidDragCoord.value, true));
 
-    // Click handler - add new waypoint when clicking on empty map
+    // Click handler - near line → insert between, empty space → append
     mapInstance.value.map.on("click", (event) => {
-        if (isDragging.value) return;
-        const waypointClicked = mapInstance.value.map.hasFeatureAtPixel(event.pixel, {
-            layerFilter: (layer) => layer === waypointLayer.value,
-        });
-        if (!waypointClicked) {
-            const coords = toLonLat(event.coordinate);
-            addWaypointAtLocation(coords[1], coords[0]);
-        }
-    });
-
-    // Double-click handler - insert new waypoint between existing waypoints on the path line
-    mapInstance.value.map.on("dblclick", (event) => {
         if (isDragging.value) return;
         const waypointClicked = mapInstance.value.map.hasFeatureAtPixel(event.pixel, {
             layerFilter: (layer) => layer === waypointLayer.value,
         });
         if (waypointClicked) return;
 
-        const coords = toLonLat(event.coordinate);
-        const clickLon = coords[0];
-        const clickLat = coords[1];
-
-        const wpList = positionalWaypoints.value;
-        if (wpList.length < 2) return;
-
-        let bestSegIdx = -1;
-        let bestDist = Infinity;
-        let bestFraction = 0;
-
-        for (let i = 0; i < wpList.length - 1; i++) {
-            const a = wpList[i];
-            const b = wpList[i + 1];
-            const { dist, fraction } = pointToSegmentDistance(
-                clickLat,
-                clickLon,
-                a.latitude,
-                a.longitude,
-                b.latitude,
-                b.longitude,
-            );
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestSegIdx = i;
-                bestFraction = fraction;
-            }
+        // Check if near path line → insert between waypoints
+        const seg = findClosestSegment(event.pixel);
+        if (seg) {
+            const ll = interpolatePoint(seg.a.latitude, seg.a.longitude, seg.b.latitude, seg.b.longitude, seg.fraction);
+            const alt = Math.round(seg.a.altitude + seg.fraction * (seg.b.altitude - seg.a.altitude));
+            insertWaypointAfter(seg.a.uid, {
+                latitude: ll.latitude,
+                longitude: ll.longitude,
+                altitude: alt,
+                speed: seg.a.speed,
+            });
+            return;
         }
 
-        const resolution = mapInstance.value.mapView.getResolution();
-        const toleranceM = resolution * 20;
-        if (bestDist > toleranceM) return;
-
-        const a = wpList[bestSegIdx];
-        const b = wpList[bestSegIdx + 1];
-        const ll = interpolatePoint(a.latitude, a.longitude, b.latitude, b.longitude, bestFraction);
-        const alt = Math.round(a.altitude + bestFraction * (b.altitude - a.altitude));
-
-        insertWaypointAfter(a.uid, {
-            latitude: ll.latitude,
-            longitude: ll.longitude,
-            altitude: alt,
-            speed: a.speed,
-        });
+        // Otherwise add waypoint at the end
+        const coords = toLonLat(event.coordinate);
+        addWaypointAtLocation(coords[1], coords[0]);
     });
 
     // Initial map update
