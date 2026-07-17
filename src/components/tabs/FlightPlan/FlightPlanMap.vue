@@ -40,21 +40,10 @@
             <p v-html="$t('flightPlanMapInstructions')"></p>
         </div>
     </UiBox>
-
-    <!-- Delete Confirmation Dialog -->
-    <Dialog v-model="showDeleteDialog" title="삭제 확인" show-close="false" width="max-w-[22rem]">
-        <template #footer>
-            <div class="flex gap-2 justify-end">
-                <UButton variant="soft" color="neutral" @click="cancelDelete"> 아니오 </UButton>
-                <UButton color="error" @click="confirmDelete"> 예 </UButton>
-            </div>
-        </template>
-    </Dialog>
 </template>
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
-import Dialog from "@/components/elements/Dialog.vue";
 import { initMap } from "@/js/utils/map";
 import { fromLonLat, toLonLat } from "ol/proj";
 import { Feature } from "ol";
@@ -73,7 +62,7 @@ const {
     addWaypointAtLocation,
     updateWaypoint,
     insertWaypointAfter,
-    removeWaypoint,
+    editWaypoint,
 } = useFlightPlan();
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
@@ -280,8 +269,6 @@ const isDragging = ref(false);
 const dragStartCoordinate = ref(null);
 const lastValidDragCoord = ref(null); // 마지막 정상좌표 (pointercancel 복구용)
 const isLoading = ref(true);
-const showDeleteDialog = ref(false);
-const waypointToDelete = ref(null);
 let pendingDeleteTimer = null;
 const pendingDeleteUid = ref(null);
 
@@ -384,19 +371,6 @@ onMounted(async () => {
     }
 });
 
-const confirmDelete = () => {
-    if (waypointToDelete.value) {
-        removeWaypoint(waypointToDelete.value);
-        waypointToDelete.value = null;
-    }
-    showDeleteDialog.value = false;
-    updateMapFeatures(false);
-};
-const cancelDelete = () => {
-    waypointToDelete.value = null;
-    showDeleteDialog.value = false;
-};
-
 // Setup map layers and event handlers
 const setupMapLayers = () => {
     if (!mapInstance.value) {
@@ -448,9 +422,8 @@ const setupMapLayers = () => {
                 dragStartCoordinate.value = null;
                 lastValidDragCoord.value = null;
                 if (dragPanInteraction.value) dragPanInteraction.value.setActive(true);
-                waypointToDelete.value = uid;
-                showDeleteDialog.value = true;
                 updateMapFeatures(false);
+                editWaypoint(uid);
             }
             pendingDeleteUid.value = null;
             pendingDeleteTimer = null;
