@@ -254,7 +254,12 @@ export function useFlightPlan() {
             state.editingWaypointUid = null;
         }
 
-        savePlan();
+        // Debounce savePlan to prevent localStorage race during rapid deletions
+        if (savePlanTimeout) clearTimeout(savePlanTimeout);
+        savePlanTimeout = setTimeout(() => {
+            savePlan();
+            savePlanTimeout = null;
+        }, 300);
         console.log("Removed waypoint:", uid);
         return true;
     };
