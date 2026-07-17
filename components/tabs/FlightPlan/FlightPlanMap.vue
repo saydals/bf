@@ -167,12 +167,14 @@ const isNearPathLine = (pixel, tolerancePx) => {
 let zoomTimer = null;
 const doZoomIn = () => {
     if (mapInstance.value?.mapView) {
-        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() + 1, duration: 150 });
+        const res = mapInstance.value.mapView.getResolution();
+        mapInstance.value.mapView.animate({ resolution: Math.max(0.5, res - 50), duration: 150 });
     }
 };
 const doZoomOut = () => {
     if (mapInstance.value?.mapView) {
-        mapInstance.value.mapView.animate({ zoom: mapInstance.value.mapView.getZoom() - 1, duration: 150 });
+        const res = mapInstance.value.mapView.getResolution();
+        mapInstance.value.mapView.animate({ resolution: Math.min(50000, res + 50), duration: 150 });
     }
 };
 const startZoomIn = () => {
