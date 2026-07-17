@@ -3389,7 +3389,7 @@
     "message": "Mapa del plan de vuelo"
   },
   "flightPlanMapInstructions": {
-    "message": "Pulsa para añadir puntos de ruta. Arrastra los marcadores de puntos de ruta para moverlos."
+    "message": "Pulsa para añadir puntos de ruta. Mantén pulsado para eliminar."
   },
   "flightPlanLoading": {
     "message": "Espera por favor..."
