@@ -10,6 +10,9 @@
   "on": {
     "message": "On"
   },
+  "units": {
+    "message": "Unités"
+  },
   "off": {
     "message": "Off"
   },

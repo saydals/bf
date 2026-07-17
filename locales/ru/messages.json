@@ -3106,6 +3106,9 @@
   "flightPlanMap": {
     "message": "Карта плана полёта"
   },
+  "units": {
+    "message": "Единицы"
+  },
   "flightPlanMapInstructions": {
     "message": "Нажмите, чтобы добавить точки. Долгое нажатие для удаления."
   },

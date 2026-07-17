@@ -3459,6 +3459,9 @@
   "flightPlanMap": {
     "message": "Mapa de Plano de Voo"
   },
+  "units": {
+    "message": "Unidades"
+  },
   "flightPlanMapInstructions": {
     "message": "Clique para adicionar waypoints. Pressione longamente para excluir."
   },

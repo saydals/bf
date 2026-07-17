@@ -10,6 +10,9 @@
   "on": {
     "message": "Wł"
   },
+  "units": {
+    "message": "Jednostki"
+  },
   "off": {
     "message": "Wył"
   },

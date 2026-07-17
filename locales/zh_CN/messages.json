@@ -3427,6 +3427,9 @@
   "flightPlanMap": {
     "message": "飞行计划图"
   },
+  "units": {
+    "message": "单位"
+  },
   "flightPlanMapInstructions": {
     "message": "点击以添加航点。长按以删除。"
   },

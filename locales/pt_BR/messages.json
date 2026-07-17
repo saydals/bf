@@ -10,6 +10,9 @@
   "on": {
     "message": "Ligado"
   },
+  "units": {
+    "message": "Unidades"
+  },
   "off": {
     "message": "Desligado"
   },

@@ -10,6 +10,9 @@
   "on": {
     "message": "Aan"
   },
+  "units": {
+    "message": "Eenheden"
+  },
   "off": {
     "message": "Uit"
   },
