@@ -30,6 +30,10 @@
             <div class="map-rotate-controls">
                 <button class="rotate-btn" @click="rotateLeft" :title="$t('flightPlanRotateLeft')">↺</button>
                 <button class="rotate-btn" @click="rotateRight" :title="$t('flightPlanRotateRight')">↻</button>
+                <div class="north-arrow" :style="{ transform: `rotate(${-northAngle}rad)` }">
+                    <span class="north-arrow-label">N</span>
+                    <span class="north-arrow-pointer">↑</span>
+                </div>
             </div>
         </div>
         <div class="map-instructions">
@@ -258,6 +262,14 @@ const rotateRight = () => {
     }
 };
 
+// 북향 화살표: 지도 회전각과 반대로 돌려 실제 북쪽 방향 표시
+const northAngle = ref(0);
+const updateNorthAngle = () => {
+    if (mapInstance.value?.mapView) {
+        northAngle.value = mapInstance.value.mapView.getRotation();
+    }
+};
+
 const mapRef = ref(null);
 const mapInstance = ref(null);
 const waypointLayer = ref(null);
@@ -285,6 +297,8 @@ const initializeMapAtLocation = (latitude, longitude, logMessage) => {
 
     console.log(logMessage);
     setupMapLayers();
+    mapInstance.value.mapView.on("change:rotation", updateNorthAngle);
+    updateNorthAngle();
 };
 
 // Fetch location from IP-based geolocation API
@@ -947,9 +961,39 @@ onUnmounted(() => {
     background: var(--surface-300);
 }
 
+.north-arrow {
+    width: 30px;
+    height: 30px;
+    margin-left: 4px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    user-select: none;
+    transition: transform 0.2s ease;
+}
+
+.north-arrow-label {
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.north-arrow-pointer {
+    font-size: 16px;
+    color: #d00;
+    line-height: 1;
+}
+
 @media (max-width: 1055px) {
     .map-container {
         min-height: 320px;
     }
+}
 }
 </style>
