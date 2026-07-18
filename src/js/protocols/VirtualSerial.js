@@ -22,6 +22,7 @@ class VirtualSerial extends EventTarget {
         this.connected = true;
         this.connectionId = VIRTUAL;
         this.bitrate = 115200;
+        this.dispatchEvent(new CustomEvent("connect", { detail: { connectionId: VIRTUAL } }));
         return true;
     }
     disconnect() {
@@ -31,6 +32,7 @@ class VirtualSerial extends EventTarget {
         if (this.connectionId) {
             this.connectionId = false;
             this.bitrate = 0;
+            this.dispatchEvent(new CustomEvent("disconnect", { detail: true }));
             return true;
         }
         return false;
