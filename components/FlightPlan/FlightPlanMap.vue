@@ -28,13 +28,31 @@
                 </button>
             </div>
             <div class="map-rotate-controls">
-                <button class="rotate-btn" @click="rotateLeft" :title="$t('flightPlanRotateLeft')">↺</button>
-                <button class="rotate-btn" @click="rotateRight" :title="$t('flightPlanRotateRight')">↻</button>
+                <button
+                    class="rotate-btn"
+                    @mousedown.prevent="startRotateLeft"
+                    @mouseup="handleRotateLeftMouseUp"
+                    @mouseleave="stopRotate"
+                    :title="$t('flightPlanRotateLeft')"
+                >
+                    ↺
+                </button>
+                <button
+                    class="rotate-btn"
+                    @mousedown.prevent="startRotateRight"
+                    @mouseup="handleRotateRightMouseUp"
+                    @mouseleave="stopRotate"
+                    :title="$t('flightPlanRotateRight')"
+                >
+                    ↻
+                </button>
             </div>
-            <div class="north-arrow" :style="{ transform: `rotate(${-northAngle}rad)` }">
-                <span class="north-arrow-label">N</span>
-                <span class="north-arrow-pointer">↑</span>
-            </div>
+            <img
+                class="compass"
+                src="/images/compass.svg"
+                :style="{ transform: `rotate(${-northAngle}rad)` }"
+                alt="N"
+            />
         </div>
         <div class="map-instructions">
             <p v-html="$t('flightPlanMapInstructions')"></p>
@@ -175,6 +193,11 @@ let zoomTimer = null;
 let zoomHoldDelay = null;
 let zoomStartTime = 0;
 
+// --- Rotate controls (click → 15°, hold → 3.75° repeat) ---
+let rotateTimer = null;
+let rotateHoldDelay = null;
+let rotateStartTime = 0;
+
 const isLongPress = () => Date.now() - zoomStartTime > 250;
 
 const zoom3In = () => {
@@ -248,6 +271,57 @@ const rotateRight = () => {
     if (mapInstance.value?.mapView) {
         const r = mapInstance.value.mapView.getRotation();
         mapInstance.value.mapView.animate({ rotation: r - Math.PI / 12, duration: 200 });
+    }
+};
+
+// Slow hold rotation (3.75° per step, smooth)
+const rotateLeftHold = () => {
+    if (mapInstance.value?.mapView) {
+        const r = mapInstance.value.mapView.getRotation();
+        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 48, duration: 80 });
+    }
+};
+const rotateRightHold = () => {
+    if (mapInstance.value?.mapView) {
+        const r = mapInstance.value.mapView.getRotation();
+        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 48, duration: 80 });
+    }
+};
+
+const isRotateLongPress = () => Date.now() - rotateStartTime > 250;
+
+const startRotateLeft = () => {
+    rotateStartTime = Date.now();
+    clearTimeout(rotateHoldDelay);
+    clearInterval(rotateTimer);
+    rotateHoldDelay = setTimeout(() => {
+        rotateTimer = setInterval(rotateLeftHold, 200);
+    }, 250);
+};
+const startRotateRight = () => {
+    rotateStartTime = Date.now();
+    clearTimeout(rotateHoldDelay);
+    clearInterval(rotateTimer);
+    rotateHoldDelay = setTimeout(() => {
+        rotateTimer = setInterval(rotateRightHold, 200);
+    }, 250);
+};
+const stopRotate = () => {
+    clearTimeout(rotateHoldDelay);
+    clearInterval(rotateTimer);
+    rotateHoldDelay = null;
+    rotateTimer = null;
+};
+const handleRotateLeftMouseUp = () => {
+    stopRotate();
+    if (!isRotateLongPress()) {
+        rotateLeft();
+    }
+};
+const handleRotateRightMouseUp = () => {
+    stopRotate();
+    if (!isRotateLongPress()) {
+        rotateRight();
     }
 };
 
@@ -934,35 +1008,15 @@ onUnmounted(() => {
     background: var(--surface-300);
 }
 
-.north-arrow {
+.compass {
     position: absolute;
     top: 46px;
     left: 10px;
     width: 38px;
     height: 38px;
-    border-radius: 50%;
-    background: var(--surface-100);
-    border: 2px solid var(--surface-500);
-    color: var(--text);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
-    line-height: 1;
-    user-select: none;
+    z-index: 500;
+    pointer-events: none;
     transition: transform 0.2s ease;
-}
-
-.north-arrow-label {
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.north-arrow-pointer {
-    font-size: 20px;
-    color: #d00;
-    line-height: 1;
 }
 
 @media (max-width: 1055px) {
