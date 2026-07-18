@@ -4,7 +4,8 @@ import MSP from "../js/msp";
 import GUI from "../js/gui";
 import FC from "../js/fc";
 import PortHandler from "../js/port_handler";
-import { connectDisconnect } from "../js/serial_backend";
+import { disconnect } from "../js/serial_backend";
+import { getConnectionState, State } from "../js/connection_state";
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 2000;
 const SAVE_COMMAND_TIMEOUT_MS = 5000;
@@ -73,13 +74,17 @@ export function scheduleReconnect() {
     // device-removal callback runs — lets us reconnect to the original FC, not the fallback.
     const pinnedPort = PortHandler.portPicker.selectedPort;
     GUI.timeout_remove(RECONNECT_TIMEOUT_NAME);
+    // Enter the reconnect window so selectActivePort keeps the device selection for auto-reconnect.
+    if (PortHandler.portPicker.autoConnect) {
+        getConnectionState().reconnectStarted();
+    }
     GUI.timeout_add(
         RECONNECT_TIMEOUT_NAME,
         () => {
             if (pinnedPort && !["noselection", "virtual", "manual"].includes(pinnedPort)) {
                 PortHandler.portPicker.selectedPort = pinnedPort;
             }
-            connectDisconnect();
+            disconnect();
         },
         RECONNECT_DELAY_MS,
     );
@@ -87,6 +92,10 @@ export function scheduleReconnect() {
 
 export function cancelScheduledReconnect() {
     GUI.timeout_remove(RECONNECT_TIMEOUT_NAME);
+    const cs = getConnectionState();
+    if (cs.state === State.RECONNECTING) {
+        cs.concludeReboot(false);
+    }
 }
 
 export async function saveAndReconnect() {
@@ -95,11 +104,14 @@ export async function saveAndReconnect() {
         await sendSave();
     } catch (error) {
         saveError = error;
-        console.error("sendSave failed:", error);
+        // A connection-closed error during save means the FC rebooted as expected.
+        if (!error?.connectionClosed) {
+            console.error("sendSave failed:", error);
+        }
     } finally {
         scheduleReconnect();
     }
-    return { ok: saveError === null, error: saveError };
+    return { ok: saveError === null || saveError?.connectionClosed === true, error: saveError };
 }
 
 export function useMspCliSession() {

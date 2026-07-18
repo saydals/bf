@@ -5,8 +5,9 @@ const VIRTUAL = "virtual";
  * which is required to still have virtual serial port support in the
  * browser.
  */
-class VirtualSerial {
+class VirtualSerial extends EventTarget {
     constructor() {
+        super();
         this.connected = false;
         this.connectionId = false;
         this.bitrate = 0;

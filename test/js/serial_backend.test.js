@@ -39,6 +39,7 @@ const { GUI, serial, serialHandlers, unmountVueTab, switchTab, dialogStore, mspH
         serialHandlers,
         serial: {
             connected: false,
+            send: vi.fn(),
             addEventListener: vi.fn((type, handler) => {
                 serialHandlers[type] = handler;
             }),
