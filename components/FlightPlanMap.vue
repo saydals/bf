@@ -264,13 +264,13 @@ const handleZoomOutMouseUp = () => {
 const rotateLeft = () => {
     if (mapInstance.value?.mapView) {
         const r = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 12, duration: 200 });
+        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 12, duration: 200 });
     }
 };
 const rotateRight = () => {
     if (mapInstance.value?.mapView) {
         const r = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 12, duration: 200 });
+        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 12, duration: 200 });
     }
 };
 
@@ -278,13 +278,13 @@ const rotateRight = () => {
 const rotateLeftHold = () => {
     if (mapInstance.value?.mapView) {
         const r = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 48, duration: 80 });
+        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 48, duration: 80 });
     }
 };
 const rotateRightHold = () => {
     if (mapInstance.value?.mapView) {
         const r = mapInstance.value.mapView.getRotation();
-        mapInstance.value.mapView.animate({ rotation: r - Math.PI / 48, duration: 80 });
+        mapInstance.value.mapView.animate({ rotation: r + Math.PI / 48, duration: 80 });
     }
 };
 
