@@ -232,7 +232,7 @@ const positionSignature = computed(() =>
 const ELEVATION_API_URL = "https://api.open-meteo.com/v1/elevation";
 const MIN_SAMPLE_INTERVAL_METERS = 40;
 const MAX_SAMPLES_PER_SEGMENT = 25;
-const MAX_TOTAL_SAMPLES = 160;
+const MAX_TOTAL_SAMPLES = 360;
 
 const METERS_TO_FEET = 3.28084;
 const METERS_TO_NAUTICAL_MILES = 1 / 1852;
@@ -846,7 +846,7 @@ const cacheMerge = (ranges, samples, elevs) =>
 
 const fetchBatches = async (samples) => {
     const out = [],
-        B = 30;
+        B = 90;
     if (samples.length > MAX_TOTAL_SAMPLES) samples = samples.slice(0, MAX_TOTAL_SAMPLES);
     for (let i = 0; i < samples.length; i += B) {
         const b = samples.slice(i, i + B);
