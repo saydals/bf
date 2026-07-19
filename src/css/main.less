@@ -1695,6 +1695,15 @@ body.compact-header-layout {
     transition: opacity 0.1s;
 }
 
+/* 툴팁이 마커 위쪽에 표시될 때: transform으로 60px 간격 확보 */
+.global-wp-tooltip.is-above {
+    transform: translateY(calc(-100% - var(--tooltip-gap, 60px)));
+}
+/* 툴팁이 마커 아래쪽에 표시될 때 */
+.global-wp-tooltip.is-below {
+    transform: translateY(var(--tooltip-gap, 60px));
+}
+
 .global-wp-tooltip.hidden {
     opacity: 0;
     pointer-events: none;
