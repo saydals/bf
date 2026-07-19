@@ -337,7 +337,9 @@ const handleRotateRightMouseUp = () => {
 const northAngle = ref(0);
 const updateNorthAngle = () => {
     if (mapInstance.value?.mapView) {
-        northAngle.value = mapInstance.value.mapView.getRotation();
+        const r = mapInstance.value.mapView.getRotation();
+        const twoPi = 2 * Math.PI;
+        northAngle.value = ((r % twoPi) + twoPi) % twoPi; // 항상 [0, 2π)로 정규화
     }
 };
 // 클릭 시 정북 방향으로 리셋 (raw 회전값 기준 최단 delta로 이동 → 항상 최대 180°만 회전, CSS transition에도 raw 점프 없음)
