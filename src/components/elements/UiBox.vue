@@ -5,6 +5,7 @@
             !collapsible || isOpen ? (highlight ? typeClass.box : 'border-neutral-500/30') : 'border-transparent',
             title ? 'mt-3' : '',
             collapsible && !isOpen ? 'min-h-6' : '',
+            fill ? 'h-full flex flex-col min-h-0' : '',
         ]"
     >
         <div
@@ -31,7 +32,7 @@
         </div>
         <div
             v-show="!collapsible || isOpen"
-            :class="`flex flex-col ${padding ? 'p-3' : 'rounded-lg overflow-hidden p-0!'} gap-2 ${title ? 'pt-6' : ''}`"
+            :class="`flex flex-col ${padding ? 'p-3' : 'rounded-lg overflow-hidden p-0!'} gap-2 ${title ? 'pt-6' : ''} ${fill ? 'flex-1 min-h-0' : ''}`"
         >
             <slot></slot>
         </div>
@@ -77,6 +78,11 @@ const props = defineProps({
     defaultOpen: {
         type: Boolean,
         default: true,
+    },
+    fill: {
+        type: Boolean,
+        default: false,
+        required: false,
     },
 });
 
