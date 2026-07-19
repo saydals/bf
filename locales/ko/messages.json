@@ -3462,6 +3462,9 @@
   "flightPlanRotateRight": {
     "message": "우회전"
   },
+  "flightPlanResetNorth": {
+    "message": "정북향으로 리셋"
+  },
   "flightPlanLoading": {
     "message": "잠시 기다려주세요..."
   },
