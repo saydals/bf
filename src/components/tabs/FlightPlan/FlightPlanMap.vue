@@ -68,7 +68,7 @@ import { Point, LineString } from "ol/geom";
 import { Vector as LayerVector } from "ol/layer";
 import { Vector as SourceVector } from "ol/source";
 import { Style, Stroke, Circle, Fill, Text } from "ol/style";
-import { DragPan, DoubleClickZoom } from "ol/interaction";
+import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 
 const {
@@ -351,6 +351,35 @@ const resetNorth = () => {
     }
 };
 
+// 마우스 휠 처리: 지도를 가로로 3등분하여 가운데 1/3에서만 확대/축소.
+// 좌우 1/3에서는 preventDefault 하지 않아 브라우저 기본 페이지 스크롤이 동작한다.
+const handleMapWheel = (event) => {
+    if (!mapInstance.value?.mapView || !mapRef.value) {
+        return;
+    }
+
+    const rect = mapRef.value.getBoundingClientRect();
+    const relX = event.clientX - rect.left;
+    const inCenterThird = relX >= rect.width / 3 && relX <= (rect.width * 2) / 3;
+
+    if (!inCenterThird) {
+        // 좌우 영역: 지도 줌을 막고 페이지 스크롤에 맡긴다.
+        return;
+    }
+
+    // 가운데 영역: 페이지 스크롤을 막고 지도 확대/축소.
+    event.preventDefault();
+    const view = mapInstance.value.mapView;
+    const res = view.getResolution();
+    if (res == null) {
+        return;
+    }
+    // 휠 위(deltaY < 0) → 확대, 아래 → 축소
+    const factor = event.deltaY < 0 ? 1 / 1.15 : 1.15;
+    const newRes = Math.min(50000, Math.max(0.5, res * factor));
+    view.animate({ resolution: newRes, duration: 80 });
+};
+
 const mapRef = ref(null);
 const mapInstance = ref(null);
 const waypointLayer = ref(null);
@@ -378,6 +407,11 @@ const initializeMapAtLocation = (latitude, longitude, logMessage) => {
     setupMapLayers();
     mapInstance.value.mapView.on("change:rotation", updateNorthAngle);
     updateNorthAngle();
+
+    // 가운데 1/3에서만 휠 줌, 좌우는 페이지 스크롤 (passive:false 여야 preventDefault 동작)
+    if (mapRef.value) {
+        mapRef.value.addEventListener("wheel", handleMapWheel, { passive: false });
+    }
 };
 
 // Fetch location from IP-based geolocation API
@@ -470,9 +504,11 @@ const setupMapLayers = () => {
         return;
     }
 
-    // Remove default DoubleClickZoom so dblclick is free for waypoint insertion
+    // Remove default DoubleClickZoom so dblclick is free for waypoint insertion.
+    // Remove default MouseWheelZoom so we can restrict wheel-zoom to the center third
+    // of the map (left/right thirds fall through to normal page scrolling).
     mapInstance.value.map.getInteractions().forEach((interaction) => {
-        if (interaction instanceof DoubleClickZoom) {
+        if (interaction instanceof DoubleClickZoom || interaction instanceof MouseWheelZoom) {
             mapInstance.value.map.removeInteraction(interaction);
         }
     });
@@ -890,6 +926,9 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
     console.log("Cleaning up map");
+    if (mapRef.value) {
+        mapRef.value.removeEventListener("wheel", handleMapWheel, { passive: false });
+    }
     if (mapInstance.value?.destroy) {
         mapInstance.value.destroy();
     }
