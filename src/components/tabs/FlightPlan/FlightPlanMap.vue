@@ -260,32 +260,24 @@ const handleZoomOutMouseUp = () => {
     }
 };
 
-// 회전각을 (-π, π] 범위로 정규화 (시각적으로는 2π 배수 차이라 화면상 변화 없음)
-const normalizeRotation = (angle) => {
-    let a = angle % (2 * Math.PI);
-    if (a > Math.PI) a -= 2 * Math.PI;
-    if (a <= -Math.PI) a += 2 * Math.PI;
-    return a;
-};
-
-// 실제 view 회전값을 정규화된 값으로 스냅(순간 적용, 2π 배수 차이라 시각적 변화 없음) 후 반환
-const snapToNormalizedRotation = () => {
-    if (!mapInstance.value?.mapView) return 0;
-    const view = mapInstance.value.mapView;
-    const normalized = normalizeRotation(view.getRotation());
-    view.setRotation(normalized);
-    return normalized;
+// 목표각(desiredAngle, 보통 0 = 정북)에 대해 현재 raw 회전값 기준 "최단 delta"로 이동할 절대 목표값 계산.
+// view의 실제 rotation을 강제로 snap하지 않으므로 northAngle(나침반 CSS transform)에 불필요한 raw 점프가 생기지 않는다.
+const shortestRotationTarget = (currentRotation, desiredAngle) => {
+    const twoPi = 2 * Math.PI;
+    let delta = (((desiredAngle - currentRotation) % twoPi) + twoPi) % twoPi; // [0, 2π)
+    if (delta > Math.PI) delta -= twoPi; // (-π, π]
+    return currentRotation + delta;
 };
 
 const rotateLeft = () => {
     if (mapInstance.value?.mapView) {
-        const r = snapToNormalizedRotation();
+        const r = mapInstance.value.mapView.getRotation();
         mapInstance.value.mapView.animate({ rotation: r - Math.PI / 12, duration: 200 });
     }
 };
 const rotateRight = () => {
     if (mapInstance.value?.mapView) {
-        const r = snapToNormalizedRotation();
+        const r = mapInstance.value.mapView.getRotation();
         mapInstance.value.mapView.animate({ rotation: r + Math.PI / 12, duration: 200 });
     }
 };
@@ -293,13 +285,13 @@ const rotateRight = () => {
 // Slow hold rotation (3.75° per step, smooth)
 const rotateLeftHold = () => {
     if (mapInstance.value?.mapView) {
-        const r = snapToNormalizedRotation();
+        const r = mapInstance.value.mapView.getRotation();
         mapInstance.value.mapView.animate({ rotation: r - Math.PI / 48, duration: 80 });
     }
 };
 const rotateRightHold = () => {
     if (mapInstance.value?.mapView) {
-        const r = snapToNormalizedRotation();
+        const r = mapInstance.value.mapView.getRotation();
         mapInstance.value.mapView.animate({ rotation: r + Math.PI / 48, duration: 80 });
     }
 };
@@ -348,11 +340,12 @@ const updateNorthAngle = () => {
         northAngle.value = mapInstance.value.mapView.getRotation();
     }
 };
-// 클릭 시 정북 방향으로 리셋 (정규화된 각도 기준으로 항상 최단 경로(최대 180°)로 회전)
+// 클릭 시 정북 방향으로 리셋 (raw 회전값 기준 최단 delta로 이동 → 항상 최대 180°만 회전, CSS transition에도 raw 점프 없음)
 const resetNorth = () => {
     if (mapInstance.value?.mapView) {
-        snapToNormalizedRotation();
-        mapInstance.value.mapView.animate({ rotation: 0, duration: 300 });
+        const view = mapInstance.value.mapView;
+        const target = shortestRotationTarget(view.getRotation(), 0);
+        view.animate({ rotation: target, duration: 300 });
     }
 };
 
