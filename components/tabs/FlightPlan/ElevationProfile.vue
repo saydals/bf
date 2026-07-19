@@ -182,7 +182,7 @@
                     :style="{
                         left: tooltipData.x + 'px',
                         top: tooltipData.y + 'px',
-                        '--tooltip-gap': '60px',
+                        '--tooltip-gap': TOOLTIP_GAP + 'px',
                     }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
