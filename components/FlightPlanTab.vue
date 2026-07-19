@@ -1,20 +1,20 @@
 <template>
     <BaseTab tab-name="flight_plan">
-        <div class="content_wrapper">
+        <div class="content_wrapper flex flex-col">
             <!-- Title and Documentation -->
             <div class="cf_column">
                 <div class="tab_title" v-html="$t('tabFlightPlan')"></div>
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-[35px] grid-rows-[1fr_280px_500px] h-full min-h-0">
-                <div class="h-full min-h-0">
+            <div class="grid grid-cols-1 gap-[35px] grid-rows-[400px_280px_650px] flex-1 min-h-0">
+                <div class="h-full min-h-0 overflow-hidden">
                     <FlightPlanMap />
                 </div>
                 <div class="h-full min-h-0 overflow-hidden">
                     <ElevationProfile />
                 </div>
-                <div class="h-full min-h-0">
+                <div class="h-full min-h-0 overflow-hidden">
                     <WaypointList />
                 </div>
             </div>

@@ -171,10 +171,10 @@
                         </g>
                     </svg>
                 </div>
-            </div>
 
-            <!-- Elevation API error -->
-            <div v-if="elevationError" class="elevation-error">⚠️ {{ elevationError }}</div>
+                <!-- Elevation API error -->
+                <div v-if="elevationError" class="elevation-error">⚠️ {{ elevationError }}</div>
+            </div>
 
             <Teleport to="body">
                 <div
