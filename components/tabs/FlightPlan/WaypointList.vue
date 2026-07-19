@@ -1,82 +1,85 @@
 <template>
     <UiBox :title="$t('flightPlanWaypointList')" class="waypoint-list" fill>
-        <div class="flex justify-end">
-            <UButton
-                icon="i-lucide-plus"
-                size="sm"
-                :aria-label="$t('flightPlanAddWaypoint')"
-                @click="handleAddWaypoint"
-            />
-        </div>
+        <div class="flex flex-col gap-2 h-full min-h-0">
+            <div class="flex justify-end flex-shrink-0">
+                <UButton
+                    icon="i-lucide-plus"
+                    size="sm"
+                    :aria-label="$t('flightPlanAddWaypoint')"
+                    @click="handleAddWaypoint"
+                />
+            </div>
 
-        <UiBox highlight class="mb-3" v-if="!waypoints.length">
-            <p v-html="$t('flightPlanNoWaypoints')"></p>
-        </UiBox>
-        <div v-else class="waypoints">
-            <div
-                v-for="waypoint in sortedWaypoints"
-                :key="waypoint.uid"
-                class="waypoint-item"
-                :class="{
-                    selected: selectedWaypointUid === waypoint.uid,
-                    'drag-over': dragOverUid === waypoint.uid,
-                }"
-                draggable="true"
-                @click="selectWaypoint(waypoint.uid)"
-                @dragstart="handleDragStart($event, waypoint.uid)"
-                @dragover="handleDragOver($event, waypoint.uid)"
-                @dragleave="handleDragLeave($event)"
-                @drop="handleDrop($event, waypoint.uid)"
-                @dragend="handleDragEnd($event)"
-            >
-                <div class="waypoint-order">{{ waypoint.order + 1 }}</div>
-                <div class="waypoint-info">
-                    <div class="waypoint-coords">
-                        <template v-if="isModifierWaypointType(waypoint.type)">
-                            {{ getWaypointTypeLabel(waypoint.type) }}
-                        </template>
-                        <template v-else>
-                            {{ waypoint.latitude.toFixed(6) }}°, {{ waypoint.longitude.toFixed(6) }}°
-                        </template>
+            <UiBox highlight class="mb-3 flex-shrink-0" v-if="!waypoints.length">
+                <p v-html="$t('flightPlanNoWaypoints')"></p>
+            </UiBox>
+            <div v-else class="waypoints">
+                <div
+                    v-for="waypoint in sortedWaypoints"
+                    :key="waypoint.uid"
+                    class="waypoint-item"
+                    :class="{
+                        selected: selectedWaypointUid === waypoint.uid,
+                        'drag-over': dragOverUid === waypoint.uid,
+                    }"
+                    draggable="true"
+                    @click="selectWaypoint(waypoint.uid)"
+                    @dragstart="handleDragStart($event, waypoint.uid)"
+                    @dragover="handleDragOver($event, waypoint.uid)"
+                    @dragleave="handleDragLeave($event)"
+                    @drop="handleDrop($event, waypoint.uid)"
+                    @dragend="handleDragEnd($event)"
+                >
+                    <div class="waypoint-order">{{ waypoint.order + 1 }}</div>
+                    <div class="waypoint-info">
+                        <div class="waypoint-coords">
+                            <template v-if="isModifierWaypointType(waypoint.type)">
+                                {{ getWaypointTypeLabel(waypoint.type) }}
+                            </template>
+                            <template v-else>
+                                {{ waypoint.latitude.toFixed(6) }}°, {{ waypoint.longitude.toFixed(6) }}°
+                            </template>
+                        </div>
+                        <div class="waypoint-details">
+                            <template v-if="waypoint.type === 'alt_change'">
+                                {{ $t("flightPlanTypeAltChange") }} →
+                                {{ settings.formatAltitude(waypoint.altitude) }} AGL
+                            </template>
+                            <template v-else-if="waypoint.type === 'delay'">
+                                {{ $t("flightPlanTypeDelay") }}: {{ waypoint.duration }}min
+                            </template>
+                            <template v-else-if="waypoint.type === 'yaw_rate'">
+                                {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
+                            </template>
+                            <template v-else>
+                                {{ settings.formatAltitude(waypoint.altitude) }} AGL -
+                                {{ settings.formatSpeedMps(waypoint.speed) }} -
+                                {{ getWaypointTypeLabel(waypoint.type) }}
+                                <span v-if="waypoint.type === 'hold'" class="hold-details">
+                                    ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})
+                                </span>
+                            </template>
+                        </div>
                     </div>
-                    <div class="waypoint-details">
-                        <template v-if="waypoint.type === 'alt_change'">
-                            {{ $t("flightPlanTypeAltChange") }} → {{ settings.formatAltitude(waypoint.altitude) }} AGL
-                        </template>
-                        <template v-else-if="waypoint.type === 'delay'">
-                            {{ $t("flightPlanTypeDelay") }}: {{ waypoint.duration }}min
-                        </template>
-                        <template v-else-if="waypoint.type === 'yaw_rate'">
-                            {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
-                        </template>
-                        <template v-else>
-                            {{ settings.formatAltitude(waypoint.altitude) }} AGL -
-                            {{ settings.formatSpeedMps(waypoint.speed) }} -
-                            {{ getWaypointTypeLabel(waypoint.type) }}
-                            <span v-if="waypoint.type === 'hold'" class="hold-details">
-                                ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})
-                            </span>
-                        </template>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <UButton
+                            icon="i-lucide-pencil"
+                            size="xs"
+                            variant="soft"
+                            color="primary"
+                            :aria-label="$t('edit')"
+                            @click.stop="handleEdit(waypoint.uid)"
+                        />
+                        <UButton
+                            icon="i-lucide-trash-2"
+                            size="xs"
+                            class="ml-8"
+                            variant="soft"
+                            color="error"
+                            :aria-label="$t('delete')"
+                            @click.stop="handleRemove(waypoint.uid)"
+                        />
                     </div>
-                </div>
-                <div class="flex gap-1 flex-shrink-0">
-                    <UButton
-                        icon="i-lucide-pencil"
-                        size="xs"
-                        variant="soft"
-                        color="primary"
-                        :aria-label="$t('edit')"
-                        @click.stop="handleEdit(waypoint.uid)"
-                    />
-                    <UButton
-                        icon="i-lucide-trash-2"
-                        size="xs"
-                        class="ml-8"
-                        variant="soft"
-                        color="error"
-                        :aria-label="$t('delete')"
-                        @click.stop="handleRemove(waypoint.uid)"
-                    />
                 </div>
             </div>
         </div>
@@ -216,6 +219,8 @@ const handleDragEnd = (event) => {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .note {
