@@ -54,9 +54,6 @@
                 alt="N"
             />
         </div>
-        <div class="map-instructions">
-            <p v-html="$t('flightPlanMapInstructions')"></p>
-        </div>
     </UiBox>
 </template>
 <script setup>
@@ -925,20 +922,6 @@ onUnmounted(() => {
     font-size: 1rem;
     color: var(--text);
     font-weight: 500;
-}
-
-.map-instructions {
-    margin-top: 0.5rem;
-    padding: 0.5rem;
-    background: var(--surface-100);
-    border-radius: 4px;
-    font-size: 0.75rem;
-    color: var(--surface-700);
-    text-align: center;
-}
-
-.map-instructions p {
-    margin: 0;
 }
 
 .map-zoom-controls {
