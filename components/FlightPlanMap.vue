@@ -50,8 +50,10 @@
             <img
                 class="compass"
                 src="/images/compass.svg"
-                :style="{ transform: `rotate(${-northAngle}rad)` }"
+                :style="{ transform: `rotate(${northAngle}rad)` }"
                 alt="N"
+                :title="$t('flightPlanResetNorth')"
+                @click.stop="resetNorth"
             />
         </div>
     </UiBox>
@@ -327,6 +329,12 @@ const northAngle = ref(0);
 const updateNorthAngle = () => {
     if (mapInstance.value?.mapView) {
         northAngle.value = mapInstance.value.mapView.getRotation();
+    }
+};
+// 클릭 시 정북 방향으로 리셋
+const resetNorth = () => {
+    if (mapInstance.value?.mapView) {
+        mapInstance.value.mapView.animate({ rotation: 0, duration: 300 });
     }
 };
 
@@ -995,11 +1003,14 @@ onUnmounted(() => {
     position: absolute;
     top: 46px;
     left: 10px;
-    width: 38px;
-    height: 38px;
+    width: 76px;
+    height: 76px;
     z-index: 500;
-    pointer-events: none;
+    cursor: pointer;
     transition: transform 0.2s ease;
+}
+.compass:hover {
+    filter: brightness(1.3);
 }
 
 @media (max-width: 1055px) {
