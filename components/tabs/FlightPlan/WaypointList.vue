@@ -1,5 +1,5 @@
 <template>
-    <UiBox :title="$t('flightPlanWaypointList')" class="waypoint-list">
+    <UiBox :title="$t('flightPlanWaypointList')" class="waypoint-list" fill>
         <div class="flex justify-end">
             <UButton
                 icon="i-lucide-plus"
@@ -212,6 +212,12 @@ const handleDragEnd = (event) => {
 </script>
 
 <style scoped>
+.waypoints {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .note {
     padding: 1rem;
     text-align: center;
