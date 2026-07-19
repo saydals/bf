@@ -178,7 +178,12 @@
                 <div
                     v-if="tooltipData.visible"
                     class="global-wp-tooltip"
-                    :style="{ left: tooltipData.x + 'px', top: tooltipData.y + 'px' }"
+                    :class="{ 'is-above': tooltipData.anchorAbove, 'is-below': !tooltipData.anchorAbove }"
+                    :style="{
+                        left: tooltipData.x + 'px',
+                        top: tooltipData.y + 'px',
+                        '--tooltip-gap': '60px',
+                    }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
                     <div>지상고도: {{ formatAltitude(tooltipData.groundElev) }}</div>
@@ -260,10 +265,18 @@ onMounted(() => {
         },
         { passive: false },
     );
+
+    // ✅ 안드로이드 팝업 "공중부양" 버그 수정
+    // capture:true 로 등록하면 profile-chart-container(overflow-x:auto) 같은
+    // 내부 스크롤 컨테이너의 scroll 이벤트까지 window 레벨에서 감지 가능.
+    window.addEventListener("scroll", repositionActiveTooltip, { passive: true, capture: true });
+    window.addEventListener("resize", repositionActiveTooltip, { passive: true });
 });
 
 onUnmounted(() => {
     window.removeEventListener("touchmove", preventTouchScroll, true);
+    window.removeEventListener("scroll", repositionActiveTooltip, true);
+    window.removeEventListener("resize", repositionActiveTooltip);
 });
 /* ────────────────── 터치 고정 끝 ────────────────── */
 
@@ -378,7 +391,18 @@ const dragState = ref({
     speedInterval: null,
 });
 
-const tooltipData = ref({ visible: false, x: 0, y: 0, order: 0, altitude: 0, speed: 0, groundElev: 0 });
+const tooltipData = ref({
+    visible: false,
+    x: 0,
+    y: 0,
+    order: 0,
+    altitude: 0,
+    speed: 0,
+    groundElev: 0,
+    anchorAbove: true,
+});
+// 현재 툴팁이 붙어있는 WP uid (스크롤/리사이즈 시 재계산용)
+const activeTooltipWpUid = ref(null);
 
 const profilePoints = computed(() => {
     if (!waypoints.value.length) return [];
@@ -507,25 +531,67 @@ const terrainAreaPath = computed(() => {
     return `${top} L ${scaleX(currentTerrainSamples.value.at(-1).distance)} ${by} L ${scaleX(0)} ${by} Z`;
 });
 
-const updateTooltipPosition = (e, wp) => {
-    const r = e.target.getBoundingClientRect();
-    const cx = r.left + r.width / 2,
-        top = r.top;
-    let y = top - 90,
-        x = cx - 75;
+// ─── 툴팁 위치 계산 (B안: SVG 좌표계 기반) ───
+// ✅ WP 마커와 툴팁 사이 최소 간격(px). 기존엔 툴팁 높이를 고려하지 않고
+//    top - 90 으로 고정해서 실제로는 마커와 5~10px 밖에 안 떨어져 보였음.
+const TOOLTIP_GAP = 60;
+const TOOLTIP_WIDTH_ESTIMATE = 150;
+const MARKER_RADIUS = 10; // <circle r="10"> 과 동일해야 함
+
+// SVG 좌표(point.x/y, viewBox 기준)를 현재 화면(viewport) 좌표로 변환.
+// getScreenCTM()은 스크롤/리사이즈 이후에도 항상 "지금 이 순간의" 화면 위치를
+// 정확히 돌려주기 때문에, 실제 마우스/터치 이벤트 없이도 재계산할 수 있다.
+// (기존 코드는 pointerdown/move 이벤트의 e.target.getBoundingClientRect()에만
+//  의존했기 때문에, 팝업이 뜬 채로 페이지를 스크롤해도 좌표가 갱신되지 않아
+//  안드로이드에서 툴팁이 화면에 붕 뜬 것처럼 보이는 버그의 직접적인 원인이었음)
+const computeMarkerScreenAnchor = (point) => {
+    const svg = chartSvg.value;
+    if (!svg) return null;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const svgPt = svg.createSVGPoint();
+    svgPt.x = point.x;
+    svgPt.y = point.y;
+    const center = svgPt.matrixTransform(ctm);
+    const scale = Math.hypot(ctm.a, ctm.b) || 1; // viewBox → 화면 스케일 비율
+    const radiusPx = MARKER_RADIUS * scale;
+    return { cx: center.x, topY: center.y - radiusPx, bottomY: center.y + radiusPx };
+};
+
+// 앵커(마커의 화면상 위/아래 경계)를 기준으로 툴팁의 left/top(px)을 계산.
+// 위쪽 공간이 부족하면(차트가 화면 위쪽에 붙어있는 경우 등) 자동으로 아래쪽에 표시.
+const positionTooltipAtAnchor = (anchor) => {
+    let x = anchor.cx - TOOLTIP_WIDTH_ESTIMATE / 2;
     if (x < 4) x = 4;
-    if (x + 150 > innerWidth - 4) x = innerWidth - 154;
-    if (y < 4) y = r.bottom + 20;
-    const tooltipGroundElev = calcGroundElev(wp.altitude ?? 0, wp.distance);
-    tooltipData.value = {
-        visible: true,
-        x,
-        y,
-        order: (wp.order ?? 0) + 1,
-        altitude: wp.altitude ?? 0,
-        speed: wp.speed ?? 0,
-        groundElev: tooltipGroundElev,
-    };
+    if (x + TOOLTIP_WIDTH_ESTIMATE > innerWidth - 4) x = innerWidth - TOOLTIP_WIDTH_ESTIMATE - 4;
+
+    const showAbove = anchor.topY - TOOLTIP_GAP > 90; // 위로 올렸을 때 화면 밖으로 안 나가는지
+    tooltipData.value.x = x;
+    tooltipData.value.y = showAbove ? anchor.topY : anchor.bottomY;
+    tooltipData.value.anchorAbove = showAbove;
+};
+
+// 특정 WP(point)에 대해 툴팁을 표시/갱신. pointerdown, pointermove(드래그 중) 양쪽에서 사용.
+const showTooltipForPoint = (point) => {
+    activeTooltipWpUid.value = point.uid;
+    const anchor = computeMarkerScreenAnchor(point);
+    if (!anchor) return;
+    positionTooltipAtAnchor(anchor);
+    tooltipData.value.visible = true;
+    tooltipData.value.order = (point.order ?? 0) + 1;
+    tooltipData.value.altitude = point.altitude ?? 0;
+    tooltipData.value.speed = point.speed ?? 0;
+    tooltipData.value.groundElev = calcGroundElev(point.altitude ?? 0, point.distance);
+};
+
+// 스크롤/리사이즈 시 호출: 데이터는 그대로 두고 화면 좌표만 재계산.
+const repositionActiveTooltip = () => {
+    if (!tooltipData.value.visible || !activeTooltipWpUid.value) return;
+    const point = scaledProfilePoints.value.find((p) => p.uid === activeTooltipWpUid.value);
+    if (!point) return;
+    const anchor = computeMarkerScreenAnchor(point);
+    if (!anchor) return;
+    positionTooltipAtAnchor(anchor);
 };
 
 // ✅ ✅ ✅ 네가 원했던 색상 규칙 정확히 적용
@@ -550,8 +616,6 @@ const getMarkerColor = (p) => {
 };
 const getMarkerStroke = (p) => "var(--surface-50)";
 const getMarkerStrokeWidth = (p) => (p.uid === selectedWaypointUid.value ? 2 : 1.5);
-
-const updateTooltipData = (p) => Object.assign(tooltipData.value, { altitude: p.altitude, speed: p.speed });
 
 const handleLineDoubleClick = (e) => {
     const svg = chartSvg.value;
@@ -588,9 +652,7 @@ const handlePointerDown = (e, point) => {
     e.stopPropagation();
 
     selectWaypoint(point.uid);
-    updateTooltipPosition(e, point);
-    updateTooltipData(point);
-    tooltipData.value.visible = true;
+    showTooltipForPoint(point);
     try {
         e.target.setPointerCapture(e.pointerId);
     } catch {}
@@ -647,7 +709,7 @@ const handlePointerMove = (e) => {
     }
 
     const dp = scaledProfilePoints.value.find((p) => p.uid === dragState.value.wpUid);
-    if (dp) updateTooltipPosition(e, dp);
+    if (dp) showTooltipForPoint(dp);
 };
 
 const handlePointerUp = (e) => {
@@ -719,6 +781,7 @@ const handleMouseMove = (e) => {
 };
 const handleMouseLeave = () => {
     tooltipData.value.visible = false;
+    activeTooltipWpUid.value = null;
 };
 
 const hasSegmentMoved = (k, f, t) => {
