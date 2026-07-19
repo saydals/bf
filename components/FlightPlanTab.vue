@@ -7,7 +7,7 @@
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-[35px] grid-rows-[1fr_280px_280px] h-full min-h-0">
+            <div class="grid grid-cols-1 gap-[35px] grid-rows-[1fr_280px_500px] h-full min-h-0">
                 <div class="h-full min-h-0">
                     <FlightPlanMap />
                 </div>

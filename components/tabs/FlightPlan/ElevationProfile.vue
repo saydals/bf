@@ -1,174 +1,176 @@
 <template>
     <UiBox :title="$t('flightPlanElevationProfile')" class="elevation-profile" fill>
         <template v-if="waypoints.length > 0">
-            <div class="profile-stats">
-                <span class="stat">
-                    <strong>{{ $t("flightPlanDistance") }}:</strong> {{ formatDistance(totalDistance) }}
-                </span>
-                <span class="stat">
-                    <strong>{{ $t("flightPlanFlightTime") }}:</strong> {{ totalFlightTime }}
-                </span>
-                <span class="stat">
-                    <strong>{{ $t("flightPlanMinAlt") }}:</strong> {{ formatAltitude(minAltitude) }}
-                </span>
-                <span class="stat">
-                    <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
-                </span>
-                <span class="stat">
-                    <strong>{{ $t("flightPlanRelativeGroundElev") }}:</strong>
-                    {{ formatAltitude(selectedWpRelativeGroundElev) }}
-                    <span class="stat-note" v-if="selectedWaypointUid"
-                        >(WP{{ (profilePoints.find((p) => p.uid === selectedWaypointUid)?.order ?? 0) + 1 }})</span
-                    >
-                </span>
-                <span class="stat">
-                    <strong>{{ $t("flightPlanRelativeMaxGroundElev") }}:</strong>
-                    {{ formatAltitude(relativeMaxGroundElevation) }}
-                </span>
-            </div>
+            <div class="profile-inner">
+                <div class="profile-stats">
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanDistance") }}:</strong> {{ formatDistance(totalDistance) }}
+                    </span>
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanFlightTime") }}:</strong> {{ totalFlightTime }}
+                    </span>
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanMinAlt") }}:</strong> {{ formatAltitude(minAltitude) }}
+                    </span>
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanMaxAlt") }}:</strong> {{ formatAltitude(maxAltitude) }}
+                    </span>
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanRelativeGroundElev") }}:</strong>
+                        {{ formatAltitude(selectedWpRelativeGroundElev) }}
+                        <span class="stat-note" v-if="selectedWaypointUid"
+                            >(WP{{ (profilePoints.find((p) => p.uid === selectedWaypointUid)?.order ?? 0) + 1 }})</span
+                        >
+                    </span>
+                    <span class="stat">
+                        <strong>{{ $t("flightPlanRelativeMaxGroundElev") }}:</strong>
+                        {{ formatAltitude(relativeMaxGroundElevation) }}
+                    </span>
+                </div>
 
-            <div class="profile-chart-container">
-                <svg
-                    ref="chartSvg"
-                    :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
-                    class="profile-chart"
-                    @mousemove="handleMouseMove"
-                    @mouseleave="handleMouseLeave"
-                    @pointermove="handlePointerMove"
-                    @pointerup="handlePointerUp"
-                    @pointercancel="handlePointerUp"
-                >
-                    <!-- Y-axis grid lines and labels -->
-                    <g class="y-axis">
+                <div class="profile-chart-container">
+                    <svg
+                        ref="chartSvg"
+                        :viewBox="`0 0 ${chartWidth} ${chartHeight}`"
+                        class="profile-chart"
+                        @mousemove="handleMouseMove"
+                        @mouseleave="handleMouseLeave"
+                        @pointermove="handlePointerMove"
+                        @pointerup="handlePointerUp"
+                        @pointercancel="handlePointerUp"
+                    >
+                        <!-- Y-axis grid lines and labels -->
+                        <g class="y-axis">
+                            <line
+                                v-for="tick in yAxisTicks"
+                                :key="`y-${tick.value}`"
+                                :x1="padding.left"
+                                :y1="tick.y"
+                                :x2="chartWidth - padding.right"
+                                :y2="tick.y"
+                                class="grid-line"
+                            />
+                            <text
+                                v-for="tick in yAxisTicks"
+                                :key="`y-label-${tick.value}`"
+                                :x="padding.left - 9"
+                                :y="tick.y + 3"
+                                class="axis-label"
+                                text-anchor="end"
+                            >
+                                {{ formatAltitude(tick.value) }}
+                            </text>
+                        </g>
+
+                        <!-- Y-axis title: AMSL -->
+                        <text :x="padding.left - 12" :y="padding.top - 5" class="y-axis-title" text-anchor="end">
+                            {{ $t("flightPlanAMSL") }}
+                        </text>
+
+                        <!-- X-axis grid lines and labels -->
+                        <g class="x-axis">
+                            <line
+                                v-for="(point, index) in scaledProfilePoints"
+                                :key="`x-${index}`"
+                                :x1="point.x"
+                                :y1="padding.top"
+                                :x2="point.x"
+                                :y2="chartHeight - padding.bottom"
+                                class="grid-line-light"
+                            />
+                            <text
+                                v-for="(point, index) in scaledProfilePoints"
+                                :key="`x-label-${index}`"
+                                :x="point.x"
+                                :y="chartHeight - padding.bottom + 15"
+                                class="axis-label"
+                                text-anchor="middle"
+                            >
+                                {{ formatDistance(point.distance) }}
+                            </text>
+                        </g>
+
+                        <!-- Terrain area fill (ground elevation at each waypoint) -->
+                        <path v-if="terrainAreaPath" :d="terrainAreaPath" class="terrain-area" />
+
+                        <!-- Terrain line (ground elevation profile) -->
+                        <path v-if="terrainLinePath" :d="terrainLinePath" class="terrain-line" />
+
+                        <!-- Average ground elevation reference line -->
                         <line
-                            v-for="tick in yAxisTicks"
-                            :key="`y-${tick.value}`"
+                            v-if="groundElevation > 0"
                             :x1="padding.left"
-                            :y1="tick.y"
+                            :y1="scaleY(groundElevation)"
                             :x2="chartWidth - padding.right"
-                            :y2="tick.y"
-                            class="grid-line"
+                            :y2="scaleY(groundElevation)"
+                            class="ground-line"
                         />
                         <text
-                            v-for="tick in yAxisTicks"
-                            :key="`y-label-${tick.value}`"
-                            :x="padding.left - 9"
-                            :y="tick.y + 3"
-                            class="axis-label"
+                            v-if="groundElevation > 0"
+                            :x="chartWidth - padding.right - 5"
+                            :y="scaleY(groundElevation) - 3"
+                            class="ground-label"
                             text-anchor="end"
                         >
-                            {{ formatAltitude(tick.value) }}
+                            {{ $t("flightPlanAvgGround") }}
                         </text>
-                    </g>
 
-                    <!-- Y-axis title: AMSL -->
-                    <text :x="padding.left - 12" :y="padding.top - 5" class="y-axis-title" text-anchor="end">
-                        {{ $t("flightPlanAMSL") }}
-                    </text>
-
-                    <!-- X-axis grid lines and labels -->
-                    <g class="x-axis">
+                        <!-- Maximum ground elevation reference line -->
                         <line
-                            v-for="(point, index) in scaledProfilePoints"
-                            :key="`x-${index}`"
-                            :x1="point.x"
-                            :y1="padding.top"
-                            :x2="point.x"
-                            :y2="chartHeight - padding.bottom"
-                            class="grid-line-light"
+                            v-if="maxGroundElevation > 0"
+                            :x1="padding.left"
+                            :y1="scaleY(maxGroundElevation)"
+                            :x2="chartWidth - padding.right"
+                            :y2="scaleY(maxGroundElevation)"
+                            class="max-ground-line"
                         />
                         <text
-                            v-for="(point, index) in scaledProfilePoints"
-                            :key="`x-label-${index}`"
-                            :x="point.x"
-                            :y="chartHeight - padding.bottom + 15"
-                            class="axis-label"
-                            text-anchor="middle"
+                            v-if="maxGroundElevation > 0"
+                            :x="chartWidth - padding.right - 5"
+                            :y="scaleY(maxGroundElevation) - 3"
+                            class="max-ground-label"
+                            text-anchor="end"
                         >
-                            {{ formatDistance(point.distance) }}
+                            {{ $t("flightPlanMaxGround") }}
                         </text>
-                    </g>
 
-                    <!-- Terrain area fill (ground elevation at each waypoint) -->
-                    <path v-if="terrainAreaPath" :d="terrainAreaPath" class="terrain-area" />
+                        <!-- Elevation area fill -->
+                        <path :d="areaPath" class="elevation-area" />
 
-                    <!-- Terrain line (ground elevation profile) -->
-                    <path v-if="terrainLinePath" :d="terrainLinePath" class="terrain-line" />
+                        <!-- Elevation line -->
+                        <path :d="linePath" class="elevation-line" />
 
-                    <!-- Average ground elevation reference line -->
-                    <line
-                        v-if="groundElevation > 0"
-                        :x1="padding.left"
-                        :y1="scaleY(groundElevation)"
-                        :x2="chartWidth - padding.right"
-                        :y2="scaleY(groundElevation)"
-                        class="ground-line"
-                    />
-                    <text
-                        v-if="groundElevation > 0"
-                        :x="chartWidth - padding.right - 5"
-                        :y="scaleY(groundElevation) - 3"
-                        class="ground-label"
-                        text-anchor="end"
-                    >
-                        {{ $t("flightPlanAvgGround") }}
-                    </text>
+                        <!-- Invisible wide hit-area for double-click-to-insert -->
+                        <path :d="linePath" class="elevation-line-hitarea" @dblclick="handleLineDoubleClick" />
 
-                    <!-- Maximum ground elevation reference line -->
-                    <line
-                        v-if="maxGroundElevation > 0"
-                        :x1="padding.left"
-                        :y1="scaleY(maxGroundElevation)"
-                        :x2="chartWidth - padding.right"
-                        :y2="scaleY(maxGroundElevation)"
-                        class="max-ground-line"
-                    />
-                    <text
-                        v-if="maxGroundElevation > 0"
-                        :x="chartWidth - padding.right - 5"
-                        :y="scaleY(maxGroundElevation) - 3"
-                        class="max-ground-label"
-                        text-anchor="end"
-                    >
-                        {{ $t("flightPlanMaxGround") }}
-                    </text>
-
-                    <!-- Elevation area fill -->
-                    <path :d="areaPath" class="elevation-area" />
-
-                    <!-- Elevation line -->
-                    <path :d="linePath" class="elevation-line" />
-
-                    <!-- Invisible wide hit-area for double-click-to-insert -->
-                    <path :d="linePath" class="elevation-line-hitarea" @dblclick="handleLineDoubleClick" />
-
-                    <!-- Waypoint markers -->
-                    <g class="waypoint-markers">
-                        <circle
-                            v-for="(point, index) in scaledProfilePoints"
-                            :key="`marker-${index}`"
-                            :cx="point.x"
-                            :cy="point.y"
-                            r="10"
-                            :fill="getMarkerColor(point)"
-                            :stroke="getMarkerStroke(point)"
-                            :stroke-width="getMarkerStrokeWidth(point)"
-                            class="waypoint-marker"
-                            :class="{ selected: point.uid === selectedWaypointUid }"
-                            @pointerdown="handlePointerDown($event, point)"
-                        />
-                        <text
-                            v-for="(point, index) in scaledProfilePoints"
-                            :key="`label-${index}`"
-                            :x="point.x"
-                            :y="point.y - 14"
-                            class="waypoint-label"
-                            text-anchor="middle"
-                        >
-                            WP{{ point.order + 1 }}
-                        </text>
-                    </g>
-                </svg>
+                        <!-- Waypoint markers -->
+                        <g class="waypoint-markers">
+                            <circle
+                                v-for="(point, index) in scaledProfilePoints"
+                                :key="`marker-${index}`"
+                                :cx="point.x"
+                                :cy="point.y"
+                                r="10"
+                                :fill="getMarkerColor(point)"
+                                :stroke="getMarkerStroke(point)"
+                                :stroke-width="getMarkerStrokeWidth(point)"
+                                class="waypoint-marker"
+                                :class="{ selected: point.uid === selectedWaypointUid }"
+                                @pointerdown="handlePointerDown($event, point)"
+                            />
+                            <text
+                                v-for="(point, index) in scaledProfilePoints"
+                                :key="`label-${index}`"
+                                :x="point.x"
+                                :y="point.y - 14"
+                                class="waypoint-label"
+                                text-anchor="middle"
+                            >
+                                WP{{ point.order + 1 }}
+                            </text>
+                        </g>
+                    </svg>
+                </div>
             </div>
 
             <!-- Elevation API error -->
@@ -930,6 +932,14 @@ watch(positionSignature, debouncedFetch, { immediate: true });
     color: var(--surface-950);
 }
 
+.profile-inner {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .profile-chart-container {
     width: 100%;
     flex: 1;
@@ -1027,12 +1037,16 @@ watch(positionSignature, debouncedFetch, { immediate: true });
     font-weight: 700;
 }
 .elevation-error {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
     color: var(--error-500, #ef4444);
-    font-size: 0.8rem;
-    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.5rem;
     background: color-mix(in srgb, var(--error-500, #ef4444) 10%, transparent);
-    border-radius: 6px;
-    margin-top: 0.5rem;
+    border-radius: 4px;
+    margin: 0;
 }
 
 .no-waypoints {
