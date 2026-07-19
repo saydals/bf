@@ -7,14 +7,14 @@
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-[35px] grid-rows-[1fr_minmax(280px,400px)_1fr] min-h-0">
-                <div class="h-full min-h-0">
+            <div class="grid grid-cols-1 gap-[35px] grid-rows-[1fr_minmax(280px,400px)_1fr] h-full min-h-0">
+                <div class="h-full min-h-0 overflow-hidden">
                     <FlightPlanMap />
                 </div>
                 <div class="h-full min-h-0 overflow-hidden">
                     <ElevationProfile />
                 </div>
-                <div class="h-full min-h-0">
+                <div class="h-full min-h-0 overflow-hidden">
                     <WaypointList />
                 </div>
             </div>
