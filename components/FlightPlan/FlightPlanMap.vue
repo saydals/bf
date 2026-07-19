@@ -948,7 +948,7 @@ onUnmounted(() => {
 
 .map-container {
     flex: 1;
-    min-height: 0;
+    min-height: 480px;
     border-radius: 4px;
     overflow: hidden;
     border: 1px solid var(--surface-500);
