@@ -14,7 +14,9 @@
                 <div class="h-full min-h-0 overflow-hidden">
                     <ElevationProfile />
                 </div>
-                <WaypointList />
+                <div class="h-full min-h-0">
+                    <WaypointList />
+                </div>
             </div>
         </div>
 
