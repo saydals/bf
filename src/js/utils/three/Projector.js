@@ -231,7 +231,7 @@ class Projector {
 
                     _line.material = object.material;
 
-                    if (object.material.vertexColors === THREE.VertexColors) {
+                    if (object.material.vertexColors === true) {
                         _line.vertexColors[0].fromArray(colors, a * 3);
                         _line.vertexColors[1].fromArray(colors, b * 3);
                     }
@@ -277,7 +277,7 @@ class Projector {
 
                     _face.material = material;
 
-                    if (material.vertexColors === THREE.FaceColors) {
+                    if (material.vertexColors === true) {
                         _face.color.fromArray(colors, a * 3);
                     }
 
@@ -487,7 +487,7 @@ class Projector {
                                 }
                             }
                         }
-                    } else if (geometry instanceof THREE.Geometry) {
+                    } else if (geometry.isGeometry === true) {
                         const vertices = geometry.vertices;
                         const faces = geometry.faces;
                         const faceVertexUvs = geometry.faceVertexUvs[0];
@@ -628,7 +628,7 @@ class Projector {
                                 }
                             }
                         }
-                    } else if (geometry instanceof THREE.Geometry) {
+                    } else if (geometry.isGeometry === true) {
                         const vertices = object.geometry.vertices;
 
                         if (vertices.length === 0) continue;
@@ -665,7 +665,7 @@ class Projector {
 
                                 _line.material = object.material;
 
-                                if (object.material.vertexColors === THREE.VertexColors) {
+                                if (object.material.vertexColors === true) {
                                     _line.vertexColors[0].copy(object.geometry.colors[v]);
                                     _line.vertexColors[1].copy(object.geometry.colors[v - 1]);
                                 }
@@ -677,7 +677,7 @@ class Projector {
                 } else if (object instanceof THREE.Points) {
                     _modelViewProjectionMatrix.multiplyMatrices(_viewProjectionMatrix, _modelMatrix);
 
-                    if (geometry instanceof THREE.Geometry) {
+                    if (geometry.isGeometry === true) {
                         const vertices = object.geometry.vertices;
 
                         for (let v = 0, vl = vertices.length; v < vl; v++) {

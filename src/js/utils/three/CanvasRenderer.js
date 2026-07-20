@@ -533,7 +533,7 @@ class CanvasRenderer {
                 setLineCap(material.linecap);
                 setLineJoin(material.linejoin);
 
-                if (material.vertexColors !== THREE.VertexColors) {
+                if (material.vertexColors !== true) {
                     setStrokeStyle(material.color.getStyle());
                 } else {
                     let colorStyle1 = element.vertexColors[0].getStyle();
@@ -643,7 +643,7 @@ class CanvasRenderer {
                         );
                     }
                 } else if (material.envMap !== null) {
-                    if (material.envMap.mapping === THREE.SphericalReflectionMapping) {
+                    if (material.envMap.mapping === THREE.EquirectangularReflectionMapping) {
                         _normal.copy(element.vertexNormalsModel[uv1]).applyMatrix3(_normalViewMatrix);
                         _uv1x = 0.5 * _normal.x + 0.5;
                         _uv1y = 0.5 * _normal.y + 0.5;
@@ -675,7 +675,7 @@ class CanvasRenderer {
                 } else {
                     _color.copy(material.color);
 
-                    if (material.vertexColors === THREE.FaceColors) {
+                    if (material.vertexColors === true) {
                         _color.multiply(element.color);
                     }
 
