@@ -197,11 +197,14 @@ export function useFlightPlan() {
     };
 
     // Add waypoint at map location (for click handler)
-    const addWaypointAtLocation = (latitude, longitude) => {
+    // options.altitude / options.speed are in storage units (feet / knots).
+    // When omitted, the compiled-in defaults (DEFAULT_ALTITUDE / DEFAULT_SPEED) are used.
+    const addWaypointAtLocation = (latitude, longitude, options = {}) => {
         return addWaypoint({
             latitude,
             longitude,
-            altitude: DEFAULT_ALTITUDE,
+            altitude: options.altitude ?? DEFAULT_ALTITUDE,
+            speed: options.speed ?? DEFAULT_SPEED,
             type: DEFAULT_TYPE,
         });
     };

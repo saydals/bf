@@ -3563,6 +3563,12 @@
   "flightPlanMap": {
     "message": "Flight Plan Map"
   },
+  "flightPlanDefaultAltitude": {
+    "message": "Default altitude"
+  },
+  "flightPlanDefaultSpeed": {
+    "message": "Default speed"
+  },
   "units": {
     "message": "Units"
   },
