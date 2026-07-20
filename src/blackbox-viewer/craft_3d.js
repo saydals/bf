@@ -39,7 +39,7 @@ export function Craft3D(flightLog, canvas, propColors) {
 
         for (let i = 0; i < NUM_PROP_LEVELS; i++) {
             if (i === 0) {
-                props[i] = new THREE.Geometry();
+                props[i] = new THREE.BufferGeometry();
             } else {
                 const shape = new THREE.Shape();
 
@@ -281,7 +281,7 @@ export function Craft3D(flightLog, canvas, propColors) {
         }
 
         // Display the craft's attitude
-        craftParent.rotation.x = -frame[frameFieldIndexes["heading[1]"]] /*- Math.PI / 2*/; // pitch
+        craftParent.rotation.x = -frame[frameFieldIndexes["heading[1]"]]; /*- Math.PI / 2*/ // pitch
         craftParent.rotation.y = frame[frameFieldIndexes["heading[0]"]]; // roll
 
         renderer.render(scene, camera);

@@ -595,7 +595,7 @@ class CanvasRenderer {
                 _diffuseColor.copy(material.color);
                 _emissiveColor.copy(material.emissive);
 
-                if (material.vertexColors === THREE.FaceColors) {
+                if (material.vertexColors === true) {
                     _diffuseColor.multiply(element.color);
                 }
 
