@@ -7,12 +7,12 @@
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-6 grid-rows-[1.4fr_1fr_2.2fr] flex-1 min-h-0 overflow-hidden h-full">
-                <div class="flex flex-col min-h-0 overflow-hidden h-full">
+            <div class="grid grid-cols-1 gap-6 grid-rows-[auto_auto_1fr] flex-1 min-h-0 overflow-hidden h-full">
+                <div class="map-aspect-wrapper">
                     <FlightPlanMap class="flex-1" />
                 </div>
-                <div class="flex flex-col min-h-0 overflow-hidden h-full">
-                    <ElevationProfile class="flex-1" />
+                <div class="flex flex-col min-h-0 overflow-hidden">
+                    <ElevationProfile />
                 </div>
                 <div class="flex flex-col min-h-0 overflow-hidden h-full">
                     <WaypointList class="flex-1" />
@@ -175,11 +175,26 @@ const declineLoadFromFC = () => {
     min-height: 0;
 }
 
+/* Map aspect-ratio wrapper: 2:1 ~ 1:1 range */
+.map-aspect-wrapper {
+    aspect-ratio: 2 / 1;
+    min-height: 280px;
+    max-height: 55vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 /* UiBox fill + flex-1 propagation */
 :deep(.flight-plan-map),
-:deep(.elevation-profile),
 :deep(.waypoint-list) {
     height: 100% !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Elevation profile: natural sizing, no forced height */
+:deep(.elevation-profile) {
     display: flex;
     flex-direction: column;
 }

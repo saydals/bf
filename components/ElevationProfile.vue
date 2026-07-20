@@ -1,5 +1,5 @@
 <template>
-    <UiBox :title="$t('flightPlanElevationProfile')" class="elevation-profile" fill>
+    <UiBox :title="$t('flightPlanElevationProfile')" class="elevation-profile">
         <template v-if="waypoints.length > 0">
             <div class="profile-inner">
                 <div class="profile-stats">
@@ -934,16 +934,12 @@ watch(positionSignature, debouncedFetch, { immediate: true });
 
 .profile-inner {
     position: relative;
-    flex: 1;
-    min-height: 0;
     display: flex;
     flex-direction: column;
 }
 
 .profile-chart-container {
     width: 100%;
-    flex: 1;
-    min-height: 0;
     overflow-x: auto;
     overflow-y: hidden;
 }
