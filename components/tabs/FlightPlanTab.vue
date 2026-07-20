@@ -2,12 +2,12 @@
     <BaseTab tab-name="flight_plan">
         <div class="content_wrapper flex flex-col">
             <!-- Title and Documentation -->
-            <div class="cf_column">
+            <div class="cf_column flex-shrink-0">
                 <div class="tab_title" v-html="$t('tabFlightPlan')"></div>
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-[35px] grid-rows-[400px_280px_650px] flex-1 min-h-0">
+            <div class="grid grid-cols-1 gap-6 grid-rows-[minmax(220px,1.4fr)_minmax(160px,1fr)_minmax(240px,2.2fr)] flex-1 min-h-0 overflow-hidden">
                 <div class="h-full min-h-0 overflow-hidden">
                     <FlightPlanMap />
                 </div>
