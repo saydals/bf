@@ -56,22 +56,30 @@
                 @click.stop="resetNorth"
             />
             <div class="map-defaults-bar">
-                <button class="defaults-btn" type="button" @click="cycleAltitude">
-                    {{ $t("flightPlanDefaultAltitude") }}: {{ defaultAltitudeM }}m
-                </button>
-                <button class="defaults-btn" type="button" @click="cycleSpeed">
-                    {{ $t("flightPlanDefaultSpeed") }}: {{ defaultSpeedMs }}m/s
-                </button>
+                <USelect
+                    v-model="defaultAltitudeFt"
+                    :items="altitudeItems"
+                    :placeholder="$t('flightPlanDefaultAltitude')"
+                    size="xs"
+                    class="defaults-select"
+                />
+                <USelect
+                    v-model="defaultSpeedKt"
+                    :items="speedItems"
+                    :placeholder="$t('flightPlanDefaultSpeed')"
+                    size="xs"
+                    class="defaults-select"
+                />
                 <span class="defaults-readout">
-                    {{ $t("flightPlanDefaultAltitude") }} {{ defaultAltitudeM }} {{ $t("flightPlanDefaultSpeed") }}
-                    {{ defaultSpeedMs }}
+                    {{ $t("flightPlanDefaultAltitude") }} {{ altitudeReadout }} {{ $t("flightPlanDefaultSpeed") }}
+                    {{ speedReadout }}
                 </span>
             </div>
         </div>
     </UiBox>
 </template>
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
 import { initMap } from "@/js/utils/map";
 import { fromLonLat, toLonLat } from "ol/proj";
@@ -82,6 +90,7 @@ import { Vector as SourceVector } from "ol/source";
 import { Style, Stroke, Circle, Fill, Text } from "ol/style";
 import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
+import { useSettingsStore } from "@/stores/settings";
 
 const {
     waypoints,
@@ -94,35 +103,83 @@ const {
     editWaypoint,
 } = useFlightPlan();
 
+const settings = useSettingsStore();
+
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
 const sortedWaypoints = positionalWaypoints;
 
-// --- Default waypoint altitude / speed selector (display units: m / m·s⁻¹) ---
-// Storage units inside useFlightPlan are feet / knots, so display values are
-// converted before being passed to addWaypointAtLocation().
+// --- Default waypoint altitude / speed selector ---
+// Storage units inside useFlightPlan are feet / knots. The selector keeps the
+// chosen values in storage units (feet / knots) and only converts for display,
+// following the global unit toggle (altitudeUnit: m/ft, speedUnit: mps/kt/kmh).
+// Integer (rounded) values are shown because fractional display is undesirable.
 const FT_PER_M = 0.3048; // 1 m = 1 / 0.3048 ft
 const MS_PER_KT = 0.514444; // 1 m/s = 1 / 0.514444 kt
+const KMH_PER_KT = 1.852; // 1 kt = 1.852 km/h
 
+// Metric-baseline options requested by the user.
 const altitudeOptionsM = [30, 60, 90, 120];
 const speedOptionsMs = [5, 10, 15, 20];
 
-// Initial defaults requested by the user: 30 m / 15 m·s⁻¹.
-const defaultAltitudeM = ref(30);
-const defaultSpeedMs = ref(15);
+// Chosen values stored in storage units (feet / knots). Initial: 30 m / 15 m·s⁻¹.
+const defaultAltitudeFt = ref(30 / FT_PER_M);
+const defaultSpeedKt = ref(15 / MS_PER_KT);
 
-const metersToFeet = (m) => m / FT_PER_M;
-const metersPerSecToKnots = (ms) => ms / MS_PER_KT;
+// Altitude dropdown items — label follows the current altitude unit (m / ft).
+const altitudeItems = computed(() => {
+    const isMetric = settings.altitudeUnit === "m";
+    return altitudeOptionsM.map((m) => {
+        const ft = m / FT_PER_M;
+        const display = isMetric ? m : Math.round(ft);
+        return { label: `${display}${isMetric ? "m" : "ft"}`, value: ft };
+    });
+});
 
-const cycleAltitude = () => {
-    const idx = altitudeOptionsM.indexOf(defaultAltitudeM.value);
-    defaultAltitudeM.value = altitudeOptionsM[(idx + 1) % altitudeOptionsM.length];
-};
+// Speed dropdown items — label follows the current speed unit (m/s / kt / km/h).
+const speedItems = computed(() => {
+    const unit = settings.speedUnit;
+    return speedOptionsMs.map((ms) => {
+        const kt = ms / MS_PER_KT;
+        let display;
+        let suffix;
+        if (unit === "kt") {
+            display = Math.round(kt);
+            suffix = "kt";
+        } else if (unit === "kmh") {
+            display = Math.round(kt * KMH_PER_KT);
+            suffix = "km/h";
+        } else {
+            display = ms;
+            suffix = "m/s";
+        }
+        return { label: `${display}${suffix}`, value: kt };
+    });
+});
 
-const cycleSpeed = () => {
-    const idx = speedOptionsMs.indexOf(defaultSpeedMs.value);
-    defaultSpeedMs.value = speedOptionsMs[(idx + 1) % speedOptionsMs.length];
-};
+// Current selection shown as a readout, rounded to integer in display units.
+const altitudeReadout = computed(() => {
+    const isMetric = settings.altitudeUnit === "m";
+    const v = isMetric ? Math.round(defaultAltitudeFt.value * FT_PER_M) : Math.round(defaultAltitudeFt.value);
+    return `${v}${isMetric ? "m" : "ft"}`;
+});
+
+const speedReadout = computed(() => {
+    const unit = settings.speedUnit;
+    let v;
+    let suffix;
+    if (unit === "kt") {
+        v = Math.round(defaultSpeedKt.value);
+        suffix = "kt";
+    } else if (unit === "kmh") {
+        v = Math.round(defaultSpeedKt.value * KMH_PER_KT);
+        suffix = "km/h";
+    } else {
+        v = Math.round(defaultSpeedKt.value * MS_PER_KT);
+        suffix = "m/s";
+    }
+    return `${v}${suffix}`;
+});
 
 // --- Waypoint segment helpers (for double-click insert on path line) ---
 
@@ -742,8 +799,8 @@ const setupMapLayers = () => {
         // Otherwise add waypoint at the end
         const coords = toLonLat(event.coordinate);
         addWaypointAtLocation(coords[1], coords[0], {
-            altitude: metersToFeet(defaultAltitudeM.value),
-            speed: metersPerSecToKnots(defaultSpeedMs.value),
+            altitude: defaultAltitudeFt.value,
+            speed: defaultSpeedKt.value,
         });
     });
 
@@ -1023,19 +1080,8 @@ onUnmounted(() => {
     justify-content: center;
 }
 
-.defaults-btn {
-    padding: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--surface-500);
-    background: var(--surface-300);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 0.8rem;
-    white-space: nowrap;
-}
-
-.defaults-btn:hover {
-    background: var(--surface-400);
+.defaults-select {
+    min-width: 84px;
 }
 
 .defaults-readout {
