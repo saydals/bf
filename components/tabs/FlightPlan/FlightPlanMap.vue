@@ -55,6 +55,18 @@
                 :title="$t('flightPlanResetNorth')"
                 @click.stop="resetNorth"
             />
+            <div class="map-defaults-bar">
+                <button class="defaults-btn" type="button" @click="cycleAltitude">
+                    {{ $t("flightPlanDefaultAltitude") }}: {{ defaultAltitudeM }}m
+                </button>
+                <button class="defaults-btn" type="button" @click="cycleSpeed">
+                    {{ $t("flightPlanDefaultSpeed") }}: {{ defaultSpeedMs }}m/s
+                </button>
+                <span class="defaults-readout">
+                    {{ $t("flightPlanDefaultAltitude") }} {{ defaultAltitudeM }} {{ $t("flightPlanDefaultSpeed") }}
+                    {{ defaultSpeedMs }}
+                </span>
+            </div>
         </div>
     </UiBox>
 </template>
@@ -85,6 +97,32 @@ const {
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
 const sortedWaypoints = positionalWaypoints;
+
+// --- Default waypoint altitude / speed selector (display units: m / m·s⁻¹) ---
+// Storage units inside useFlightPlan are feet / knots, so display values are
+// converted before being passed to addWaypointAtLocation().
+const FT_PER_M = 0.3048; // 1 m = 1 / 0.3048 ft
+const MS_PER_KT = 0.514444; // 1 m/s = 1 / 0.514444 kt
+
+const altitudeOptionsM = [30, 60, 90, 120];
+const speedOptionsMs = [5, 10, 15, 20];
+
+// Initial defaults requested by the user: 30 m / 15 m·s⁻¹.
+const defaultAltitudeM = ref(30);
+const defaultSpeedMs = ref(15);
+
+const metersToFeet = (m) => m / FT_PER_M;
+const metersPerSecToKnots = (ms) => ms / MS_PER_KT;
+
+const cycleAltitude = () => {
+    const idx = altitudeOptionsM.indexOf(defaultAltitudeM.value);
+    defaultAltitudeM.value = altitudeOptionsM[(idx + 1) % altitudeOptionsM.length];
+};
+
+const cycleSpeed = () => {
+    const idx = speedOptionsMs.indexOf(defaultSpeedMs.value);
+    defaultSpeedMs.value = speedOptionsMs[(idx + 1) % speedOptionsMs.length];
+};
 
 // --- Waypoint segment helpers (for double-click insert on path line) ---
 
@@ -703,7 +741,10 @@ const setupMapLayers = () => {
 
         // Otherwise add waypoint at the end
         const coords = toLonLat(event.coordinate);
-        addWaypointAtLocation(coords[1], coords[0]);
+        addWaypointAtLocation(coords[1], coords[0], {
+            altitude: metersToFeet(defaultAltitudeM.value),
+            speed: metersPerSecToKnots(defaultSpeedMs.value),
+        });
     });
 
     // Initial map update
@@ -958,6 +999,48 @@ onUnmounted(() => {
 .map {
     width: 100%;
     height: 100%;
+}
+
+/* 지도 하단 중앙: 기본 고도/속도 선택 바 */
+.map-defaults-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: var(--surface-200);
+    border: 1px solid var(--surface-500);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    z-index: 500;
+    font-size: 0.8rem;
+    color: var(--text);
+    max-width: calc(100% - 20px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.defaults-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--surface-500);
+    background: var(--surface-300);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.defaults-btn:hover {
+    background: var(--surface-400);
+}
+
+.defaults-readout {
+    white-space: nowrap;
+    font-weight: 600;
 }
 /* OpenLayers 동적 DOM까지 touch-action 적용 */
 .map :deep(.ol-viewport) {
