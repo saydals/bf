@@ -175,14 +175,22 @@ const declineLoadFromFC = () => {
     min-height: 0;
 }
 
-/* Map aspect-ratio wrapper: 2:1 ~ 1:1 range */
+/* Map wrapper: width 기준으로 height 결정 */
+/* 가로뷰(landscape): 2:1, 세로뷰(portrait): 1:1 */
 .map-aspect-wrapper {
+    width: 100%;
     aspect-ratio: 2 / 1;
-    min-height: 280px;
     max-height: 55vh;
+    min-height: 280px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+@media (orientation: portrait) {
+    .map-aspect-wrapper {
+        aspect-ratio: 1 / 1;
+    }
 }
 
 /* UiBox fill + flex-1 propagation */
