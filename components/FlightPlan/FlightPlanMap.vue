@@ -70,10 +70,6 @@
                     size="xs"
                     class="defaults-select"
                 />
-                <span class="defaults-readout">
-                    {{ $t("flightPlanDefaultAltitude") }} {{ altitudeReadout }} {{ $t("flightPlanDefaultSpeed") }}
-                    {{ speedReadout }}
-                </span>
             </div>
         </div>
     </UiBox>
@@ -155,30 +151,6 @@ const speedItems = computed(() => {
         }
         return { label: `${display}${suffix}`, value: kt };
     });
-});
-
-// Current selection shown as a readout, rounded to integer in display units.
-const altitudeReadout = computed(() => {
-    const isMetric = settings.altitudeUnit === "m";
-    const v = isMetric ? Math.round(defaultAltitudeFt.value * FT_PER_M) : Math.round(defaultAltitudeFt.value);
-    return `${v}${isMetric ? "m" : "ft"}`;
-});
-
-const speedReadout = computed(() => {
-    const unit = settings.speedUnit;
-    let v;
-    let suffix;
-    if (unit === "kt") {
-        v = Math.round(defaultSpeedKt.value);
-        suffix = "kt";
-    } else if (unit === "kmh") {
-        v = Math.round(defaultSpeedKt.value * KMH_PER_KT);
-        suffix = "km/h";
-    } else {
-        v = Math.round(defaultSpeedKt.value * MS_PER_KT);
-        suffix = "m/s";
-    }
-    return `${v}${suffix}`;
 });
 
 // --- Waypoint segment helpers (for double-click insert on path line) ---
@@ -1058,7 +1030,7 @@ onUnmounted(() => {
     height: 100%;
 }
 
-/* 지도 하단 중앙: 기본 고도/속도 선택 바 */
+/* 지도 하단 중앙: 기본 고도/속도 선택 드롭다운 2개 */
 .map-defaults-bar {
     position: absolute;
     bottom: 10px;
@@ -1067,14 +1039,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    background: var(--surface-200);
-    border: 1px solid var(--surface-500);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     z-index: 500;
-    font-size: 0.8rem;
-    color: var(--text);
     max-width: calc(100% - 20px);
     flex-wrap: wrap;
     justify-content: center;
@@ -1082,11 +1047,6 @@ onUnmounted(() => {
 
 .defaults-select {
     min-width: 84px;
-}
-
-.defaults-readout {
-    white-space: nowrap;
-    font-weight: 600;
 }
 /* OpenLayers 동적 DOM까지 touch-action 적용 */
 .map :deep(.ol-viewport) {
