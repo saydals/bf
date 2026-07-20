@@ -7,14 +7,20 @@
                 <WikiButton docUrl="flight-plan" />
             </div>
 
-            <div class="grid grid-cols-1 gap-6 grid-rows-[1.4fr_1fr_2.2fr] flex-1 min-h-0 overflow-hidden h-full">
-                <div class="flex flex-col min-h-0 overflow-hidden h-full">
+            <!-- Responsive Grid with Map Aspect Ratio Control -->
+            <div class="flight-plan-grid grid grid-cols-1 gap-6 flex-1 min-h-0 overflow-hidden h-full">
+                <!-- Map Area -->
+                <div class="map-section flex flex-col min-h-0 overflow-hidden rounded-lg border border-surface-200">
                     <FlightPlanMap class="flex-1" />
                 </div>
-                <div class="flex flex-col min-h-0 overflow-hidden h-full">
+
+                <!-- Elevation Profile -->
+                <div class="flex flex-col min-h-0 overflow-hidden rounded-lg border border-surface-200">
                     <ElevationProfile class="flex-1" />
                 </div>
-                <div class="flex flex-col min-h-0 overflow-hidden h-full">
+
+                <!-- Waypoint List -->
+                <div class="flex flex-col min-h-0 overflow-hidden rounded-lg border border-surface-200">
                     <WaypointList class="flex-1" />
                 </div>
             </div>
@@ -182,5 +188,32 @@ const declineLoadFromFC = () => {
     height: 100% !important;
     display: flex;
     flex-direction: column;
+}
+
+/* Responsive Flight Plan Grid */
+.flight-plan-grid {
+    grid-template-rows: minmax(280px, 2.6fr) minmax(160px, 1.2fr) minmax(200px, 2fr);
+}
+
+/* 가로 화면 (Landscape) - 맵을 2:1 비율로 크게 */
+@media (min-aspect-ratio: 4/3) or (min-width: 1024px) {
+    .flight-plan-grid {
+        grid-template-rows: minmax(320px, 3.2fr) minmax(150px, 1fr) minmax(180px, 1.8fr);
+    }
+
+    .map-section {
+        min-height: 340px !important; /* 가로에서 맵 최소 높이 보장 */
+    }
+}
+
+/* 세로 화면 (Portrait) - 맵을 1:1 비율에 가깝게 */
+@media (max-aspect-ratio: 4/3) or (max-width: 900px) {
+    .flight-plan-grid {
+        grid-template-rows: minmax(280px, 1.8fr) minmax(160px, 1.1fr) minmax(220px, 2.1fr);
+    }
+}
+
+.map-section {
+    transition: min-height 0.2s ease;
 }
 </style>
