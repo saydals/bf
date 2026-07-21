@@ -204,6 +204,13 @@ import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 
+const props = defineProps({
+    active: {
+        type: Boolean,
+        default: true,
+    },
+});
+
 const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint, insertWaypointAfter } =
     useFlightPlan();
 const settings = useSettingsStore();
@@ -895,7 +902,15 @@ const fetchGroundElevation = async () => {
     }
 };
 const debouncedFetch = debounce(fetchGroundElevation, 400);
-watch(positionSignature, debouncedFetch, { immediate: true });
+watch(
+    [positionSignature, () => props.active],
+    ([sig, isActive]) => {
+        if (isActive) {
+            debouncedFetch();
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <style scoped>

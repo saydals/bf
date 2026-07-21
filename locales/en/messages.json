@@ -3683,6 +3683,9 @@
   "flightPlanElevationProfile": {
     "message": "Elevation Profile"
   },
+  "flightPlanSpeedProfile": {
+    "message": "Speed Profile"
+  },
   "flightPlanDistance": {
     "message": "Total Distance"
   },
@@ -3696,7 +3699,7 @@
     "message": "Max Altitude"
   },
   "flightPlanNoWaypointsForProfile": {
-    "message": "Add waypoints to see the elevation profile"
+    "message": "Add waypoints to see the profile"
   },
   "flightPlanGroundElev": {
     "message": "Ground Elev"
@@ -3721,6 +3724,15 @@
   },
   "flightPlanRelativeAltLabel": {
     "message": "Rel. Alt"
+  },
+  "flightPlanMinSpeed": {
+    "message": "Min Speed"
+  },
+  "flightPlanMaxSpeed": {
+    "message": "Max Speed"
+  },
+  "flightPlanCurrentSpeed": {
+    "message": "Current Speed"
   },
   "flightPlanSpeedLabel": {
     "message": "Speed"

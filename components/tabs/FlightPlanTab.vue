@@ -12,7 +12,24 @@
                     <FlightPlanMap class="flex-1" />
                 </div>
                 <div class="flex flex-col min-h-0 overflow-hidden">
-                    <ElevationProfile />
+                    <div class="profile-tabs">
+                        <button
+                            class="profile-tab"
+                            :class="{ active: activeProfile === 'elevation' }"
+                            @click="activeProfile = 'elevation'"
+                        >
+                            {{ $t("flightPlanElevationProfile") }}
+                        </button>
+                        <button
+                            class="profile-tab"
+                            :class="{ active: activeProfile === 'speed' }"
+                            @click="activeProfile = 'speed'"
+                        >
+                            {{ $t("flightPlanSpeedProfile") }}
+                        </button>
+                    </div>
+                    <ElevationProfile :active="activeProfile === 'elevation'" v-show="activeProfile === 'elevation'" />
+                    <SpeedProfile :active="activeProfile === 'speed'" v-show="activeProfile === 'speed'" />
                 </div>
                 <div class="flex flex-col min-h-0 overflow-hidden h-full">
                     <WaypointList class="flex-1" />
@@ -90,6 +107,7 @@ import WaypointList from "./FlightPlan/WaypointList.vue";
 import WaypointEditor from "./FlightPlan/WaypointEditor.vue";
 import FlightPlanMap from "./FlightPlan/FlightPlanMap.vue";
 import ElevationProfile from "./FlightPlan/ElevationProfile.vue";
+import SpeedProfile from "./FlightPlan/SpeedProfile.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useConnectionStore } from "@/stores/connection";
 import { useSettingsStore } from "@/stores/settings";
@@ -103,6 +121,7 @@ const connectionStore = useConnectionStore();
 const settings = useSettingsStore();
 const showClearDialog = ref(false);
 const showLoadPromptDialog = ref(false);
+const activeProfile = ref("elevation"); // "elevation" | "speed"
 
 const isConnected = computed(() => connectionStore.connectionValid);
 const fcHasFlightPlan = computed(() => FC.CONFIG?.buildOptions?.includes("USE_FLIGHT_PLAN") ?? false);
@@ -202,8 +221,42 @@ const declineLoadFromFC = () => {
 }
 
 /* Elevation profile: natural sizing, no forced height */
-:deep(.elevation-profile) {
+:deep(.elevation-profile),
+:deep(.speed-profile) {
     display: flex;
     flex-direction: column;
+}
+
+/* Profile tab switcher */
+.profile-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--surface-300);
+}
+
+.profile-tab {
+    flex: 1;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--surface-700);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.profile-tab:hover {
+    color: var(--surface-950);
+    background: var(--surface-100);
+}
+
+.profile-tab.active {
+    color: var(--primary-600);
+    border-bottom-color: var(--primary-600);
+    background: transparent;
 }
 </style>
