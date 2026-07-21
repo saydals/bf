@@ -3587,6 +3587,15 @@
   "flightPlanLoading": {
     "message": "Please wait..."
   },
+  "flightPlanUndo": {
+    "message": "Undo"
+  },
+  "flightPlanRedo": {
+    "message": "Redo"
+  },
+  "flightPlanClearAll": {
+    "message": "Clear all waypoints"
+  },
   "flightPlanClear": {
     "message": "Clear"
   },

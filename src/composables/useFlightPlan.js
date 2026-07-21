@@ -1,4 +1,4 @@
-import { reactive, computed } from "vue";
+import { reactive, computed, ref } from "vue";
 import { get as getConfig, set as setConfig } from "../js/ConfigStorage";
 import { gui_log } from "../js/gui_log";
 import { i18n } from "../js/localization";
@@ -65,6 +65,44 @@ const state = reactive({
     editingWaypointUid: null,
     showEditorDialog: false,
 });
+
+// Undo/redo history for waypoint mutations.
+const MAX_UNDO = 50;
+const undoStack = ref([]);
+const redoStack = ref([]);
+
+function snapshot() {
+    undoStack.value.push(JSON.parse(JSON.stringify(state.waypoints)));
+    if (undoStack.value.length > MAX_UNDO) {
+        undoStack.value.shift();
+    }
+    redoStack.value = [];
+}
+
+const canUndo = computed(() => undoStack.value.length > 0);
+const canRedo = computed(() => redoStack.value.length > 0);
+
+function undo() {
+    if (undoStack.value.length === 0) return false;
+    redoStack.value.push(JSON.parse(JSON.stringify(state.waypoints)));
+    const previous = undoStack.value.pop();
+    state.waypoints = previous;
+    state.selectedWaypointUid = null;
+    state.editingWaypointUid = null;
+    savePlan();
+    return true;
+}
+
+function redo() {
+    if (redoStack.value.length === 0) return false;
+    undoStack.value.push(JSON.parse(JSON.stringify(state.waypoints)));
+    const next = redoStack.value.pop();
+    state.waypoints = next;
+    state.selectedWaypointUid = null;
+    state.editingWaypointUid = null;
+    savePlan();
+    return true;
+}
 
 // Shared computed properties
 const sortedWaypoints = computed(() => {
@@ -167,6 +205,7 @@ export function useFlightPlan() {
 
     // Add waypoint
     const addWaypoint = (waypointData) => {
+        snapshot();
         // 펌웨어 제한: 최대 15개
         if (state.waypoints.length >= MAX_WAYPOINTS) {
             console.warn(`Waypoint limit reached (${MAX_WAYPOINTS}), cannot add more`);
@@ -236,6 +275,7 @@ export function useFlightPlan() {
 
     // Remove waypoint
     const removeWaypoint = (uid) => {
+        snapshot();
         const index = state.waypoints.findIndex((wp) => wp.uid === uid);
         if (index === -1) {
             console.error("Waypoint not found:", uid);
@@ -270,6 +310,7 @@ export function useFlightPlan() {
     // Insert a new waypoint immediately after the given waypoint (splitting a segment).
     // Used by ElevationProfile's "double-click on the line" feature.
     const insertWaypointAfter = (afterUid, waypointData) => {
+        snapshot();
         // 펌웨어 제한: 최대 15개 (addWaypoint와 동일 정책)
         if (state.waypoints.length >= MAX_WAYPOINTS) {
             console.warn(`Waypoint limit reached (${MAX_WAYPOINTS}), cannot insert more`);
@@ -318,6 +359,7 @@ export function useFlightPlan() {
 
     // Reorder waypoints (for drag-and-drop)
     const reorderWaypoints = (fromUid, toUid) => {
+        snapshot();
         const fromIndex = state.waypoints.findIndex((wp) => wp.uid === fromUid);
         let toIndex = state.waypoints.findIndex((wp) => wp.uid === toUid);
 
@@ -349,6 +391,7 @@ export function useFlightPlan() {
 
     // Clear all waypoints
     const clearPlan = () => {
+        snapshot();
         state.waypoints = [];
         state.selectedWaypointUid = null;
         state.editingWaypointUid = null;
@@ -600,6 +643,10 @@ export function useFlightPlan() {
         removeWaypoint,
         reorderWaypoints,
         clearPlan,
+        undo,
+        redo,
+        canUndo,
+        canRedo,
         selectWaypoint,
         editWaypoint,
         openAddWaypoint,
