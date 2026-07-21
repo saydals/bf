@@ -22,10 +22,6 @@
                             >(WP{{ (profilePoints.find((p) => p.uid === selectedWaypointUid)?.order ?? 0) + 1 }})</span
                         >
                     </span>
-                    <span class="stat">
-                        <strong>{{ $t("flightPlanRelativeMaxGroundElev") }}:</strong>
-                        {{ formatAltitude(relativeMaxGroundElevation) }}
-                    </span>
                 </div>
 
                 <div class="profile-chart-container">
@@ -449,11 +445,6 @@ const selectedWpRelativeGroundElev = computed(() => {
     const p = profilePoints.value.find((x) => x.uid === selectedWaypointUid.value);
     return p ? getGroundElevAtPoint(p.distance) - wp1GroundElevation.value : 0;
 });
-const relativeMaxGroundElevation = computed(() =>
-    currentTerrainSamples.value.length
-        ? Math.max(...currentTerrainSamples.value.map((s) => s.elevation)) - wp1GroundElevation.value
-        : 0,
-);
 
 const totalFlightTime = computed(() => {
     if (waypoints.value.length < 2) return "0:00";
@@ -616,7 +607,7 @@ const getMarkerColor = (p) => {
     if (p.uid === selectedWaypointUid.value) return "var(--success-500)";
     return "var(--primary-500)";
 };
-const getMarkerStroke = (p) => "var(--surface-50)";
+const getMarkerStroke = () => "var(--surface-50)";
 const getMarkerStrokeWidth = (p) => (p.uid === selectedWaypointUid.value ? 2 : 1.5);
 
 const handleLineDoubleClick = (e) => {
