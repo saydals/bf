@@ -57,13 +57,13 @@
             />
             <div class="map-undo-redo-controls">
                 <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
-                    <Icon name="i-lucide-undo" class="w-4 h-4" />
+                    <UIcon name="i-lucide-undo" class="size-4" />
                 </button>
                 <button class="map-action-btn" :disabled="!canRedo" :title="$t('flightPlanRedo')" @click="handleRedo">
-                    <Icon name="i-lucide-redo" class="w-4 h-4" />
+                    <UIcon name="i-lucide-redo" class="size-4" />
                 </button>
                 <button class="map-action-btn" :title="$t('flightPlanClearAll')" @click="handleClearAll">
-                    <Icon name="i-lucide-trash-2" class="w-4 h-4" />
+                    <UIcon name="i-lucide-trash-2" class="size-4" />
                 </button>
             </div>
             <div class="map-defaults-bar">
@@ -1143,7 +1143,7 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    z-index: 500;
+    z-index: 1000;
 }
 
 .map-action-btn {
