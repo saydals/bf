@@ -55,6 +55,17 @@
                 :title="$t('flightPlanResetNorth')"
                 @click.stop="resetNorth"
             />
+            <div class="map-undo-redo-controls">
+                <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
+                    <Icon name="i-lucide-undo" class="w-4 h-4" />
+                </button>
+                <button class="map-action-btn" :disabled="!canRedo" :title="$t('flightPlanRedo')" @click="handleRedo">
+                    <Icon name="i-lucide-redo" class="w-4 h-4" />
+                </button>
+                <button class="map-action-btn" :title="$t('flightPlanClearAll')" @click="handleClearAll">
+                    <Icon name="i-lucide-trash-2" class="w-4 h-4" />
+                </button>
+            </div>
             <div class="map-defaults-bar">
                 <USelect
                     v-model="defaultAltitudeFt"
@@ -97,6 +108,11 @@ const {
     updateWaypoint,
     insertWaypointAfter,
     editWaypoint,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    clearPlan,
 } = useFlightPlan();
 
 const settings = useSettingsStore();
@@ -104,6 +120,20 @@ const settings = useSettingsStore();
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
 const sortedWaypoints = positionalWaypoints;
+
+// --- Map action handlers (undo / redo / clear) ---
+const handleUndo = () => {
+    if (canUndo.value) undo();
+};
+
+const handleRedo = () => {
+    if (canRedo.value) redo();
+};
+
+const handleClearAll = () => {
+    if (sortedWaypoints.value.length === 0) return;
+    clearPlan();
+};
 
 // --- Default waypoint altitude / speed selector ---
 // Storage units inside useFlightPlan are feet / knots. The selector keeps the
@@ -1104,6 +1134,43 @@ onUnmounted(() => {
 
 .zoom-btn:active {
     background: var(--surface-300);
+}
+
+.map-undo-redo-controls {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 500;
+}
+
+.map-action-btn {
+    width: 30px;
+    height: 30px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.map-action-btn:hover:not(:disabled) {
+    background: var(--surface-200);
+}
+
+.map-action-btn:active:not(:disabled) {
+    background: var(--surface-300);
+}
+
+.map-action-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
 }
 
 .map-rotate-controls {
