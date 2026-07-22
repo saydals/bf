@@ -47,14 +47,23 @@
                     ↻
                 </button>
             </div>
-            <img
-                class="compass"
-                src="/images/compass.svg"
-                :style="{ transform: `rotate(${northAngle}rad)` }"
-                alt="N"
-                :title="$t('flightPlanResetNorth')"
-                @click.stop="resetNorth"
-            />
+            <div class="compass-group" :class="{ hidden: isLoading }">
+                <div
+                    class="compass-overlay"
+                    @click.stop="resetNorth"
+                    @touchstart.prevent="resetNorth"
+                    role="button"
+                    aria-label="$t('flightPlanCompassResetNorth')"
+                >
+                    <img
+                        class="compass-needle"
+                        src="/images/compass.svg"
+                        alt="compass"
+                        :style="{ transform: `rotate(${northAngle}rad)` }"
+                    />
+                </div>
+                <button class="home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">🏠</button>
+            </div>
             <div class="map-undo-redo-controls">
                 <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
                     <UIcon name="i-lucide-undo" class="size-4" />
@@ -65,6 +74,33 @@
                 <button class="map-action-btn" :title="$t('flightPlanClearAll')" @click="handleClearAll">
                     <UIcon name="i-lucide-trash-2" class="size-4" />
                 </button>
+            </div>
+            <div class="map-buttons-bottom-left">
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'satellite' }"
+                    @click="setLayer('satellite')"
+                    title="Satellite"
+                >
+                    S
+                </button>
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'hybrid' }"
+                    @click="setLayer('hybrid')"
+                    title="Hybrid"
+                >
+                    H
+                </button>
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'street' }"
+                    @click="setLayer('street')"
+                    title="Street"
+                >
+                    R
+                </button>
+                <button class="zoom-btn" @click="toggleFullscreen" title="Fullscreen">⛶</button>
             </div>
             <div class="map-defaults-bar">
                 <USelect
@@ -86,7 +122,7 @@
     </UiBox>
 </template>
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
 import { initMap } from "@/js/utils/map";
 import { fromLonLat, toLonLat } from "ol/proj";
@@ -98,6 +134,7 @@ import { Style, Stroke, Circle, Fill, Text } from "ol/style";
 import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
+import { useAircraftGpsPolling } from "@/composables/useAircraftGpsPolling";
 
 const {
     waypoints,
@@ -116,6 +153,14 @@ const {
 } = useFlightPlan();
 
 const settings = useSettingsStore();
+
+// Aircraft GPS position polling via MSP (composable handles FC connection check)
+const { start: startGpsPolling, stop: stopGpsPolling, flyToAircraft } = useAircraftGpsPolling(mapInstance);
+
+// Home 버튼: 기체 현재 위치로 지도 이동
+const handleHomeClick = () => {
+    flyToAircraft();
+};
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
@@ -448,6 +493,54 @@ const resetNorth = () => {
     }
 };
 
+// 레이어 전환
+const setLayer = (layerKey) => {
+    if (!mapInstance.value?.layers) return;
+    Object.entries(mapInstance.value.layers).forEach(([key, layer]) => {
+        layer.setVisible(key === layerKey);
+    });
+    activeLayer.value = layerKey;
+    nextTick(() => mapInstance.value?.map?.updateSize());
+};
+
+// 전체화면 토글 (CSS 기반 - 브라우저 Fullscreen API를 사용하지 않음)
+// 이유: UModal/Dialog가 body로 텔레포트되므로, 브라우저 fullscreen 시 body 콘텐츠가 가려짐.
+// CSS fixed 방식으로 맵 컨테이너를 화면 전체로 확장하여, 텔레포트된 다이얼로그도 정상 표시됨.
+const toggleFullscreen = () => {
+    const mapContainer = mapRef.value?.parentElement;
+    if (!mapContainer) return;
+
+    isFullscreen.value = !isFullscreen.value;
+    mapContainer.classList.toggle("fullscreen", isFullscreen.value);
+
+    nextTick(() => {
+        if (mapInstance.value?.map) {
+            mapInstance.value.map.updateSize();
+        }
+    });
+};
+
+const handleFullscreenChange = () => {
+    // 브라우저 네이티브 전체화면(F11 등) 감지 시 CSS 전체화면 해제
+    const isNativeFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement
+    );
+    if (!isNativeFullscreen && isFullscreen.value) {
+        const mapContainer = mapRef.value?.parentElement;
+        if (mapContainer) {
+            mapContainer.classList.remove("fullscreen");
+            isFullscreen.value = false;
+        }
+    }
+    requestAnimationFrame(() => {
+        if (mapInstance.value?.map) {
+            mapInstance.value.map.updateSize();
+        }
+    });
+};
+
 // 마우스 휠 처리: 지도를 가로로 3등분하여 가운데 1/3에서만 확대/축소.
 // 좌우 1/3에서는 preventDefault 하지 않아 브라우저 기본 페이지 스크롤이 동작한다.
 const handleMapWheel = (event) => {
@@ -487,6 +580,8 @@ const isDragging = ref(false);
 const dragStartCoordinate = ref(null);
 const lastValidDragCoord = ref(null); // 마지막 정상좌표 (pointercancel 복구용)
 const isLoading = ref(true);
+const activeLayer = ref("satellite");
+const isFullscreen = ref(false);
 let pendingDeleteTimer = null;
 const pendingDeleteUid = ref(null);
 
@@ -534,6 +629,10 @@ const fetchIPLocation = async () => {
 
 // Initialize map and layers
 onMounted(async () => {
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
     if (!mapRef.value) {
         console.error("Map ref not available");
         return;
@@ -811,6 +910,7 @@ const setupMapLayers = () => {
 
     // Map is now ready
     isLoading.value = false;
+    startGpsPolling();
 };
 
 // Update path lines during drag in real-time
@@ -1026,9 +1126,13 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
     console.log("Cleaning up map");
+    document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
     if (mapRef.value) {
         mapRef.value.removeEventListener("wheel", handleMapWheel, { passive: false });
     }
+    stopGpsPolling();
     if (mapInstance.value?.destroy) {
         mapInstance.value.destroy();
     }
@@ -1206,18 +1310,94 @@ onUnmounted(() => {
     background: var(--surface-300);
 }
 
-.compass {
+/* 나침반 + Home 버튼 그룹: 우상단 */
+.compass-group {
     position: absolute;
-    top: 46px;
-    left: 10px;
-    width: 76px;
-    height: 76px;
-    z-index: 500;
-    cursor: pointer;
-    transition: transform 0.2s ease;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 1100;
 }
-.compass:hover {
-    filter: brightness(1.3);
+.compass-group.hidden {
+    display: none;
+}
+/* 나침반: 반투명 흰색 원 배경 + 바늘 */
+.compass-overlay {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+.compass-needle {
+    width: 48px;
+    height: 48px;
+    display: block;
+    pointer-events: none;
+    transition: transform 0.15s linear;
+}
+/* Home 버튼: 기체 위치로 지도 이동 */
+.home-btn {
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--surface-500);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.35);
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+.home-btn:hover {
+    background: rgba(255, 255, 255, 0.55);
+}
+.home-btn:active {
+    background: rgba(255, 255, 255, 0.75);
+}
+
+/* 좌측 하단 버튼 그룹: S(위성) → H(하이브리드) → R(도로) → 전체화면 */
+.map-buttons-bottom-left {
+    position: absolute;
+    bottom: 10px;
+    left: 44px;
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    z-index: 1100;
+}
+.map-btn-active {
+    background: var(--primary-500);
+    color: white;
+    border-color: var(--primary-600);
+}
+.map-btn-active:hover {
+    background: var(--primary-600);
+}
+
+/* 전체화면 모드: .map-container를 뷰포트 전체로 확장 */
+.map-container.fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    border-radius: 0 !important;
+    border: none !important;
 }
 
 @media (max-width: 1055px) {
