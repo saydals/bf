@@ -9858,7 +9858,11 @@
     "message": "Device"
   },
   "sppDialogEmpty": {
-    "message": "No SPP devices available. Scan for devices first from the connection dropdown."
+    "message": "No SPP devices available. Click the button below to request device permission."
+  },
+  "sppDialogScanning": {
+    "message": "Scanning for SPP devices...",
+    "description": "Loading message while scanning for SPP devices."
   },
   "retry": {
     "message": "Retry"

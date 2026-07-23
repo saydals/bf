@@ -9522,7 +9522,11 @@
     "message": "장치"
   },
   "sppDialogEmpty": {
-    "message": "SPP 장치가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
+    "message": "SPP 장치가 없습니다. 아래 버튼을 눌러 장치 권한을 요청하세요."
+  },
+  "sppDialogScanning": {
+    "message": "SPP 장치 검색 중...",
+    "description": "Loading message while scanning for SPP devices."
   },
   "retry": {
     "message": "재시도"

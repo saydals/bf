@@ -6,19 +6,31 @@
                     {{ $t("sppDialogHelp") }}
                 </p>
 
-                <p v-if="allDeviceItems.length === 0" class="spp-device-dialog__empty">
-                    {{ $t("sppDialogEmpty") }}
+                <p v-if="scanning" class="spp-device-dialog__scanning">
+                    {{ $t("sppDialogScanning") }}
                 </p>
 
-                <label class="spp-device-dialog__field" v-if="allDeviceItems.length > 0">
-                    <span>{{ $t("sppDialogDevice") }}</span>
-                    <USelect
-                        :items="allDeviceItems"
-                        v-model="selectedDevicePath"
-                        size="sm"
-                        :ui="{ content: 'z-[9999] max-h-96' }"
-                    />
-                </label>
+                <template v-else>
+                    <p v-if="allDeviceItems.length === 0" class="spp-device-dialog__empty">
+                        {{ $t("sppDialogEmpty") }}
+                    </p>
+
+                    <label class="spp-device-dialog__field" v-if="allDeviceItems.length > 0">
+                        <span>{{ $t("sppDialogDevice") }}</span>
+                        <USelect
+                            :items="allDeviceItems"
+                            v-model="selectedDevicePath"
+                            size="sm"
+                            :ui="{ content: 'z-[9999] max-h-96' }"
+                        />
+                    </label>
+
+                    <div class="spp-device-dialog__actions-body" v-if="allDeviceItems.length === 0">
+                        <UButton color="primary" variant="soft" size="sm" @click="onRequestPermission">
+                            {{ $t("portsSelectPermission") }}
+                        </UButton>
+                    </div>
+                </template>
             </div>
         </template>
         <template #footer>
@@ -59,6 +71,7 @@ export default defineComponent({
         const title = computed(() => i18n.getMessage("sppDialogTitle"));
 
         const selectedDevicePath = ref("");
+        const scanning = ref(false);
 
         const allDeviceItems = computed(() => {
             const items = [];
@@ -82,11 +95,26 @@ export default defineComponent({
             return items;
         });
 
-        // 다이얼로그가 열릴 때 현재 선택된 시리얼 장치를 자동 선택
+        async function scanDevices() {
+            scanning.value = true;
+            try {
+                // 시리얼 장치 목록 갱신
+                await PortHandler.updateDeviceList("serial");
+            } catch (e) {
+                console.error("[SPP] Error scanning devices:", e);
+            } finally {
+                scanning.value = false;
+            }
+        }
+
+        // 다이얼로그가 열릴 때 장치 스캔 + 현재 선택된 장치 자동 선택
         watch(
             () => props.modelValue,
-            (isOpen) => {
+            async (isOpen) => {
                 if (!isOpen) return;
+
+                // 장치 목록 새로고침
+                await scanDevices();
 
                 const currentPath = PortHandler.portPicker.selectedPort;
                 if (currentPath?.startsWith("serial") || currentPath?.startsWith("bluetooth")) {
@@ -101,6 +129,13 @@ export default defineComponent({
             },
         );
 
+        async function onRequestPermission() {
+            // 브라우저의 Web Serial API 권한 요청 UI 호출 (크롬 네이티브 시리얼 포트 선택기)
+            await PortHandler.requestDevicePermission("serial");
+            // 권한 부여 후 다시 스캔
+            await scanDevices();
+        }
+
         function connect() {
             if (!selectedDevicePath.value) return;
             PortHandler.portPicker.selectedPort = selectedDevicePath.value;
@@ -112,8 +147,10 @@ export default defineComponent({
             open,
             title,
             selectedDevicePath,
+            scanning,
             allDeviceItems,
             connect,
+            onRequestPermission,
         };
     },
 });
@@ -150,5 +187,18 @@ export default defineComponent({
 .spp-device-dialog__field span {
     font-size: 0.875rem;
     font-weight: 600;
+}
+
+.spp-device-dialog__scanning {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+}
+
+.spp-device-dialog__actions-body {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.5rem;
 }
 </style>
