@@ -168,7 +168,7 @@
                     </UiBox>
 
                     <!-- GPS Map -->
-                    <UiBox :title="$t('gpsMapHead')">
+                    <UiBox :title="$t('gpsMapHead')" :padding="false">
                         <div
                             v-show="showConnect"
                             class="flex flex-col items-center justify-center h-[433px] gap-2 text-center"
