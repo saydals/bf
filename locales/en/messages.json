@@ -3596,6 +3596,9 @@
   "flightPlanClearAll": {
     "message": "Clear all waypoints"
   },
+  "flightPlanHomeTooltip": {
+    "message": "Reset to initial view"
+  },
   "flightPlanClear": {
     "message": "Clear"
   },
