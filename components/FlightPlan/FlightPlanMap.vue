@@ -548,26 +548,9 @@ const handleFullscreenChange = () => {
     });
 };
 
-// --- Home button: reset map to initial center and zoom ---
-const initialMapCenter = ref(null);
-const initialMapZoom = ref(null);
-
-const saveInitialMapState = () => {
-    if (mapInstance.value?.mapView) {
-        initialMapCenter.value = mapInstance.value.mapView.getCenter();
-        initialMapZoom.value = mapInstance.value.mapView.getZoom();
-    }
-};
-
+// --- Home button: fly to current aircraft GPS position ---
 const handleHomeClick = () => {
-    if (!mapInstance.value?.mapView) return;
-    if (initialMapCenter.value && initialMapZoom.value) {
-        mapInstance.value.mapView.animate({
-            center: initialMapCenter.value,
-            zoom: initialMapZoom.value,
-            duration: 300,
-        });
-    }
+    flyToAircraft();
 };
 
 // 마우스 휠 처리: 지도를 가로로 3등분하여 가운데 1/3에서만 확대/축소.
@@ -604,7 +587,7 @@ const mapContainerRef = ref(null);
 const mapInstance = ref(null);
 const activeLayer = ref("satellite");
 const isFullscreen = ref(false);
-const { start: startGpsPolling, stop: stopGpsPolling } = useAircraftGpsPolling(mapInstance);
+const { start: startGpsPolling, stop: stopGpsPolling, flyToAircraft } = useAircraftGpsPolling(mapInstance);
 const waypointLayer = ref(null);
 const pathLayer = ref(null);
 const draggingWaypointUid = ref(null);
@@ -937,7 +920,6 @@ const setupMapLayers = () => {
 
     // Map is now ready
     isLoading.value = false;
-    saveInitialMapState();
     startGpsPolling();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
