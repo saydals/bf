@@ -64,7 +64,6 @@
                         :style="{ transform: `rotate(${northAngle}rad)` }"
                     />
                 </div>
-                <button class="home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">🏠</button>
             </div>
             <div class="map-undo-redo-controls">
                 <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
@@ -103,6 +102,9 @@
                     R
                 </button>
                 <button class="zoom-btn" @click="toggleFullscreen" title="Fullscreen">⛶</button>
+                <button class="zoom-btn home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">
+                    🏠
+                </button>
             </div>
             <div class="map-defaults-bar">
                 <USelect
@@ -1182,8 +1184,8 @@ onUnmounted(() => {
 }
 
 .compass-overlay {
-    width: 76px;
-    height: 76px;
+    width: 51px;
+    height: 51px;
     background: rgba(255, 255, 255, 0.6);
     border-radius: 50%;
     display: flex;
@@ -1198,8 +1200,8 @@ onUnmounted(() => {
 }
 
 .compass-needle {
-    width: 76px;
-    height: 76px;
+    width: 51px;
+    height: 51px;
     pointer-events: none;
 }
 
