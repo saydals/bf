@@ -7,54 +7,65 @@
                     {{ $t("flightPlanLoading") }}
                 </div>
             </div>
-            <div class="map-zoom-controls">
-                <button
-                    class="zoom-btn"
-                    @mousedown.prevent="startZoomIn"
-                    @mouseup="handleZoomInMouseUp"
-                    @mouseleave="stopZoom"
-                    :title="$t('flightPlanZoomIn')"
-                >
-                    +
-                </button>
-                <button
-                    class="zoom-btn"
-                    @mousedown.prevent="startZoomOut"
-                    @mouseup="handleZoomOutMouseUp"
-                    @mouseleave="stopZoom"
-                    :title="$t('flightPlanZoomOut')"
-                >
-                    −
-                </button>
+            <div class="map-top-controls">
+                <div class="map-rotate-controls">
+                    <button
+                        class="rotate-btn"
+                        @mousedown.prevent="startRotateLeft"
+                        @mouseup="handleRotateLeftMouseUp"
+                        @mouseleave="stopRotate"
+                        :title="$t('flightPlanRotateLeft')"
+                    >
+                        ↺
+                    </button>
+                    <button
+                        class="rotate-btn"
+                        @mousedown.prevent="startRotateRight"
+                        @mouseup="handleRotateRightMouseUp"
+                        @mouseleave="stopRotate"
+                        :title="$t('flightPlanRotateRight')"
+                    >
+                        ↻
+                    </button>
+                </div>
+                <div class="map-zoom-controls">
+                    <button
+                        class="zoom-btn"
+                        @mousedown.prevent="startZoomIn"
+                        @mouseup="handleZoomInMouseUp"
+                        @mouseleave="stopZoom"
+                        :title="$t('flightPlanZoomIn')"
+                    >
+                        +
+                    </button>
+                    <button
+                        class="zoom-btn"
+                        @mousedown.prevent="startZoomOut"
+                        @mouseup="handleZoomOutMouseUp"
+                        @mouseleave="stopZoom"
+                        :title="$t('flightPlanZoomOut')"
+                    >
+                        −
+                    </button>
+                </div>
             </div>
-            <div class="map-rotate-controls">
-                <button
-                    class="rotate-btn"
-                    @mousedown.prevent="startRotateLeft"
-                    @mouseup="handleRotateLeftMouseUp"
-                    @mouseleave="stopRotate"
-                    :title="$t('flightPlanRotateLeft')"
+            <div class="compass-group compass-group-top-right" :class="{ hidden: isLoading }">
+                <div
+                    class="compass-overlay"
+                    @click.stop="resetNorth"
+                    @touchstart.prevent="resetNorth"
+                    role="button"
+                    aria-label="$t('flightPlanCompassResetNorth')"
                 >
-                    ↺
-                </button>
-                <button
-                    class="rotate-btn"
-                    @mousedown.prevent="startRotateRight"
-                    @mouseup="handleRotateRightMouseUp"
-                    @mouseleave="stopRotate"
-                    :title="$t('flightPlanRotateRight')"
-                >
-                    ↻
-                </button>
+                    <img
+                        class="compass-needle"
+                        src="/images/compass.svg"
+                        alt="compass"
+                        :style="{ transform: `rotate(${northAngle}rad)` }"
+                    />
+                </div>
+                <button class="home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">🏠</button>
             </div>
-            <img
-                class="compass"
-                src="/images/compass.svg"
-                :style="{ transform: `rotate(${northAngle}rad)` }"
-                alt="N"
-                :title="$t('flightPlanResetNorth')"
-                @click.stop="resetNorth"
-            />
             <div class="map-undo-redo-controls">
                 <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
                     <UIcon name="i-lucide-undo" class="size-4" />
@@ -65,6 +76,33 @@
                 <button class="map-action-btn" :title="$t('flightPlanClearAll')" @click="handleClearAll">
                     <UIcon name="i-lucide-trash-2" class="size-4" />
                 </button>
+            </div>
+            <div class="map-buttons-bottom-left">
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'satellite' }"
+                    @click="setLayer('satellite')"
+                    title="Satellite"
+                >
+                    S
+                </button>
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'hybrid' }"
+                    @click="setLayer('hybrid')"
+                    title="Hybrid"
+                >
+                    H
+                </button>
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': activeLayer === 'street' }"
+                    @click="setLayer('street')"
+                    title="Street"
+                >
+                    R
+                </button>
+                <button class="zoom-btn" @click="toggleFullscreen" title="Fullscreen">⛶</button>
             </div>
             <div class="map-defaults-bar">
                 <USelect
@@ -1102,14 +1140,47 @@ onUnmounted(() => {
     font-weight: 500;
 }
 
-.map-zoom-controls {
+.map-top-controls {
     position: absolute;
-    bottom: 10px;
+    top: 10px;
     left: 10px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 2px;
     z-index: 500;
+}
+
+.map-zoom-controls {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+}
+
+.map-rotate-controls {
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+}
+
+.compass-group {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    z-index: 500;
+}
+
+.compass-group-top-right {
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    padding: 6px;
+}
+
+.compass-group.hidden {
+    display: none;
 }
 
 .zoom-btn {
@@ -1133,6 +1204,29 @@ onUnmounted(() => {
 }
 
 .zoom-btn:active {
+    background: var(--surface-300);
+}
+
+.rotate-btn {
+    width: 30px;
+    height: 30px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rotate-btn:hover {
+    background: var(--surface-200);
+}
+
+.rotate-btn:active {
     background: var(--surface-300);
 }
 
@@ -1173,50 +1267,14 @@ onUnmounted(() => {
     cursor: not-allowed;
 }
 
-.map-rotate-controls {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    display: flex;
-    flex-direction: row;
-    gap: 2px;
-    z-index: 500;
-}
-
-.rotate-btn {
-    width: 30px;
-    height: 30px;
-    background: var(--surface-100);
-    border: 1px solid var(--surface-500);
-    border-radius: 4px;
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.rotate-btn:hover {
-    background: var(--surface-200);
-}
-
-.rotate-btn:active {
-    background: var(--surface-300);
-}
-
-.compass {
-    position: absolute;
-    top: 46px;
-    left: 10px;
+.compass-needle {
     width: 76px;
     height: 76px;
-    z-index: 500;
     cursor: pointer;
     transition: transform 0.2s ease;
 }
-.compass:hover {
+
+.compass-needle:hover {
     filter: brightness(1.3);
 }
 
