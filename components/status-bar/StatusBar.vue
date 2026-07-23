@@ -309,7 +309,7 @@ export default defineComponent({
 /** Status bar **/
 #status-bar {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     white-space: nowrap;
     gap: 0.6rem;
     bottom: 0;
@@ -328,8 +328,8 @@ export default defineComponent({
 }
 
 #status-bar > * {
-    display: inline-flex;
-    align-items: baseline;
+    display: flex;
+    align-items: center;
 }
 
 .stat-group {

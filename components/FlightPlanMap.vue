@@ -1440,7 +1440,7 @@ onUnmounted(() => {
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
-    height: calc(100vh - 2.5rem) !important;
+    height: 100vh !important;
     z-index: 9999 !important;
     border-radius: 0 !important;
     border: none !important;
