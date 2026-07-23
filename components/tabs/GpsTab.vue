@@ -469,30 +469,19 @@ export default defineComponent({
             const container = mapContainerRef.value;
             if (!container) return;
 
-            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
-                if (container.requestFullscreen) {
-                    container.requestFullscreen();
-                } else if (container.webkitRequestFullscreen) {
-                    container.webkitRequestFullscreen();
-                } else if (container.msRequestFullscreen) {
-                    container.msRequestFullscreen();
-                }
-            } else if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            } else if (document.msExitFullscreen) {
-                document.msExitFullscreen();
-            }
-        };
+            isFullscreen.value = !isFullscreen.value;
+            container.classList.toggle("fullscreen", isFullscreen.value);
 
-        const handleFullscreenChange = () => {
-            isFullscreen.value = !!(
-                document.fullscreenElement ||
-                document.webkitFullscreenElement ||
-                document.msFullscreenElement
-            );
-            requestAnimationFrame(() => mapInstance.value?.map?.updateSize());
+            nextTick(() => {
+                const mapObj = mapInstance.value?.map;
+                if (mapObj) {
+                    mapObj.updateSize();
+                    const renderer = mapObj.getRenderer && mapObj.getRenderer();
+                    if (renderer) {
+                        mapObj.renderSync();
+                    }
+                }
+            });
         };
 
         const getPositionalDopQuality = (positionalDop) => {
@@ -773,16 +762,10 @@ export default defineComponent({
                 mapInstance.value?.map?.updateSize();
             });
             loadGpsConfig();
-            document.addEventListener("fullscreenchange", handleFullscreenChange);
-            document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-            document.addEventListener("MSFullscreenChange", handleFullscreenChange);
         });
 
         const teardown = () => {
             removeAllIntervals();
-            document.removeEventListener("fullscreenchange", handleFullscreenChange);
-            document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
-            document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
             if (mapInstance.value?.destroy) {
                 mapInstance.value.destroy();
             }
@@ -856,9 +839,13 @@ export default defineComponent({
 
 .tab-gps {
     .fullscreen-map-styles() {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
         background-color: var(--surface-100);
+        z-index: 9999;
         .map {
             height: calc(100vh - 33px) !important;
             width: 100vw !important;
@@ -868,18 +855,12 @@ export default defineComponent({
             bottom: 0;
             left: 0;
             width: 100vw !important;
-            z-index: 1000;
+            z-index: 10000;
         }
     }
 
     .map-container {
-        &:fullscreen {
-            .fullscreen-map-styles();
-        }
-        &:-webkit-full-screen {
-            .fullscreen-map-styles();
-        }
-        &:-ms-fullscreen {
+        &.fullscreen {
             .fullscreen-map-styles();
         }
     }
