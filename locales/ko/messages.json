@@ -3468,6 +3468,9 @@
   "flightPlanLoading": {
     "message": "잠시 기다려주세요..."
   },
+  "flightPlanHomeTooltip": {
+    "message": "초기 위치로"
+  },
   "flightPlanClear": {
     "message": "제거"
   },

@@ -1,6 +1,6 @@
 <template>
     <UiBox :title="$t('flightPlanMap')" class="flight-plan-map" fill>
-        <div class="map-container">
+        <div ref="mapContainerRef" class="map-container">
             <div ref="mapRef" class="map"></div>
             <div v-if="isLoading" class="map-loading">
                 <div class="loading-message">
@@ -101,7 +101,14 @@
                 >
                     R
                 </button>
-                <button class="zoom-btn" @click="toggleFullscreen" title="Fullscreen">⛶</button>
+                <button
+                    class="zoom-btn"
+                    :class="{ 'map-btn-active': isFullscreen }"
+                    @click="toggleFullscreen"
+                    title="Fullscreen"
+                >
+                    ⛶
+                </button>
                 <button class="zoom-btn home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">
                     🏠
                 </button>
@@ -488,6 +495,69 @@ const resetNorth = () => {
     }
 };
 
+// --- Map layer switching (S = Satellite, H = Hybrid, R = Road/Street) ---
+const setLayer = (layerKey) => {
+    if (!mapInstance.value?.layers) return;
+    Object.entries(mapInstance.value.layers).forEach(([key, layer]) => {
+        layer.setVisible(key === layerKey);
+    });
+    activeLayer.value = layerKey;
+};
+
+// --- Fullscreen controls (pattern from GpsTab) ---
+const toggleFullscreen = () => {
+    const container = mapContainerRef.value;
+    if (!container) return;
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        }
+    } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+    }
+};
+
+const handleFullscreenChange = () => {
+    isFullscreen.value = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.msFullscreenElement
+    );
+    // Ensure OpenLayers re-renders correctly in the new viewport size
+    requestAnimationFrame(() => mapInstance.value?.map?.updateSize());
+};
+
+// --- Home button: reset map to initial center and zoom ---
+const initialMapCenter = ref(null);
+const initialMapZoom = ref(null);
+
+const saveInitialMapState = () => {
+    if (mapInstance.value?.mapView) {
+        initialMapCenter.value = mapInstance.value.mapView.getCenter();
+        initialMapZoom.value = mapInstance.value.mapView.getZoom();
+    }
+};
+
+const handleHomeClick = () => {
+    if (!mapInstance.value?.mapView) return;
+    if (initialMapCenter.value && initialMapZoom.value) {
+        mapInstance.value.mapView.animate({
+            center: initialMapCenter.value,
+            zoom: initialMapZoom.value,
+            duration: 300,
+        });
+    }
+};
+
 // 마우스 휠 처리: 지도를 가로로 3등분하여 가운데 1/3에서만 확대/축소.
 // 좌우 1/3에서는 preventDefault 하지 않아 브라우저 기본 페이지 스크롤이 동작한다.
 const handleMapWheel = (event) => {
@@ -518,7 +588,10 @@ const handleMapWheel = (event) => {
 };
 
 const mapRef = ref(null);
+const mapContainerRef = ref(null);
 const mapInstance = ref(null);
+const activeLayer = ref("satellite");
+const isFullscreen = ref(false);
 const waypointLayer = ref(null);
 const pathLayer = ref(null);
 const draggingWaypointUid = ref(null);
@@ -851,6 +924,10 @@ const setupMapLayers = () => {
 
     // Map is now ready
     isLoading.value = false;
+    saveInitialMapState();
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange", handleFullscreenChange);
 };
 
 // Update path lines during drag in real-time
@@ -1066,6 +1143,9 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
     console.log("Cleaning up map");
+    document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
     if (mapRef.value) {
         mapRef.value.removeEventListener("wheel", handleMapWheel, { passive: false });
     }
@@ -1311,6 +1391,37 @@ onUnmounted(() => {
 .map-action-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
+}
+
+.map-buttons-bottom-left {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+    z-index: 500;
+}
+
+.map-btn-active {
+    background: var(--primary-500);
+    color: #fff;
+    border-color: var(--primary-500);
+}
+
+.map-btn-active:hover {
+    background: var(--primary-600);
+}
+
+/* fullscreen 상태일 때 map-container를 전체화면으로 */
+.map-container:fullscreen {
+    background: var(--surface-100);
+}
+.map-container:-webkit-full-screen {
+    background: var(--surface-100);
+}
+.map-container:-ms-fullscreen {
+    background: var(--surface-100);
 }
 
 .compass-needle {
