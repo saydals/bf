@@ -50,7 +50,7 @@
             :initial-port-override="portPicker.portOverride"
             @confirm="onDialogConfirm"
         />
-        <BleProfileDialog v-model="bleProfileDialogOpen" />
+        <SppDeviceDialog v-model="sppDialogOpen" />
         <WifiDialog
             v-model="wifiDialogOpen"
             :saved-address="wifiAddress"
@@ -70,7 +70,6 @@ import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
-import BleProfileDialog from "./BleProfileDialog.vue";
 import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
@@ -147,7 +146,7 @@ export default defineComponent({
 
         const dialogOpen = ref(false);
         const dialogMode = ref("virtual");
-        const bleProfileDialogOpen = ref(false);
+        const sppDialogOpen = ref(false);
         const portPicker = computed(() => PortHandler.portPicker);
 
         // WiFi 상태
@@ -267,10 +266,10 @@ export default defineComponent({
                     onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
                 items.push({
-                    label: i18n.getMessage("bleProfileDialogTitle"),
+                    label: i18n.getMessage("sppDialogTitle"),
                     icon: "i-lucide-settings-2",
                     onSelect: () => {
-                        bleProfileDialogOpen.value = true;
+                        sppDialogOpen.value = true;
                     },
                 });
             }
@@ -362,7 +361,7 @@ export default defineComponent({
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
-            bleProfileDialogOpen,
+            sppDialogOpen,
             bluetoothPorts,
             wifiDialogOpen,
             wifiAddress,

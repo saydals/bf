@@ -9511,20 +9511,18 @@
   "preflightForecastWeather": {
     "message": "날씨"
   },
-  "bleProfileDialogTitle": {
-    "message": "BLE 모듈 종류 설정"
+  "sppDialogTitle": {
+    "message": "SPP 장치 연결",
+    "description": "Title for the SPP device list dialog."
   },
-  "bleProfileDialogHelp": {
-    "message": "연결된 블루투스 기기를 선택하고 올바른 모듈 프로필을 지정하세요."
+  "sppDialogHelp": {
+    "message": "연결할 SPP 장치를 선택하세요."
   },
-  "bleProfileDialogDevice": {
-    "message": "기기"
+  "sppDialogDevice": {
+    "message": "장치"
   },
-  "bleProfileDialogProfile": {
-    "message": "프로필"
-  },
-  "bleProfileDialogEmpty": {
-    "message": "블루투스 기기가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
+  "sppDialogEmpty": {
+    "message": "SPP 장치가 없습니다. 연결 드롭다운에서 스캔을 먼저 진행하세요."
   },
   "retry": {
     "message": "재시도"

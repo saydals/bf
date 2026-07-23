@@ -9847,20 +9847,18 @@
   "preflightNotamLastFetched": {
     "message": "Last fetched"
   },
-  "bleProfileDialogTitle": {
-    "message": "BLE Module Type Settings"
+  "sppDialogTitle": {
+    "message": "SPP device connection",
+    "description": "Title for the SPP device list dialog."
   },
-  "bleProfileDialogHelp": {
-    "message": "Select a paired Bluetooth device and assign the correct module profile."
+  "sppDialogHelp": {
+    "message": "Select an SPP device to connect."
   },
-  "bleProfileDialogDevice": {
+  "sppDialogDevice": {
     "message": "Device"
   },
-  "bleProfileDialogProfile": {
-    "message": "Profile"
-  },
-  "bleProfileDialogEmpty": {
-    "message": "No Bluetooth devices available. Scan for devices first from the connection dropdown."
+  "sppDialogEmpty": {
+    "message": "No SPP devices available. Scan for devices first from the connection dropdown."
   },
   "retry": {
     "message": "Retry"
