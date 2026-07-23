@@ -133,7 +133,7 @@
     </UiBox>
 </template>
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import UiBox from "@/components/elements/UiBox.vue";
 import { initMap } from "@/js/utils/map";
 import { fromLonLat, toLonLat } from "ol/proj";
@@ -504,36 +504,47 @@ const setLayer = (layerKey) => {
     activeLayer.value = layerKey;
 };
 
-// --- Fullscreen controls (pattern from GpsTab) ---
+// --- Fullscreen controls (CSS 기반 - 브라우저 Fullscreen API 사용 안 함) ---
+// 이유: UModal/Dialog 등이 body로 텔레포트되므로, 브라우저 fullscreen 시 가려짐.
+// CSS fixed 방식으로 map-container만 화면 전체로 확장하여 다이얼로그 정상 표시.
 const toggleFullscreen = () => {
-    const container = mapContainerRef.value;
-    if (!container) return;
+    const mapContainer = mapContainerRef.value;
+    if (!mapContainer) return;
 
-    if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
-        if (container.requestFullscreen) {
-            container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) {
-            container.webkitRequestFullscreen();
-        } else if (container.msRequestFullscreen) {
-            container.msRequestFullscreen();
+    isFullscreen.value = !isFullscreen.value;
+    mapContainer.classList.toggle("fullscreen", isFullscreen.value);
+
+    nextTick(() => {
+        if (mapInstance.value?.map) {
+            mapInstance.value.map.updateSize();
         }
-    } else if (document.exitFullscreen) {
-        document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-    }
+    });
 };
 
 const handleFullscreenChange = () => {
-    isFullscreen.value = !!(
+    // 브라우저 네이티브 전체화면(F11 등) 감지 시 CSS 전체화면 해제
+    const isNativeFullscreen = !!(
         document.fullscreenElement ||
         document.webkitFullscreenElement ||
         document.msFullscreenElement
     );
-    // Ensure OpenLayers re-renders correctly in the new viewport size
-    requestAnimationFrame(() => mapInstance.value?.map?.updateSize());
+    if (!isNativeFullscreen && isFullscreen.value) {
+        const mapContainer = mapContainerRef.value;
+        if (mapContainer) {
+            mapContainer.classList.remove("fullscreen");
+            isFullscreen.value = false;
+        }
+    }
+    requestAnimationFrame(() => {
+        if (mapInstance.value?.map) {
+            mapInstance.value.map.updateSize();
+            // 강제 re-render로 drag-drop 이벤트 좌표 보정
+            const renderer = mapInstance.value.map.getRenderer && mapInstance.value.map.getRenderer();
+            if (renderer) {
+                mapInstance.value.map.renderSync();
+            }
+        }
+    });
 };
 
 // --- Home button: reset map to initial center and zoom ---
@@ -1413,14 +1424,17 @@ onUnmounted(() => {
     background: var(--primary-600);
 }
 
-/* fullscreen 상태일 때 map-container를 전체화면으로 */
-.map-container:fullscreen {
-    background: var(--surface-100);
-}
-.map-container:-webkit-full-screen {
-    background: var(--surface-100);
-}
-.map-container:-ms-fullscreen {
+/* 전체화면 모드: .map-container를 뷰포트 전체로 확장 (CSS 기반 - 브라우저 Fullscreen API 사용 안 함) */
+/* 이유: UModal/Dialog가 body로 텔레포트되므로 브라우저 fullscreen 시 모달이 가려짐 */
+.map-container.fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    border-radius: 0 !important;
+    border: none !important;
     background: var(--surface-100);
 }
 
