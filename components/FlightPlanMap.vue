@@ -1454,7 +1454,7 @@ onUnmounted(() => {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 9999 !important;
+    z-index: 9998 !important;
     border-radius: 0 !important;
     border: none !important;
     background: var(--surface-100);

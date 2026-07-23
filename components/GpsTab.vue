@@ -189,7 +189,11 @@
                         >
                             <div class="mt-[30%]">{{ $t("gpsMapMessage2") }}</div>
                         </div>
-                        <div v-show="showLoadMap" ref="mapContainerRef" class="map-container h-[433px] w-full">
+                        <div
+                            v-show="showLoadMap"
+                            ref="mapContainerRef"
+                            class="map-container relative z-0 h-[433px] w-full"
+                        >
                             <div ref="mapRef" class="map h-[400px] w-full"></div>
                             <div
                                 class="map-controls flex justify-end items-center gap-1 h-[33px] rounded-b px-1 bg-[#FAFAFA] dark:bg-transparent"
@@ -848,22 +852,22 @@ export default defineComponent({
 .tab-gps {
     .fullscreen-map-styles() {
         position: fixed !important;
-        top: 0 !important;
+        top: 2.5rem !important;
         left: 0 !important;
         width: 100vw !important;
-        height: 100vh !important;
+        height: calc(100vh - 2.5rem) !important;
         background-color: var(--surface-100);
         z-index: 9999;
         .map {
-            height: calc(100vh - 33px) !important;
-            width: 100vw !important;
+            height: 100% !important;
+            width: 100% !important;
         }
         .map-controls {
-            position: fixed;
+            position: absolute;
             bottom: 0;
             left: 0;
-            width: 100vw !important;
-            z-index: 10000;
+            width: 100% !important;
+            z-index: 9998;
         }
     }
 
