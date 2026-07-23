@@ -1204,13 +1204,27 @@ onUnmounted(() => {
 }
 
 .home-btn {
-    background: transparent;
-    border: none;
+    width: 30px;
+    height: 30px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
     font-size: 18px;
-    cursor: pointer;
-    padding: 0;
+    font-weight: 700;
     line-height: 1;
+    cursor: pointer;
     color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-btn:hover {
+    background: var(--surface-200);
+}
+
+.home-btn:active {
+    background: var(--surface-300);
 }
 
 .zoom-btn {
