@@ -168,7 +168,7 @@
                     </UiBox>
 
                     <!-- GPS Map -->
-                    <UiBox :title="$t('gpsMapHead')" :padding="false">
+                    <UiBox :title="$t('gpsMapHead')">
                         <div
                             v-show="showConnect"
                             class="flex flex-col items-center justify-center h-[433px] gap-2 text-center"
@@ -189,11 +189,7 @@
                         >
                             <div class="mt-[30%]">{{ $t("gpsMapMessage2") }}</div>
                         </div>
-                        <div
-                            v-show="showLoadMap"
-                            ref="mapContainerRef"
-                            class="map-container relative z-0 h-[433px] w-full"
-                        >
+                        <div v-show="showLoadMap" ref="mapContainerRef" class="map-container h-[433px] w-full">
                             <div ref="mapRef" class="map h-[400px] w-full"></div>
                             <div
                                 class="map-controls flex justify-end items-center gap-1 h-[33px] rounded-b px-1 bg-[#FAFAFA] dark:bg-transparent"
@@ -473,27 +469,30 @@ export default defineComponent({
             const container = mapContainerRef.value;
             if (!container) return;
 
-            const mainWrapper = document.getElementById("main-wrapper");
-
-            isFullscreen.value = !isFullscreen.value;
-            container.classList.toggle("fullscreen", isFullscreen.value);
-
-            // #main-wrapper에 transform:scale()이 있으면 position:fixed 기준이 깨짐
-            if (mainWrapper) {
-                mainWrapper.style.transform = isFullscreen.value ? "none" : "";
-                mainWrapper.style.transformOrigin = isFullscreen.value ? "unset" : "";
-            }
-
-            nextTick(() => {
-                const mapObj = mapInstance.value?.map;
-                if (mapObj) {
-                    mapObj.updateSize();
-                    const renderer = mapObj.getRenderer && mapObj.getRenderer();
-                    if (renderer) {
-                        mapObj.renderSync();
-                    }
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    container.webkitRequestFullscreen();
+                } else if (container.msRequestFullscreen) {
+                    container.msRequestFullscreen();
                 }
-            });
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        };
+
+        const handleFullscreenChange = () => {
+            isFullscreen.value = !!(
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.msFullscreenElement
+            );
+            requestAnimationFrame(() => mapInstance.value?.map?.updateSize());
         };
 
         const getPositionalDopQuality = (positionalDop) => {
@@ -774,10 +773,16 @@ export default defineComponent({
                 mapInstance.value?.map?.updateSize();
             });
             loadGpsConfig();
+            document.addEventListener("fullscreenchange", handleFullscreenChange);
+            document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+            document.addEventListener("MSFullscreenChange", handleFullscreenChange);
         });
 
         const teardown = () => {
             removeAllIntervals();
+            document.removeEventListener("fullscreenchange", handleFullscreenChange);
+            document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+            document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
             if (mapInstance.value?.destroy) {
                 mapInstance.value.destroy();
             }
@@ -851,28 +856,30 @@ export default defineComponent({
 
 .tab-gps {
     .fullscreen-map-styles() {
-        position: fixed !important;
-        top: 2.5rem !important;
-        left: 0 !important;
         width: 100vw !important;
-        height: calc(100vh - 2.5rem) !important;
+        height: 100vh !important;
         background-color: var(--surface-100);
-        z-index: 9999;
         .map {
-            height: 100% !important;
-            width: 100% !important;
+            height: calc(100vh - 33px) !important;
+            width: 100vw !important;
         }
         .map-controls {
-            position: absolute;
+            position: fixed;
             bottom: 0;
             left: 0;
-            width: 100% !important;
-            z-index: 9998;
+            width: 100vw !important;
+            z-index: 1000;
         }
     }
 
     .map-container {
-        &.fullscreen {
+        &:fullscreen {
+            .fullscreen-map-styles();
+        }
+        &:-webkit-full-screen {
+            .fullscreen-map-styles();
+        }
+        &:-ms-fullscreen {
             .fullscreen-map-styles();
         }
     }

@@ -50,7 +50,7 @@
             :initial-port-override="portPicker.portOverride"
             @confirm="onDialogConfirm"
         />
-        <SppDeviceDialog v-model="sppDialogOpen" />
+        <BleProfileDialog v-model="bleProfileDialogOpen" />
         <WifiDialog
             v-model="wifiDialogOpen"
             :saved-address="wifiAddress"
@@ -70,7 +70,7 @@ import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
-import SppDeviceDialog from "./SppDeviceDialog.vue";
+import BleProfileDialog from "./BleProfileDialog.vue";
 import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
@@ -97,7 +97,7 @@ function toggleAutoConnect(value) {
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog, SppDeviceDialog, WifiDialog },
+    components: { ConnectOptionsDialog, BleProfileDialog, WifiDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
@@ -147,7 +147,7 @@ export default defineComponent({
 
         const dialogOpen = ref(false);
         const dialogMode = ref("virtual");
-        const sppDialogOpen = ref(false);
+        const bleProfileDialogOpen = ref(false);
         const portPicker = computed(() => PortHandler.portPicker);
 
         // WiFi 상태
@@ -267,10 +267,10 @@ export default defineComponent({
                     onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
                 });
                 items.push({
-                    label: i18n.getMessage("sppDialogTitle"),
+                    label: i18n.getMessage("bleProfileDialogTitle"),
                     icon: "i-lucide-settings-2",
                     onSelect: () => {
-                        sppDialogOpen.value = true;
+                        bleProfileDialogOpen.value = true;
                     },
                 });
             }
@@ -362,7 +362,7 @@ export default defineComponent({
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
-            sppDialogOpen,
+            bleProfileDialogOpen,
             bluetoothPorts,
             wifiDialogOpen,
             wifiAddress,

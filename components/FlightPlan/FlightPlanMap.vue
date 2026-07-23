@@ -145,8 +145,6 @@ import { Style, Stroke, Circle, Fill, Text } from "ol/style";
 import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
-import { useAircraftGpsPolling } from "@/composables/useAircraftGpsPolling";
-import { useFlightControllerStore } from "@/stores/fc";
 
 const {
     waypoints,
@@ -165,7 +163,6 @@ const {
 } = useFlightPlan();
 
 const settings = useSettingsStore();
-const fcStore = useFlightControllerStore();
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
@@ -514,16 +511,8 @@ const toggleFullscreen = () => {
     const mapContainer = mapContainerRef.value;
     if (!mapContainer) return;
 
-    const mainWrapper = document.getElementById("main-wrapper");
-
     isFullscreen.value = !isFullscreen.value;
     mapContainer.classList.toggle("fullscreen", isFullscreen.value);
-
-    // #main-wrapper에 transform:scale()이 있으면 position:fixed 기준이 깨짐
-    if (mainWrapper) {
-        mainWrapper.style.transform = isFullscreen.value ? "none" : "";
-        mainWrapper.style.transformOrigin = isFullscreen.value ? "unset" : "";
-    }
 
     nextTick(() => {
         if (mapInstance.value?.map) {
@@ -545,11 +534,6 @@ const handleFullscreenChange = () => {
             mapContainer.classList.remove("fullscreen");
             isFullscreen.value = false;
         }
-        const mainWrapper = document.getElementById("main-wrapper");
-        if (mainWrapper) {
-            mainWrapper.style.transform = "";
-            mainWrapper.style.transformOrigin = "";
-        }
     }
     requestAnimationFrame(() => {
         if (mapInstance.value?.map) {
@@ -563,7 +547,7 @@ const handleFullscreenChange = () => {
     });
 };
 
-// --- Home button: fly to aircraft GPS position, or reset to initial view if no GPS fix ---
+// --- Home button: reset map to initial center and zoom ---
 const initialMapCenter = ref(null);
 const initialMapZoom = ref(null);
 
@@ -576,11 +560,7 @@ const saveInitialMapState = () => {
 
 const handleHomeClick = () => {
     if (!mapInstance.value?.mapView) return;
-    // GPS fix가 있으면 기체 위치로, 없으면 초기 지도 위치로 이동
-    const gpsData = fcStore?.gpsData || {};
-    if (gpsData?.fix) {
-        flyToAircraft();
-    } else if (initialMapCenter.value && initialMapZoom.value) {
+    if (initialMapCenter.value && initialMapZoom.value) {
         mapInstance.value.mapView.animate({
             center: initialMapCenter.value,
             zoom: initialMapZoom.value,
@@ -623,7 +603,6 @@ const mapContainerRef = ref(null);
 const mapInstance = ref(null);
 const activeLayer = ref("satellite");
 const isFullscreen = ref(false);
-const { start: startGpsPolling, stop: stopGpsPolling, flyToAircraft } = useAircraftGpsPolling(mapInstance);
 const waypointLayer = ref(null);
 const pathLayer = ref(null);
 const draggingWaypointUid = ref(null);
@@ -957,7 +936,6 @@ const setupMapLayers = () => {
     // Map is now ready
     isLoading.value = false;
     saveInitialMapState();
-    startGpsPolling();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
@@ -1297,8 +1275,8 @@ onUnmounted(() => {
 }
 
 .compass-overlay {
-    width: 55px;
-    height: 55px;
+    width: 84px;
+    height: 84px;
     background: rgba(255, 255, 255, 0.6);
     border-radius: 50%;
     display: flex;
@@ -1454,7 +1432,7 @@ onUnmounted(() => {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    z-index: 9998 !important;
+    z-index: 9999 !important;
     border-radius: 0 !important;
     border: none !important;
     background: var(--surface-100);
