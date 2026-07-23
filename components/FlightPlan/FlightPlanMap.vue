@@ -64,7 +64,6 @@
                         :style="{ transform: `rotate(${northAngle}rad)` }"
                     />
                 </div>
-                <button class="home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">🏠</button>
             </div>
             <div class="map-undo-redo-controls">
                 <button class="map-action-btn" :disabled="!canUndo" :title="$t('flightPlanUndo')" @click="handleUndo">
@@ -103,6 +102,9 @@
                     R
                 </button>
                 <button class="zoom-btn" @click="toggleFullscreen" title="Fullscreen">⛶</button>
+                <button class="zoom-btn home-btn" @click="handleHomeClick" :title="$t('flightPlanHomeTooltip')">
+                    🏠
+                </button>
             </div>
             <div class="map-defaults-bar">
                 <USelect
@@ -1174,13 +1176,57 @@ onUnmounted(() => {
 }
 
 .compass-group-top-right {
-    background: rgba(255, 255, 255, 0.6);
-    border-radius: 8px;
     padding: 6px;
 }
 
 .compass-group.hidden {
     display: none;
+}
+
+.compass-overlay {
+    width: 51px;
+    height: 51px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.compass-overlay:hover {
+    filter: brightness(1.3);
+}
+
+.compass-needle {
+    width: 51px;
+    height: 51px;
+    pointer-events: none;
+}
+
+.home-btn {
+    width: 30px;
+    height: 30px;
+    background: var(--surface-100);
+    border: 1px solid var(--surface-500);
+    border-radius: 4px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-btn:hover {
+    background: var(--surface-200);
+}
+
+.home-btn:active {
+    background: var(--surface-300);
 }
 
 .zoom-btn {
