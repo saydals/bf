@@ -1184,8 +1184,8 @@ onUnmounted(() => {
 }
 
 .compass-overlay {
-    width: 51px;
-    height: 51px;
+    width: 84px;
+    height: 84px;
     background: rgba(255, 255, 255, 0.6);
     border-radius: 50%;
     display: flex;
