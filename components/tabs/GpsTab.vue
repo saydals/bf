@@ -469,8 +469,16 @@ export default defineComponent({
             const container = mapContainerRef.value;
             if (!container) return;
 
+            const mainWrapper = document.getElementById("main-wrapper");
+
             isFullscreen.value = !isFullscreen.value;
             container.classList.toggle("fullscreen", isFullscreen.value);
+
+            // #main-wrapper에 transform:scale()이 있으면 position:fixed 기준이 깨짐
+            if (mainWrapper) {
+                mainWrapper.style.transform = isFullscreen.value ? "none" : "";
+                mainWrapper.style.transformOrigin = isFullscreen.value ? "unset" : "";
+            }
 
             nextTick(() => {
                 const mapObj = mapInstance.value?.map;

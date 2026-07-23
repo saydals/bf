@@ -514,8 +514,16 @@ const toggleFullscreen = () => {
     const mapContainer = mapContainerRef.value;
     if (!mapContainer) return;
 
+    const mainWrapper = document.getElementById("main-wrapper");
+
     isFullscreen.value = !isFullscreen.value;
     mapContainer.classList.toggle("fullscreen", isFullscreen.value);
+
+    // #main-wrapper에 transform:scale()이 있으면 position:fixed 기준이 깨짐
+    if (mainWrapper) {
+        mainWrapper.style.transform = isFullscreen.value ? "none" : "";
+        mainWrapper.style.transformOrigin = isFullscreen.value ? "unset" : "";
+    }
 
     nextTick(() => {
         if (mapInstance.value?.map) {
@@ -536,6 +544,11 @@ const handleFullscreenChange = () => {
         if (mapContainer) {
             mapContainer.classList.remove("fullscreen");
             isFullscreen.value = false;
+        }
+        const mainWrapper = document.getElementById("main-wrapper");
+        if (mainWrapper) {
+            mainWrapper.style.transform = "";
+            mainWrapper.style.transformOrigin = "";
         }
     }
     requestAnimationFrame(() => {
