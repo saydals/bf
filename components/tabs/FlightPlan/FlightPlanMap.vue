@@ -145,6 +145,7 @@ import { Style, Stroke, Circle, Fill, Text } from "ol/style";
 import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
+import { useAircraftGpsPolling } from "@/composables/useAircraftGpsPolling";
 
 const {
     waypoints,
@@ -603,6 +604,7 @@ const mapContainerRef = ref(null);
 const mapInstance = ref(null);
 const activeLayer = ref("satellite");
 const isFullscreen = ref(false);
+const { start: startGpsPolling, stop: stopGpsPolling } = useAircraftGpsPolling(mapInstance);
 const waypointLayer = ref(null);
 const pathLayer = ref(null);
 const draggingWaypointUid = ref(null);
@@ -936,6 +938,7 @@ const setupMapLayers = () => {
     // Map is now ready
     isLoading.value = false;
     saveInitialMapState();
+    startGpsPolling();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
