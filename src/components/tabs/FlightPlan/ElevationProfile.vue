@@ -447,7 +447,7 @@ const selectedWpRelativeGroundElev = computed(() => {
 });
 
 const totalFlightTime = computed(() => {
-    if (waypoints.value.length < 2) return "0:00";
+    if (waypoints.value.length < 2) return "00:00";
     let h = 0;
     for (let i = 0; i < waypoints.value.length - 1; i++) {
         const d =
@@ -460,13 +460,15 @@ const totalFlightTime = computed(() => {
         const sp = (waypoints.value[i].speed ?? 10) <= 0 ? 1 : (waypoints.value[i].speed ?? 10);
         h += d / sp;
     }
-    let hr = Math.floor(h),
-        mn = Math.round((h - hr) * 60);
-    if (mn === 60) {
-        hr++;
-        mn = 0;
+    const totalSec = Math.round(h * 3600);
+    if (totalSec < 1) return "00:00";
+    const hh = Math.floor(totalSec / 3600);
+    const mm = Math.floor((totalSec % 3600) / 60);
+    const ss = totalSec % 60;
+    if (hh > 0) {
+        return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
     }
-    return `${hr}:${mn.toString().padStart(2, "0")}`;
+    return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
 });
 
 const combinedMax = computed(() => {
