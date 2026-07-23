@@ -146,6 +146,7 @@ import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 import { useAircraftGpsPolling } from "@/composables/useAircraftGpsPolling";
+import { useFlightControllerStore } from "@/stores/fc";
 
 const {
     waypoints,
@@ -164,6 +165,7 @@ const {
 } = useFlightPlan();
 
 const settings = useSettingsStore();
+const fcStore = useFlightControllerStore();
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
@@ -548,9 +550,30 @@ const handleFullscreenChange = () => {
     });
 };
 
-// --- Home button: fly to current aircraft GPS position ---
+// --- Home button: fly to aircraft GPS position, or reset to initial view if no GPS fix ---
+const initialMapCenter = ref(null);
+const initialMapZoom = ref(null);
+
+const saveInitialMapState = () => {
+    if (mapInstance.value?.mapView) {
+        initialMapCenter.value = mapInstance.value.mapView.getCenter();
+        initialMapZoom.value = mapInstance.value.mapView.getZoom();
+    }
+};
+
 const handleHomeClick = () => {
-    flyToAircraft();
+    if (!mapInstance.value?.mapView) return;
+    // GPS fix가 있으면 기체 위치로, 없으면 초기 지도 위치로 이동
+    const gpsData = fcStore?.gpsData || {};
+    if (gpsData?.fix) {
+        flyToAircraft();
+    } else if (initialMapCenter.value && initialMapZoom.value) {
+        mapInstance.value.mapView.animate({
+            center: initialMapCenter.value,
+            zoom: initialMapZoom.value,
+            duration: 300,
+        });
+    }
 };
 
 // 마우스 휠 처리: 지도를 가로로 3등분하여 가운데 1/3에서만 확대/축소.
@@ -920,6 +943,7 @@ const setupMapLayers = () => {
 
     // Map is now ready
     isLoading.value = false;
+    saveInitialMapState();
     startGpsPolling();
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
