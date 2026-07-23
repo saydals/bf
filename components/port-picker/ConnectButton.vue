@@ -70,6 +70,7 @@ import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
 import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
+import SppDeviceDialog from "./SppDeviceDialog.vue";
 import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
@@ -96,7 +97,7 @@ function toggleAutoConnect(value) {
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog, BleProfileDialog, WifiDialog },
+    components: { ConnectOptionsDialog, SppDeviceDialog, WifiDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
