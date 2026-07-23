@@ -1174,13 +1174,43 @@ onUnmounted(() => {
 }
 
 .compass-group-top-right {
-    background: rgba(255, 255, 255, 0.6);
-    border-radius: 8px;
     padding: 6px;
 }
 
 .compass-group.hidden {
     display: none;
+}
+
+.compass-overlay {
+    width: 76px;
+    height: 76px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.compass-overlay:hover {
+    filter: brightness(1.3);
+}
+
+.compass-needle {
+    width: 76px;
+    height: 76px;
+    pointer-events: none;
+}
+
+.home-btn {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    color: var(--text);
 }
 
 .zoom-btn {
