@@ -570,6 +570,24 @@ const saveInitialMapState = () => {
 
 const handleHomeClick = () => {
     if (!mapInstance.value?.mapView) return;
+
+    // GPS fix가 있으면 기체 위치로 이동
+    const gpsData = fcStore.gpsData || {};
+    const latitude = (gpsData?.latitude || 0) / 10000000;
+    const longitude = (gpsData?.longitude || 0) / 10000000;
+    const hasFix = !!gpsData?.fix;
+
+    if (hasFix && latitude !== 0 && longitude !== 0) {
+        const center = fromLonLat([longitude, latitude]);
+        mapInstance.value.mapView.animate({
+            center,
+            zoom: 17,
+            duration: 300,
+        });
+        return;
+    }
+
+    // GPS fix가 없으면 초기 위치로 이동
     if (initialMapCenter.value && initialMapZoom.value) {
         mapInstance.value.mapView.animate({
             center: initialMapCenter.value,
