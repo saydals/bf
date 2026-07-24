@@ -111,6 +111,16 @@
                                                     class="pip-marker"
                                                     :style="markerStyle(entry.auxChannelIndex)"
                                                 ></div>
+                                                <template v-if="isGpsRescueMode(mode.id)">
+                                                    <div
+                                                        v-for="zone in gpsRescueZoneLabels"
+                                                        :key="zone.label"
+                                                        class="gps-rescue-zone-label"
+                                                        :style="{ left: zone.left + '%' }"
+                                                    >
+                                                        {{ zone.label }}
+                                                    </div>
+                                                </template>
                                             </div>
                                         </div>
                                         <UButton
@@ -278,6 +288,23 @@ export default defineComponent({
                 ...opt,
                 disabled: opt.value === mode.id,
             }));
+
+        const gpsRescueModeId = computed(() => {
+            for (let i = 0; i < fcStore.auxConfig.value.length; i++) {
+                if (fcStore.auxConfig.value[i] === "GPS RESCUE") {
+                    return fcStore.auxConfigIds.value[i];
+                }
+            }
+            return -1;
+        });
+
+        const isGpsRescueMode = (modeId) => gpsRescueModeId.value !== -1 && modeId === gpsRescueModeId.value;
+
+        const gpsRescueZoneLabels = computed(() => [
+            { left: channelPercent((900 + 1400) / 2), label: i18n.getMessage("auxiliaryGpsRescueShuttle") },
+            { left: channelPercent(1500), label: i18n.getMessage("auxiliaryGpsRescueAutopilot") },
+            { left: channelPercent((1600 + 2100) / 2), label: i18n.getMessage("auxiliaryGpsRescueRescue") },
+        ]);
 
         const anyUsedMode = computed(() => modes.some((mode) => mode.entries.length));
 
@@ -715,6 +742,8 @@ export default defineComponent({
             removeEntry,
             markerStyle,
             pipStyle,
+            gpsRescueZoneLabels,
+            isGpsRescueMode,
             saveModes,
             dirty,
         };
@@ -765,6 +794,17 @@ export default defineComponent({
         pointer-events: none;
         z-index: 10;
         border-radius: 9999px;
+    }
+    .gps-rescue-zone-label {
+        position: absolute;
+        top: 2px;
+        transform: translateX(-50%);
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--color-primary-500);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 5;
     }
 }
 </style>
