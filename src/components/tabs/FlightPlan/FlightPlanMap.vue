@@ -141,10 +141,12 @@ import { Feature } from "ol";
 import { Point, LineString } from "ol/geom";
 import { Vector as LayerVector } from "ol/layer";
 import { Vector as SourceVector } from "ol/source";
-import { Style, Stroke, Circle, Fill, Text } from "ol/style";
+import { Style, Stroke, Circle, Fill, Text, Icon } from "ol/style";
 import { DragPan, DoubleClickZoom, MouseWheelZoom } from "ol/interaction";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
+import { useFlightControllerStore } from "@/stores/fc";
+import { useConnectionStore } from "@/stores/connection";
 
 const {
     waypoints,
@@ -163,6 +165,8 @@ const {
 } = useFlightPlan();
 
 const settings = useSettingsStore();
+const fcStore = useFlightControllerStore();
+const connectionStore = useConnectionStore();
 
 // Map renders only positional waypoints (lat/lon meaningful); modifier types
 // have no horizontal position and would otherwise be plotted at (0, 0).
@@ -605,6 +609,8 @@ const activeLayer = ref("satellite");
 const isFullscreen = ref(false);
 const waypointLayer = ref(null);
 const pathLayer = ref(null);
+const positionLayer = ref(null);
+const positionFeature = ref(null);
 const draggingWaypointUid = ref(null);
 const dragPanInteraction = ref(null);
 const isDragging = ref(false);
@@ -613,6 +619,7 @@ const lastValidDragCoord = ref(null); // 마지막 정상좌표 (pointercancel �
 const isLoading = ref(true);
 let pendingDeleteTimer = null;
 const pendingDeleteUid = ref(null);
+let gpsPositionInterval = null;
 
 // Helper function to initialize map with given coordinates
 const initializeMapAtLocation = (latitude, longitude, logMessage) => {
@@ -751,6 +758,28 @@ const setupMapLayers = () => {
         source: new SourceVector(),
     });
     mapInstance.value.map.addLayer(waypointLayer.value);
+
+    // Create aircraft position marker layer - add on top of waypoints
+    positionLayer.value = new LayerVector({
+        source: new SourceVector(),
+    });
+    mapInstance.value.map.addLayer(positionLayer.value);
+
+    // Create the position marker feature with icon style
+    const iconFeature = new Feature({
+        geometry: new Point(fromLonLat([0, 0])),
+    });
+    const iconStyle = new Style({
+        image: new Icon({
+            anchor: [0.5, 1],
+            opacity: 1,
+            scale: 0.5,
+            src: "/images/icons/cf_icon_position_nofix.png",
+        }),
+    });
+    iconFeature.setStyle(iconStyle);
+    positionFeature.value = iconFeature;
+    positionLayer.value.getSource().addFeature(iconFeature);
 
     // Get reference to the default DragPan interaction
     mapInstance.value.map.getInteractions().forEach((interaction) => {
@@ -936,6 +965,11 @@ const setupMapLayers = () => {
     // Map is now ready
     isLoading.value = false;
     saveInitialMapState();
+
+    // Start GPS position polling
+    updateAircraftPosition();
+    gpsPositionInterval = setInterval(updateAircraftPosition, 500);
+
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.addEventListener("MSFullscreenChange", handleFullscreenChange);
@@ -1115,6 +1149,50 @@ const updateMapFeatures = (autoFit = true) => {
     }
 };
 
+// Update aircraft position marker from GPS data
+const updateAircraftPosition = () => {
+    if (!positionFeature.value || !mapInstance.value) return;
+
+    const gpsData = fcStore.gpsData || {};
+    const sensorData = fcStore.sensorData || {};
+    const hasMag = fcStore.compassConfig?.mag_declination !== undefined;
+
+    const latitude = (gpsData?.latitude || 0) / 10000000;
+    const longitude = (gpsData?.longitude || 0) / 10000000;
+    const imuHeadingDegrees = sensorData?.kinematics?.[2] || 0;
+    const imuHeadingRadians = ((imuHeadingDegrees + 180) * Math.PI) / 180;
+    const hasFix = !!gpsData?.fix;
+
+    if (latitude !== 0 && longitude !== 0) {
+        const center = fromLonLat([longitude, latitude]);
+        positionFeature.value.getGeometry().setCoordinates(center);
+
+        // Update icon based on fix state and mag availability
+        let iconSrc;
+        if (!hasFix) {
+            iconSrc = "/images/icons/cf_icon_position_nofix.png";
+        } else if (hasMag) {
+            iconSrc = "/images/icons/cf_icon_position_mag.png";
+        } else {
+            iconSrc = "/images/icons/cf_icon_position.png";
+        }
+
+        const iconStyle = new Style({
+            image: new Icon({
+                anchor: [0.5, 1],
+                opacity: 1,
+                scale: 0.5,
+                src: iconSrc,
+                rotation: hasFix ? imuHeadingRadians : 0,
+            }),
+        });
+        positionFeature.value.setStyle(iconStyle);
+        positionFeature.value.set("visible", true);
+    } else {
+        positionFeature.value.set("visible", false);
+    }
+};
+
 // Watch waypoints and update map (don't auto-fit to prevent zoom changes during drag/edit)
 watch(
     () => waypoints.value,
@@ -1154,6 +1232,10 @@ watch(
 // Cleanup on unmount
 onUnmounted(() => {
     console.log("Cleaning up map");
+    if (gpsPositionInterval) {
+        clearInterval(gpsPositionInterval);
+        gpsPositionInterval = null;
+    }
     document.removeEventListener("fullscreenchange", handleFullscreenChange);
     document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
     document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
@@ -1426,12 +1508,14 @@ onUnmounted(() => {
 
 /* 전체화면 모드: .map-container를 뷰포트 전체로 확장 (CSS 기반 - 브라우저 Fullscreen API 사용 안 함) */
 /* 이유: UModal/Dialog가 body로 텔레포트되므로 브라우저 fullscreen 시 모달이 가려짐 */
+/* height: calc(100vh - 2.5rem) + bottom: 2.5rem 으로 상태표시줄(2.5rem)을 덮지 않음 */
 .map-container.fullscreen {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
-    height: 100vh !important;
+    height: calc(100vh - 2.5rem) !important;
+    bottom: 2.5rem !important;
     z-index: 9999 !important;
     border-radius: 0 !important;
     border: none !important;
