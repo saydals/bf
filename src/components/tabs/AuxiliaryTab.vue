@@ -742,6 +742,7 @@ export default defineComponent({
             removeEntry,
             markerStyle,
             pipStyle,
+            channelPercent,
             saveModes,
             dirty,
         };
