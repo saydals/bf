@@ -112,6 +112,33 @@
                                                     :style="markerStyle(entry.auxChannelIndex)"
                                                 ></div>
                                             </div>
+                                            <!-- GPS RESCUE zone indicators -->
+                                            <div v-if="mode.name === 'GPS RESCUE'" class="gps-rescue-zones">
+                                                <div
+                                                    class="gps-rescue-zone shuttle-zone"
+                                                    :style="{ left: '0%', width: `${channelPercent(1400)}%` }"
+                                                >
+                                                    <span class="gps-rescue-label">Shuttle</span>
+                                                </div>
+                                                <div
+                                                    class="gps-rescue-zone autopilot-zone"
+                                                    :style="{
+                                                        left: `${channelPercent(1400)}%`,
+                                                        width: `${channelPercent(1600) - channelPercent(1400)}%`,
+                                                    }"
+                                                >
+                                                    <span class="gps-rescue-label">Autopilot</span>
+                                                </div>
+                                                <div
+                                                    class="gps-rescue-zone rescue-zone"
+                                                    :style="{
+                                                        left: `${channelPercent(1600)}%`,
+                                                        width: `${100 - channelPercent(1600)}%`,
+                                                    }"
+                                                >
+                                                    <span class="gps-rescue-label">Rescue</span>
+                                                </div>
+                                            </div>
                                         </div>
                                         <UButton
                                             icon="i-lucide-x"
@@ -765,6 +792,46 @@ export default defineComponent({
         pointer-events: none;
         z-index: 10;
         border-radius: 9999px;
+    }
+
+    .gps-rescue-zones {
+        position: relative;
+        width: calc(100% - 20px);
+        height: 24px;
+        margin-top: 4px;
+    }
+
+    .gps-rescue-zone {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        opacity: 0.5;
+    }
+
+    .gps-rescue-zone.shuttle-zone {
+        background: var(--warning-400, #f59e0b);
+    }
+
+    .gps-rescue-zone.autopilot-zone {
+        background: var(--info-400, #3b82f6);
+    }
+
+    .gps-rescue-zone.rescue-zone {
+        background: var(--error-400, #ef4444);
+    }
+
+    .gps-rescue-label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text-inverted, #ffffff);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        white-space: nowrap;
+        pointer-events: none;
+        user-select: none;
     }
 }
 </style>

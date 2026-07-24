@@ -2994,7 +2994,7 @@
     "description": "Help text to GPS BEEP SATELLITE COUNT mode"
   },
   "auxiliaryHelpMode_GPSRESCUE": {
-    "message": "Enable 'GPS Rescue' to return the aircraft to the location where it was last armed",
+    "message": "Enable 'GPS Rescue' to return the aircraft to the location where it was last armed. The behavior depends on the Aux channel value: <strong><= 1400</strong> - Shuttle mode (follows flight plan), <strong>1400 - 1600</strong> - Autopilot mode (altitude &amp; position hold), <strong>>= 1600</strong> - Rescue mode (returns to home point).",
     "description": "Help text to GPS RESCUE mode"
   },
   "auxiliaryHelpMode_HEADADJ": {
