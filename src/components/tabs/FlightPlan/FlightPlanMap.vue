@@ -1381,8 +1381,8 @@ onUnmounted(() => {
 }
 
 .compass-overlay {
-    width: 84px;
-    height: 84px;
+    width: 62px;
+    height: 62px;
     background: rgba(255, 255, 255, 0.6);
     border-radius: 50%;
     display: flex;
@@ -1397,8 +1397,8 @@ onUnmounted(() => {
 }
 
 .compass-needle {
-    width: 51px;
-    height: 51px;
+    width: 60px;
+    height: 60px;
     pointer-events: none;
 }
 
@@ -1547,8 +1547,8 @@ onUnmounted(() => {
 }
 
 .compass-needle {
-    width: 76px;
-    height: 76px;
+    width: 60px;
+    height: 60px;
     cursor: pointer;
     transition: transform 0.2s ease;
 }
