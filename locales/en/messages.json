@@ -2997,6 +2997,15 @@
     "message": "Enable 'GPS Rescue' to return the aircraft to the location where it was last armed",
     "description": "Help text to GPS RESCUE mode"
   },
+  "auxiliaryGpsRescueShuttle": {
+    "message": "Shuttle"
+  },
+  "auxiliaryGpsRescueAutopilot": {
+    "message": "Autopilot"
+  },
+  "auxiliaryGpsRescueRescue": {
+    "message": "Rescue"
+  },
   "auxiliaryHelpMode_HEADADJ": {
     "message": "Heading Adjust - Sets a new yaw origin for HEADFREE mode",
     "description": "Help text to HEAD ADJ mode"
