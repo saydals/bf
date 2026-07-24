@@ -8,9 +8,9 @@ import { Point } from "ol/geom";
 const DEFAULT_ZOOM = 17;
 const DEFAULT_LON = 0;
 const DEFAULT_LAT = 0;
-const ICON_IMAGE_GPS = "/images/icons/cf_icon_position.png";
-const ICON_IMAGE_MAG = "/images/icons/cf_icon_position_mag.png";
-const ICON_IMAGE_NOFIX = "/images/icons/cf_icon_position_nofix.png";
+const ICON_IMAGE_GPS = new URL("../../images/icons/cf_icon_position.png", import.meta.url).href;
+const ICON_IMAGE_MAG = new URL("../../images/icons/cf_icon_position_mag.png", import.meta.url).href;
+const ICON_IMAGE_NOFIX = new URL("../../images/icons/cf_icon_position_nofix.png", import.meta.url).href;
 
 /**
  * Create and configure an OpenLayers map instance for the GPS tab.

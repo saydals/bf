@@ -1,9 +1,4 @@
-# GPS Rescue Mode Range Zone Indicators Implementation
+# 기체 아이콘 표시 버그 수정 TODO
 
-## Steps
-
-- [x] 1. Create TODO.md
-- [x] 2. Update `locales/en/messages.json` - Update `auxiliaryHelpMode_GPSRESCUE` help text with detailed Aux value descriptions
-- [x] 3. Update `AuxiliaryTab.vue` - Add range zone indicators for GPS RESCUE mode showing Shuttle/Autopilot/Rescue zones
-  - [x] Template: Added zone indicator divs after pips-channel-range for GPS RESCUE mode
-  - [x] CSS: Added styles for .gps-rescue-zones, .gps-rescue-zone, and .gps-rescue-label
+- [x] src/js/utils/map.js - 아이콘 경로를 `new URL()` 패턴으로 변경 (ICON_IMAGE_GPS, ICON_IMAGE_MAG, ICON_IMAGE_NOFIX)
+- [x] src/components/tabs/FlightPlan/FlightPlanMap.vue - updateAircraftPosition() 내 Icon src와 plus-cursor.svg 경로 수정

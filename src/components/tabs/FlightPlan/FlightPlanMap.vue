@@ -148,6 +148,12 @@ import { useSettingsStore } from "@/stores/settings";
 import { useFlightControllerStore } from "@/stores/fc";
 import { useConnectionStore } from "@/stores/connection";
 
+// Pre-import aircraft position icons for Vite asset resolution
+const iconPositionGps = new URL("../../../images/icons/cf_icon_position.png", import.meta.url).href;
+const iconPositionMag = new URL("../../../images/icons/cf_icon_position_mag.png", import.meta.url).href;
+const iconPositionNoFix = new URL("../../../images/icons/cf_icon_position_nofix.png", import.meta.url).href;
+const plusCursorUrl = new URL("../../../public/images/plus-cursor.svg", import.meta.url).href;
+
 const {
     waypoints,
     positionalWaypoints,
@@ -774,7 +780,7 @@ const setupMapLayers = () => {
             anchor: [0.5, 1],
             opacity: 1,
             scale: 0.5,
-            src: "/images/icons/cf_icon_position_nofix.png",
+            src: iconPositionNoFix,
         }),
     });
     iconFeature.setStyle(iconStyle);
@@ -882,7 +888,7 @@ const setupMapLayers = () => {
                 // Check if hovering near the path line for "+" insert cursor
                 const nearLine = isNearPathLine(event.pixel, 12);
                 mapInstance.value.map.getTargetElement().style.cursor = nearLine
-                    ? 'url("/images/plus-cursor.svg") 16 16, copy'
+                    ? `url("${plusCursorUrl}") 16 16, copy`
                     : "";
             }
         }
@@ -1170,11 +1176,11 @@ const updateAircraftPosition = () => {
         // Update icon based on fix state and mag availability
         let iconSrc;
         if (!hasFix) {
-            iconSrc = "/images/icons/cf_icon_position_nofix.png";
+            iconSrc = iconPositionNoFix;
         } else if (hasMag) {
-            iconSrc = "/images/icons/cf_icon_position_mag.png";
+            iconSrc = iconPositionMag;
         } else {
-            iconSrc = "/images/icons/cf_icon_position.png";
+            iconSrc = iconPositionGps;
         }
 
         const iconStyle = new Style({
