@@ -189,8 +189,8 @@
                         >
                             <div class="mt-[30%]">{{ $t("gpsMapMessage2") }}</div>
                         </div>
-                        <div v-show="showLoadMap" ref="mapContainerRef" class="map-container h-[433px] w-full">
-                            <div ref="mapRef" class="map h-[400px] w-full"></div>
+                        <div v-show="showLoadMap" ref="mapContainerRef" class="map-container w-full" style="height: min(50vh, 433px);">
+                            <div ref="mapRef" class="map w-full" style="height: calc(min(50vh, 433px) - 33px);"></div>
                             <div
                                 class="map-controls flex justify-end items-center gap-1 h-[33px] rounded-b px-1 bg-[#FAFAFA] dark:bg-transparent"
                             >
