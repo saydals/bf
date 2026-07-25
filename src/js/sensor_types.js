@@ -126,6 +126,7 @@ function sensorTypesLegacy() {
                 "QMP6988",
                 "BMP388",
                 "DPS310",
+                "SPL07_003",
                 "2SMPB_02B",
                 "VIRTUAL",
             ],
