@@ -680,6 +680,7 @@ const FC = {
             altitudeMode: 0,
             minStartDistM: 0,
             initialClimbM: 0,
+            descentBank: 0,
         };
 
         this.RXFAIL_CONFIG = [];

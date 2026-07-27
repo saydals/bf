@@ -357,6 +357,22 @@
                                     />
                                 </SettingRow>
                                 <SettingRow
+                                    :label="$t('failsafeGpsRescueItemDescentBank')"
+                                    :help="$t('failsafeGpsRescueDescentBankHelp')"
+                                >
+                                    <UInputNumber
+                                        v-model="gpsRescue.descentBank"
+                                        :min="15"
+                                        :max="45"
+                                        :step="1"
+                                        :disabled="isGpsSettingsDisabled"
+                                        size="xs"
+                                        orientation="vertical"
+                                        :format-options="{ useGrouping: false }"
+                                        class="w-16"
+                                    />
+                                </SettingRow>
+                                <SettingRow
                                     :label="$t('failsafeGpsRescueItemAllowArmingWithoutFix')"
                                     :help="$t('failsafeGpsRescueArmWithoutFixHelp')"
                                 >

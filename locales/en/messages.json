@@ -5732,6 +5732,13 @@
   "failsafeGpsRescueItemMinSats": {
     "message": "Minimum satellites"
   },
+  "failsafeGpsRescueItemDescentBank": {
+    "message": "Descent Allow Max Bank Angle"
+  },
+  "failsafeGpsRescueDescentBankHelp": {
+    "message": "Maximum bank angle allowed during descent in GPS rescue mode (15–45 deg)",
+    "description": "Help text for gps_rescue_descent_bank field"
+  },
   "failsafeGpsRescueItemAllowArmingWithoutFix": {
     "message": "Allow arming without fix - <span class=\"message-negative\">WARNING: No fix = disarm on failsafe!</span>"
   },
