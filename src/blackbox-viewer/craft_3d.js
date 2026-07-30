@@ -39,7 +39,7 @@ export function Craft3D(flightLog, canvas, propColors) {
 
         for (let i = 0; i < NUM_PROP_LEVELS; i++) {
             if (i === 0) {
-                props[i] = new THREE.BufferGeometry();
+                props[i] = new THREE.Geometry();
             } else {
                 const shape = new THREE.Shape();
 
