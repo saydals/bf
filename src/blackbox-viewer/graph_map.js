@@ -18,9 +18,6 @@ export function MapGrapher() {
         groundCourseIndexAtFrame,
         flightLog;
 
-    // drag state for moving the map container
-    let dragState = null;
-
     const coordinateDivider = 10000000;
     const altitudeDivider = 10;
     const grounCourseDivider = 10;
@@ -182,116 +179,123 @@ export function MapGrapher() {
             obs.observe(mapEl);
         }
 
-        // Drag handle for moving the map container to a different position on screen
-        this.createDragHandle();
+        // Add drag control so the map frame can be freely repositioned
+        this.enableDragControl();
     };
 
-    this.createDragHandle = function () {
-        const mapEl = document.getElementById("mapContainer");
-        if (!mapEl) return;
+    // --- Leaflet control: draggable map frame button (bottomleft) ---
+    // Small grab-style button that, when held and dragged, moves the map frame on screen.
+    L.Control.MapDrag = L.Control.extend({
+        options: { position: "bottomleft" },
+        onAdd: function () {
+            const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-actions");
+            const btn = L.DomUtil.create("button", "", container);
+            btn.type = "button";
+            btn.innerHTML = "&#x1F426;";
+            btn.title = "Hold & drag to move map position";
+            btn.setAttribute("aria-label", "Drag map position");
+            btn.style.cssText = "font-size:16px;width:30px;height:30px;";
+            L.DomEvent.on(btn, "mousedown", L.DomEvent.stopPropagation);
+            L.DomEvent.on(btn, "touchstart", L.DomEvent.stopPropagation);
+            L.DomEvent.on(btn, "mousedown", function (e) {
+                startMapDrag(e);
+            });
+            L.DomEvent.on(
+                btn,
+                "touchstart",
+                function (e) {
+                    startMapDrag(e);
+                },
+                { passive: false },
+            );
+            return container;
+        },
+    });
 
-        // Remove existing handle if any (re-creation safety)
-        const existing = document.getElementById("mapDragHandle");
-        if (existing) existing.remove();
+    let mapDragState = null;
+    let mapDragControl = null;
 
-        const handle = document.createElement("div");
-        handle.id = "mapDragHandle";
-        handle.setAttribute("aria-label", "Drag to move map position");
-        handle.title = "드래그하여 맵 위치 이동";
-        handle.style.cssText =
-            "position:absolute;bottom:0;left:0;right:0;height:8px;cursor:grab;z-index:1001;background:rgba(0,0,0,0.15);border-radius:4px 4px 0 0;transition:background 0.15s ease;";
-
-        handle.addEventListener("mousedown", onDragStart);
-        handle.addEventListener("touchstart", onDragStart, { passive: false });
-        mapEl.appendChild(handle);
-    };
-
-    function onDragStart(e) {
-        e.preventDefault();
-        e.stopPropagation();
+    function startMapDrag(e) {
         const mapEl = document.getElementById("mapContainer");
         if (!mapEl || !myMap) return;
 
-        const touch = e.touches ? e.touches[0] : e;
-        const rect = mapEl.getBoundingClientRect();
-        dragState = {
-            startX: touch.clientX,
-            startY: touch.clientY,
-            origLeft: rect.left,
-            origTop: rect.top,
-            mapEl,
-            parentRect: mapEl.parentElement.getBoundingClientRect(),
-        };
-
-        document.addEventListener("mousemove", onDragMove);
-        document.addEventListener("mouseup", onDragEnd);
-        document.addEventListener("touchmove", onDragMove, { passive: false });
-        document.addEventListener("touchend", onDragEnd);
-        document.addEventListener("touchcancel", onDragEnd);
+        e.preventDefault();
+        e.stopPropagation();
 
         mapEl.style.cursor = "grabbing";
-        handle.style.background = "rgba(0,0,0,0.35)";
+
+        const touch = e.touches ? e.touches[0] : e;
+        const origLeft = parseFloat(mapEl.style.left) || 0;
+        const origTop = parseFloat(mapEl.style.top) || 0;
+
+        mapDragState = {
+            startX: touch.clientX,
+            startY: touch.clientY,
+            origLeft,
+            origTop,
+            mapEl,
+        };
+
+        document.addEventListener("mousemove", onMapDragMove);
+        document.addEventListener("mouseup", onMapDragEnd);
+        document.addEventListener("touchmove", onMapDragMove, { passive: false });
+        document.addEventListener("touchend", onMapDragEnd);
+        document.addEventListener("touchcancel", onMapDragEnd);
     }
 
-    function onDragMove(e) {
-        if (!dragState) return;
+    function onMapDragMove(e) {
+        if (!mapDragState) return;
         e.preventDefault();
 
         const touch = e.touches ? e.touches[0] : e;
-        const dx = touch.clientX - dragState.startX;
-        const dy = touch.clientY - dragState.startY;
+        const dx = touch.clientX - mapDragState.startX;
+        const dy = touch.clientY - mapDragState.startY;
 
-        const parentW = dragState.parentRect.width;
-        const parentH = dragState.parentRect.height;
+        const parentRect = mapDragState.mapEl.parentElement.getBoundingClientRect();
 
-        let newLeft = dragState.origLeft - dragState.parentRect.left + dx;
-        let newTop = dragState.origTop - dragState.parentRect.top + dy;
+        let newLeft = mapDragState.origLeft + dx;
+        let newTop = mapDragState.origTop + dy;
 
-        // Clamp within parent bounds (allow 50% overlap to allow moving offscreen partially)
-        newLeft = Math.max(-dragState.mapEl.offsetWidth * 0.5, Math.min(parentW - 50, newLeft));
-        newTop = Math.max(-dragState.mapEl.offsetHeight * 0.5, Math.min(parentH - 50, newTop));
+        newLeft = Math.max(-mapDragState.mapEl.offsetWidth * 0.5, Math.min(parentRect.width - 50, newLeft));
+        newTop = Math.max(-mapDragState.mapEl.offsetHeight * 0.5, Math.min(parentRect.height - 50, newTop));
 
-        dragState.mapEl.style.left = `${newLeft}px`;
-        dragState.mapEl.style.top = `${newTop}px`;
+        mapDragState.mapEl.style.left = `${newLeft}px`;
+        mapDragState.mapEl.style.top = `${newTop}px`;
     }
 
-    function onDragEnd(e) {
-        if (!dragState) return;
+    function onMapDragEnd(e) {
+        if (!mapDragState) return;
 
-        document.removeEventListener("mousemove", onDragMove);
-        document.removeEventListener("mouseup", onDragEnd);
-        document.removeEventListener("touchmove", onDragMove);
-        document.removeEventListener("touchend", onDragEnd);
-        document.removeEventListener("touchcancel", onDragEnd);
+        document.removeEventListener("mousemove", onMapDragMove);
+        document.removeEventListener("mouseup", onMapDragEnd);
+        document.removeEventListener("touchmove", onMapDragMove);
+        document.removeEventListener("touchend", onMapDragEnd);
+        document.removeEventListener("touchcancel", onMapDragEnd);
 
-        const mapEl = dragState.mapEl;
+        const mapEl = mapDragState.mapEl;
         mapEl.style.cursor = "";
 
-        const handle = document.getElementById("mapDragHandle");
-        if (handle) handle.style.background = "rgba(0,0,0,0.15)";
+        const parentRect = mapEl.parentElement.getBoundingClientRect();
 
-        // Convert pixel position back to userSettings percentage values
-        const parentW = dragState.parentRect.width;
-        const parentH = dragState.parentRect.height;
-        const elW = mapEl.offsetWidth;
-        const elH = mapEl.offsetHeight;
-
-        const leftPct = Math.max(0, (parseFloat(mapEl.style.left) / parentW) * 100);
-        const topPct = Math.max(0, (parseFloat(mapEl.style.top) / parentH) * 100);
-
-        // Update settings so position persists for this session
         if (userSettings && userSettings.map) {
+            const leftPct = Math.max(0, (parseFloat(mapEl.style.left) / parentRect.width) * 100);
+            const topPct = Math.max(0, (parseFloat(mapEl.style.top) / parentRect.height) * 100);
             userSettings.map.left = Math.round(leftPct);
             userSettings.map.top = Math.round(topPct);
         }
 
-        // Let Leaflet recalculate the map dimensions at the new position
         if (myMap) {
             requestAnimationFrame(() => myMap.invalidateSize());
         }
 
-        dragState = null;
+        mapDragState = null;
     }
+
+    this.enableDragControl = function () {
+        if (!myMap || mapDragControl) return;
+        mapDragControl = new L.Control.MapDrag();
+        myMap.addControl(mapDragControl);
+    };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
     // the map instance and its DOM/event handlers.
