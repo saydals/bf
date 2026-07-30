@@ -214,13 +214,22 @@
 .isBF #mapContainer .icon {
     filter: invert(30%) sepia(60%) saturate(4000%) hue-rotate(5deg) brightness(120%) contrast(115%);
 }
+.isBF #mapContainer .icon.home-icon {
+    filter: invert(38%) sepia(100%) saturate(6000%) hue-rotate(30deg) brightness(110%) contrast(105%);
+}
 
 .isCF #mapContainer .icon {
     filter: invert(28%) sepia(100%) saturate(2050%) hue-rotate(134deg) brightness(100%) contrast(104%);
 }
+.isCF #mapContainer .icon.home-icon {
+    filter: invert(38%) sepia(100%) saturate(6000%) hue-rotate(30deg) brightness(110%) contrast(105%);
+}
 
 .isINAV #mapContainer .icon {
     filter: invert(14%) sepia(100%) saturate(4698%) hue-rotate(244deg) brightness(64%) contrast(130%);
+}
+.isINAV #mapContainer .icon.home-icon {
+    filter: invert(38%) sepia(100%) saturate(6000%) hue-rotate(30deg) brightness(110%) contrast(105%);
 }
 
 .analyser:hover .non-shift .spectrum-buttons {

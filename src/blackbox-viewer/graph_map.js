@@ -36,9 +36,9 @@ export function MapGrapher() {
 
     const homeIcon = L.icon({
         iconUrl: "images/markers/home.png",
-        iconSize: [40, 40],
-        iconAnchor: [20, 35],
-        className: "icon",
+        iconSize: [60, 60],
+        iconAnchor: [30, 53],
+        className: "icon home-icon",
     });
 
     const polylineOptions = {
