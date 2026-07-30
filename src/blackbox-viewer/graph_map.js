@@ -199,7 +199,7 @@ export function MapGrapher() {
         handle.setAttribute("aria-label", "Drag to move map position");
         handle.title = "드래그하여 맵 위치 이동";
         handle.style.cssText =
-            "position:absolute;top:0;left:0;right:0;height:8px;cursor:grab;z-index:1001;background:rgba(0,0,0,0.15);border-radius:0 0 4px 4px;transition:background 0.15s ease;";
+            "position:absolute;bottom:0;left:0;right:0;height:8px;cursor:grab;z-index:1001;background:rgba(0,0,0,0.15);border-radius:4px 4px 0 0;transition:background 0.15s ease;";
 
         handle.addEventListener("mousedown", onDragStart);
         handle.addEventListener("touchstart", onDragStart, { passive: false });
