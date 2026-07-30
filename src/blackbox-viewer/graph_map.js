@@ -83,6 +83,67 @@ export function MapGrapher() {
     let currentLayer = "street";
     let currentTileLayer = null;
 
+    // --- Leaflet custom control: map action buttons (layer toggle, home, fullscreen) ---
+    L.Control.MapActions = L.Control.extend({
+        options: { position: "topright" },
+        initialize: function (options) {
+            L.setOptions(this, options);
+            this._activeLayer = "street";
+        },
+        onAdd: function () {
+            const g = this.options.grapher;
+            const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-actions");
+            const layers = ["street", "satellite", "hybrid"];
+            const labels = { street: "R", satellite: "S", hybrid: "H" };
+            const self = this;
+            layers.forEach((key) => {
+                const btn = L.DomUtil.create("button", "", container);
+                btn.type = "button";
+                btn.textContent = labels[key];
+                btn.title = key.charAt(0).toUpperCase() + key.slice(1);
+                btn.setAttribute("aria-label", key + " layer");
+                btn.classList.toggle("active", key === self._activeLayer);
+                L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
+                L.DomEvent.on(btn, "click", function () {
+                    self._activeLayer = key;
+                    self._updateActive();
+                    g.setLayer(key);
+                });
+            });
+            L.DomUtil.create("span", "leaflet-control-separator", container);
+            const homeBtn = L.DomUtil.create("button", "", container);
+            homeBtn.type = "button";
+            homeBtn.innerHTML = "&#x1F3E0;";
+            homeBtn.title = "Zoom to home";
+            homeBtn.setAttribute("aria-label", "Zoom to home");
+            L.DomEvent.on(homeBtn, "click", L.DomEvent.stopPropagation);
+            L.DomEvent.on(homeBtn, "click", function () {
+                g.zoomHome();
+            });
+            const fsBtn = L.DomUtil.create("button", "", container);
+            fsBtn.type = "button";
+            fsBtn.innerHTML = "&#x26F6;";
+            fsBtn.title = "Toggle fullscreen";
+            fsBtn.setAttribute("aria-label", "Toggle fullscreen");
+            L.DomEvent.on(fsBtn, "click", L.DomEvent.stopPropagation);
+            L.DomEvent.on(fsBtn, "click", function () {
+                g.toggleFullscreen();
+            });
+            return container;
+        },
+        _updateActive: function () {
+            const container = this.getContainer();
+            if (!container) return;
+            const buttons = container.querySelectorAll("button");
+            buttons.forEach((btn) => btn.classList.remove("active"));
+            // R=0, S=1, H=2 are the first three buttons
+            const layerIndex = ["street", "satellite", "hybrid"].indexOf(this._activeLayer);
+            if (buttons[layerIndex]) {
+                buttons[layerIndex].classList.add("active");
+            }
+        },
+    });
+
     this.initialize = function () {
         if (myMap) {
             return;
@@ -95,6 +156,8 @@ export function MapGrapher() {
             minZoom: 1,
             attribution: layerAttributions[currentLayer],
         }).addTo(myMap);
+
+        myMap.addControl(new L.Control.MapActions({ grapher: this }));
     };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
