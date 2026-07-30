@@ -85,7 +85,7 @@ export function MapGrapher() {
 
     // --- Leaflet custom control: map action buttons (layer toggle, home, fullscreen) ---
     L.Control.MapActions = L.Control.extend({
-        options: { position: "topright" },
+        options: { position: "topleft" },
         initialize: function (options) {
             L.setOptions(this, options);
             this._activeLayer = "street";
@@ -93,14 +93,14 @@ export function MapGrapher() {
         onAdd: function () {
             const g = this.options.grapher;
             const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-actions");
-            const layers = ["street", "satellite", "hybrid"];
-            const labels = { street: "R", satellite: "S", hybrid: "H" };
+            const layers = ["street", "satellite"];
+            const labels = { street: "R", satellite: "S" };
             const self = this;
             layers.forEach((key) => {
                 const btn = L.DomUtil.create("button", "", container);
                 btn.type = "button";
                 btn.textContent = labels[key];
-                btn.title = key.charAt(0).toUpperCase() + key.slice(1);
+                btn.title = key === "street" ? "Street map" : "Satellite map";
                 btn.setAttribute("aria-label", key + " layer");
                 btn.classList.toggle("active", key === self._activeLayer);
                 L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
@@ -137,7 +137,7 @@ export function MapGrapher() {
             const buttons = container.querySelectorAll("button");
             buttons.forEach((btn) => btn.classList.remove("active"));
             // R=0, S=1, H=2 are the first three buttons
-            const layerIndex = ["street", "satellite", "hybrid"].indexOf(this._activeLayer);
+            const layerIndex = ["street", "satellite"].indexOf(this._activeLayer);
             if (buttons[layerIndex]) {
                 buttons[layerIndex].classList.add("active");
             }
@@ -496,7 +496,7 @@ export function MapGrapher() {
                 top: `${containerstyle.top}px`,
             });
             if (myMap) {
-                myMap.invalidateSize();
+                requestAnimationFrame(() => myMap.invalidateSize());
             }
         }
     };
