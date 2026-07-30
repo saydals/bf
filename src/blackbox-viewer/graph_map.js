@@ -191,7 +191,7 @@ export function MapGrapher() {
             const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-actions");
             const btn = L.DomUtil.create("button", "", container);
             btn.type = "button";
-            btn.innerHTML = "&#x1F426;";
+            btn.innerHTML = "&#x270B;";
             btn.title = "Hold & drag to move map position";
             btn.setAttribute("aria-label", "Drag map position");
             btn.style.cssText = "font-size:16px;width:30px;height:30px;";
