@@ -68,6 +68,21 @@ export function MapGrapher() {
         radius: 1,
     };
 
+    // map layers
+    const layerUrls = {
+        street: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        hybrid: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    };
+    const layerAttributions = {
+        street: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        satellite: '&copy; <a href="https://www.arcgis.com/">Esri</a> — Source: Esri, Maxar, Earthstar',
+        hybrid: '&copy; <a href="https://www.arcgis.com/">Esri</a> — Source: Esri, Maxar + OpenStreetMap labels',
+    };
+    const layerLabels = { street: "R", satellite: "S", hybrid: "H" };
+    let currentLayer = "street";
+    let currentTileLayer = null;
+
     this.initialize = function () {
         if (myMap) {
             return;
@@ -75,10 +90,10 @@ export function MapGrapher() {
 
         myMap = L.map("mapContainer", mapOptions);
 
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        currentTileLayer = L.tileLayer(layerUrls[currentLayer], {
             maxZoom: 19,
             minZoom: 1,
-            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            attribution: layerAttributions[currentLayer],
         }).addTo(myMap);
     };
 
@@ -89,9 +104,49 @@ export function MapGrapher() {
             myMap.remove();
             myMap = null;
         }
+        currentTileLayer = null;
         trailLayers = new Map();
         craftMarker = null;
         homeMarker = null;
+    };
+
+    this.setLayer = function (layerKey) {
+        if (!myMap || !layerUrls[layerKey] || layerKey === currentLayer) {
+            return;
+        }
+        if (currentTileLayer) {
+            myMap.removeLayer(currentTileLayer);
+        }
+        currentLayer = layerKey;
+        currentTileLayer = L.tileLayer(layerUrls[currentLayer], {
+            maxZoom: 19,
+            minZoom: 1,
+            attribution: layerAttributions[currentLayer],
+        }).addTo(myMap);
+    };
+
+    this.zoomHome = function () {
+        if (!myMap || !homePosition) {
+            return;
+        }
+        myMap.setView(homePosition, Math.max(myMap.getZoom(), 12));
+    };
+
+    this.toggleFullscreen = function () {
+        if (!myMap) {
+            return;
+        }
+        const el = document.getElementById("mapContainer");
+        if (!el) {
+            return;
+        }
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            el.requestFullscreen?.();
+            el.webkitRequestFullscreen?.();
+        } else {
+            document.exitFullscreen?.();
+            document.webkitExitFullscreen?.();
+        }
     };
 
     this.reset = function () {
