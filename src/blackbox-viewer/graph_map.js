@@ -360,7 +360,7 @@ export function MapGrapher() {
     };
 
     this.resize = function (width, height) {
-        if (!myMap || !userSettings) {
+        if (!userSettings) {
             return;
         }
         const containerstyle = {
@@ -377,7 +377,9 @@ export function MapGrapher() {
                 left: `${containerstyle.left}px`,
                 top: `${containerstyle.top}px`,
             });
-            myMap.invalidateSize();
+            if (myMap) {
+                myMap.invalidateSize();
+            }
         }
     };
 
