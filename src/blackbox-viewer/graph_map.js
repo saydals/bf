@@ -158,6 +158,26 @@ export function MapGrapher() {
         }).addTo(myMap);
 
         myMap.addControl(new L.Control.MapActions({ grapher: this }));
+
+        // Fix: map may render at 0×0 when container is hidden on init.
+        // Observe container size and invalidate when it gets real dimensions.
+        const mapEl = document.getElementById("mapContainer");
+        if (mapEl && typeof ResizeObserver !== "undefined") {
+            let lastW = 0;
+            let lastH = 0;
+            const obs = new ResizeObserver((entries) => {
+                for (const entry of entries) {
+                    const w = entry.contentRect.width;
+                    const h = entry.contentRect.height;
+                    if (w > 0 && h > 0 && (w !== lastW || h !== lastH)) {
+                        lastW = w;
+                        lastH = h;
+                        myMap.invalidateSize();
+                    }
+                }
+            });
+            obs.observe(mapEl);
+        }
     };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
