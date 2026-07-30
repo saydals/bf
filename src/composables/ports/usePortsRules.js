@@ -71,11 +71,11 @@ export function usePortsRules() {
     const blackboxBaudRates = [
         "AUTO",
         "19200",
-        "38400",
         "57600",
         "115200",
         "230400",
         "250000",
+        "1000000",
         "1500000",
         "2000000",
         "2470000",
