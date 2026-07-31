@@ -589,6 +589,33 @@ export function MapGrapher() {
         layers.ab.forEach((layer) => myMap.removeLayer(layer));
     };
 
+    this.fitMapToAllLayers = function (logIndex, flightPolyline) {
+        if (!myMap || !flightPolyline) {
+            return;
+        }
+
+        const bounds = flightPolyline.getBounds();
+        const layers = routeLayers.get(logIndex);
+        if (layers) {
+            const routeLayersToInclude = [...layers.waypoints, ...layers.ab];
+            if (layers.route) {
+                routeLayersToInclude.push(layers.route);
+            }
+
+            routeLayersToInclude.forEach((layer) => {
+                if (typeof layer.getBounds === "function") {
+                    bounds.extend(layer.getBounds());
+                } else if (typeof layer.getLatLng === "function") {
+                    bounds.extend(layer.getLatLng());
+                }
+            });
+        }
+
+        if (bounds.isValid()) {
+            myMap.fitBounds(bounds);
+        }
+    };
+
     this.getPolylinesData = function () {
         const latlngs = [];
         const rescueLatlngs = [];
@@ -712,8 +739,8 @@ export function MapGrapher() {
                 if (rescuePolyline) {
                     rescuePolyline.addTo(myMap);
                 }
-                myMap.fitBounds(polyline.getBounds());
                 this.addRouteLayers(currentLogIndex);
+                this.fitMapToAllLayers(currentLogIndex, polyline);
             }
 
             previousLogIndex = currentLogIndex;
