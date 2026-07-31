@@ -1,4 +1,5 @@
 import { useSettingsStore } from "./stores/settings.js";
+import { FLIGHT_LOG_FLIGHT_MODE_NAME } from "./flightlog_fielddefs.js";
 
 export function MapGrapher() {
     const { userSettings } = useSettingsStore();
@@ -11,6 +12,7 @@ export function MapGrapher() {
         craftMarker,
         homeMarker,
         trailLayers = new Map(),
+        routeLayers = new Map(),
         previousLogIndex,
         latIndexAtFrame,
         lngIndexAtFrame,
@@ -41,6 +43,43 @@ export function MapGrapher() {
         className: "icon home-icon",
     });
 
+    const waypointIcon = L.divIcon({
+        className: "blackbox-waypoint-marker",
+        html: '<span class="blackbox-waypoint-marker__label">WP</span>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+    });
+
+    const aPointIcon = L.divIcon({
+        className: "blackbox-route-marker blackbox-route-marker--a",
+        html: '<span class="blackbox-route-marker__label">A</span>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+    });
+
+    const bPointIcon = L.divIcon({
+        className: "blackbox-route-marker blackbox-route-marker--b",
+        html: '<span class="blackbox-route-marker__label">B</span>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+    });
+
+    const routePolylineOptions = {
+        color: "#ffcc00",
+        dashArray: "6 8",
+        opacity: 0.9,
+        weight: 3,
+        smoothFactor: 1,
+    };
+
+    const abPolylineOptions = {
+        color: "#ff66cc",
+        dashArray: "4 8",
+        opacity: 0.9,
+        weight: 3,
+        smoothFactor: 1,
+    };
+
     const polylineOptions = {
         color: "#2db0e3",
         opacity: 0.8,
@@ -58,6 +97,15 @@ export function MapGrapher() {
         { color: "#ff4c00bf" },
         { color: "#ff1414" },
     ];
+
+    const rescuePolylineOptions = {
+        color: "#d946ef",
+        dashArray: "8 4",
+        opacity: 0.95,
+        weight: 4,
+        smoothFactor: 1,
+        lineCap: "round",
+    };
 
     // debug circles can be used to aligh icons at the correct coordinates
     const debugCircle = false;
@@ -79,7 +127,6 @@ export function MapGrapher() {
         satellite: '&copy; <a href="https://www.arcgis.com/">Esri</a> — Source: Esri, Maxar, Earthstar',
         hybrid: '&copy; <a href="https://www.arcgis.com/">Esri</a> — Source: Esri, Maxar + OpenStreetMap labels',
     };
-    const layerLabels = { street: "R", satellite: "S", hybrid: "H" };
     let currentLayer = "street";
     let currentTileLayer = null;
 
@@ -101,7 +148,7 @@ export function MapGrapher() {
                 btn.type = "button";
                 btn.textContent = labels[key];
                 btn.title = key === "street" ? "Street map" : "Satellite map";
-                btn.setAttribute("aria-label", key + " layer");
+                btn.setAttribute("aria-label", `${key} layer`);
                 btn.classList.toggle("active", key === self._activeLayer);
                 L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
                 L.DomEvent.on(btn, "click", function () {
@@ -263,7 +310,7 @@ export function MapGrapher() {
         mapDragState.mapEl.style.top = `${newTop}px`;
     }
 
-    function onMapDragEnd(e) {
+    function onMapDragEnd() {
         if (!mapDragState) return;
 
         document.removeEventListener("mousemove", onMapDragMove);
@@ -306,6 +353,7 @@ export function MapGrapher() {
         }
         currentTileLayer = null;
         trailLayers = new Map();
+        routeLayers = new Map();
         craftMarker = null;
         homeMarker = null;
     };
@@ -362,6 +410,7 @@ export function MapGrapher() {
         craftMarker = null;
         homeMarker = null;
         trailLayers = new Map();
+        routeLayers = new Map();
         previousLogIndex = null;
         latIndexAtFrame = null;
         lngIndexAtFrame = null;
@@ -387,7 +436,8 @@ export function MapGrapher() {
         }
 
         this.setFlightLogIndexs();
-        const { latlngs, maxAlt, minAlt } = this.getPolylinesData();
+        const { latlngs, maxAlt, minAlt, rescueLatlngs } = this.getPolylinesData();
+        const routeData = this.getRouteData();
 
         const hasGpsData = latlngs.length > 0;
 
@@ -395,8 +445,10 @@ export function MapGrapher() {
             const polyline = L.polyline(latlngs, polylineOptions);
 
             const polylineC = this.createAltitudeColoredPolyline(latlngs, maxAlt, minAlt);
+            const rescuePolyline = rescueLatlngs.length > 1 ? L.polyline(rescueLatlngs, rescuePolylineOptions) : null;
 
-            trailLayers.set(logIndex, { polyline, polylineC });
+            trailLayers.set(logIndex, { polyline, polylineC, rescuePolyline });
+            routeLayers.set(logIndex, this.createRouteLayers(routeData));
 
             homePosition = this.getHomeCoordinatesFromFlightLog(flightLog);
         } else {
@@ -413,10 +465,141 @@ export function MapGrapher() {
         groundCourseIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_ground_course");
     };
 
+    this.getRouteData = function () {
+        const fieldIndexes = flightLog.getMainFieldIndexes();
+        const waypoints = [];
+        const waypointValues = new Map();
+        const abValues = { a: {}, b: {} };
+        const chunks = flightLog.getChunksInTimeRange(flightLog.getMinTime(), flightLog.getMaxTime());
+
+        const readValue = (frame, name) => {
+            const index = fieldIndexes[name];
+            return index === undefined || !this.isNumber(frame[index]) ? null : frame[index];
+        };
+
+        for (const chunk of chunks) {
+            for (const frame of chunk.frames) {
+                for (let i = 0; i < 15; i++) {
+                    const lat = readValue(frame, `GPS_wp_${i}_lat`);
+                    const lon = readValue(frame, `GPS_wp_${i}_lon`);
+                    if (lat !== null && lon !== null && (lat !== 0 || lon !== 0)) {
+                        waypointValues.set(i, {
+                            lat: lat / coordinateDivider,
+                            lon: lon / coordinateDivider,
+                        });
+                    }
+                }
+
+                for (const point of ["a", "b"]) {
+                    const prefix = point === "a" ? "GPS_A" : "GPS_B";
+                    const lat = readValue(frame, `${prefix}_lat`);
+                    const lon = readValue(frame, `${prefix}_lon`);
+                    if (lat !== null && lon !== null && (lat !== 0 || lon !== 0)) {
+                        abValues[point] = {
+                            lat: lat / coordinateDivider,
+                            lon: lon / coordinateDivider,
+                        };
+                    }
+                }
+            }
+        }
+
+        for (const [index, point] of waypointValues) {
+            waypoints[index] = L.latLng(point.lat, point.lon);
+        }
+
+        return {
+            waypoints: waypoints.filter(Boolean),
+            a: abValues.a.lat === undefined ? null : L.latLng(abValues.a.lat, abValues.a.lon),
+            b: abValues.b.lat === undefined ? null : L.latLng(abValues.b.lat, abValues.b.lon),
+        };
+    };
+
+    this.createRouteLayers = function ({ waypoints, a, b }) {
+        const layers = {
+            waypoints: [],
+            route: null,
+            ab: [],
+        };
+
+        if (waypoints.length > 0) {
+            layers.waypoints = waypoints.map((point, index) =>
+                L.marker(point, {
+                    icon: waypointIcon,
+                    title: `Waypoint ${index + 1}`,
+                }),
+            );
+            if (waypoints.length > 1) {
+                layers.route = L.polyline(waypoints, {
+                    ...routePolylineOptions,
+                    className: "blackbox-waypoint-route",
+                });
+            }
+        }
+
+        if (a) {
+            layers.ab.push(
+                L.marker(a, {
+                    icon: aPointIcon,
+                    title: "Rescue point A",
+                }),
+            );
+        }
+        if (b) {
+            layers.ab.push(
+                L.marker(b, {
+                    icon: bPointIcon,
+                    title: "Rescue point B",
+                }),
+            );
+        }
+        if (a && b) {
+            layers.ab.push(
+                L.polyline([a, b], {
+                    ...abPolylineOptions,
+                    className: "blackbox-ab-route",
+                }),
+            );
+        }
+
+        return layers;
+    };
+
+    this.addRouteLayers = function (logIndex) {
+        const layers = routeLayers.get(logIndex);
+        if (!layers || !myMap) {
+            return;
+        }
+        layers.waypoints.forEach((layer) => layer.addTo(myMap));
+        if (layers.route) {
+            layers.route.addTo(myMap);
+        }
+        layers.ab.forEach((layer) => layer.addTo(myMap));
+    };
+
+    this.removeRouteLayers = function (logIndex) {
+        const layers = routeLayers.get(logIndex);
+        if (!layers || !myMap) {
+            return;
+        }
+        layers.waypoints.forEach((layer) => myMap.removeLayer(layer));
+        if (layers.route) {
+            myMap.removeLayer(layers.route);
+        }
+        layers.ab.forEach((layer) => myMap.removeLayer(layer));
+    };
+
     this.getPolylinesData = function () {
         const latlngs = [];
+        const rescueLatlngs = [];
         let maxAlt = Number.MIN_VALUE;
         let minAlt = Number.MAX_VALUE;
+        const flightModeIndex = flightLog.getMainFieldIndexByName("flightModeFlags");
+        const rescueModeIndex = Math.max(
+            FLIGHT_LOG_FLIGHT_MODE_NAME.indexOf("GPS_RESCUE"),
+            FLIGHT_LOG_FLIGHT_MODE_NAME.indexOf("GPSRESCUE"),
+        );
+        const rescueModeMask = rescueModeIndex >= 0 ? 1 << rescueModeIndex : 0;
 
         const chunks = flightLog.getChunksInTimeRange(flightLog.getMinTime(), flightLog.getMaxTime());
 
@@ -445,11 +628,15 @@ export function MapGrapher() {
                 // 1/4 of the dots is enough to draw the line
                 if (frameCount % 4 === 0) {
                     latlngs.push(coordinates);
+                    const flightModeFlags = frame[flightModeIndex];
+                    if (rescueModeMask && this.isNumber(flightModeFlags) && (flightModeFlags & rescueModeMask) !== 0) {
+                        rescueLatlngs.push(coordinates);
+                    }
                 }
                 frameCount++;
             }
         }
-        return { latlngs, maxAlt, minAlt };
+        return { latlngs, maxAlt, minAlt, rescueLatlngs };
     };
 
     this.createAltitudeColoredPolyline = function (latlngs, maxAlt, minAlt) {
@@ -521,7 +708,12 @@ export function MapGrapher() {
                     ? trailLayers.get(currentLogIndex).polylineC
                     : trailLayers.get(currentLogIndex).polyline;
                 polyline.addTo(myMap);
+                const rescuePolyline = trailLayers.get(currentLogIndex).rescuePolyline;
+                if (rescuePolyline) {
+                    rescuePolyline.addTo(myMap);
+                }
                 myMap.fitBounds(polyline.getBounds());
+                this.addRouteLayers(currentLogIndex);
             }
 
             previousLogIndex = currentLogIndex;
@@ -583,14 +775,19 @@ export function MapGrapher() {
     };
 
     this.clearMapFlightTrails = function (trailIndex) {
+        this.removeRouteLayers(trailIndex);
         if (trailLayers.has(trailIndex)) {
             const p = trailLayers.get(trailIndex).polyline;
             const pc = trailLayers.get(trailIndex).polylineC;
+            const rescuePolyline = trailLayers.get(trailIndex).rescuePolyline;
             if (p) {
                 myMap.removeLayer(p);
             }
             if (pc) {
                 myMap.removeLayer(pc);
+            }
+            if (rescuePolyline) {
+                myMap.removeLayer(rescuePolyline);
             }
         }
     };

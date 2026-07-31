@@ -647,3 +647,38 @@
     background: var(--border-color, #ccc);
     margin: 2px 0;
 }
+
+/* Blackbox flight-plan and rescue-point markers */
+.blackbox-waypoint-marker,
+.blackbox-route-marker {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--surface-100, #fff);
+    border-radius: 50%;
+    box-shadow: 0 1px 4px var(--shadow-color, rgba(0, 0, 0, 0.45));
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+}
+
+.blackbox-waypoint-marker {
+    background: var(--blackbox-waypoint-color, #e5b900);
+    color: var(--text-inverse, #fff);
+}
+
+.blackbox-route-marker--a {
+    background: var(--blackbox-rescue-a-color, #d946a8);
+    color: var(--text-inverse, #fff);
+}
+
+.blackbox-route-marker--b {
+    background: var(--blackbox-rescue-b-color, #0891b2);
+    color: var(--text-inverse, #fff);
+}
+
+.blackbox-waypoint-marker__label,
+.blackbox-route-marker__label {
+    pointer-events: none;
+}
