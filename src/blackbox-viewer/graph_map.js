@@ -43,12 +43,13 @@ export function MapGrapher() {
         className: "icon home-icon",
     });
 
-    const waypointIcon = L.divIcon({
-        className: "blackbox-waypoint-marker",
-        html: '<span class="blackbox-waypoint-marker__label">WP</span>',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-    });
+    const createWaypointIcon = (index) =>
+        L.divIcon({
+            className: "blackbox-waypoint-marker",
+            html: `<span class="blackbox-waypoint-marker__label">P${index + 1}</span>`,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+        });
 
     const aPointIcon = L.divIcon({
         className: "blackbox-route-marker blackbox-route-marker--a",
@@ -479,7 +480,7 @@ export function MapGrapher() {
 
         for (const chunk of chunks) {
             for (const frame of chunk.frames) {
-                for (let i = 0; i < 15; i++) {
+                for (let i = 0; i < 99; i++) {
                     const lat = readValue(frame, `GPS_wp_${i}_lat`);
                     const lon = readValue(frame, `GPS_wp_${i}_lon`);
                     if (lat !== null && lon !== null && (lat !== 0 || lon !== 0)) {
@@ -525,7 +526,7 @@ export function MapGrapher() {
         if (waypoints.length > 0) {
             layers.waypoints = waypoints.map((point, index) =>
                 L.marker(point, {
-                    icon: waypointIcon,
+                    icon: createWaypointIcon(index),
                     title: `Waypoint ${index + 1}`,
                 }),
             );
