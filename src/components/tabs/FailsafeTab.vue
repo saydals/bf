@@ -373,6 +373,22 @@
                                     />
                                 </SettingRow>
                                 <SettingRow
+                                    :label="$t('failsafeGpsRescueItemBankLimit')"
+                                    :help="$t('failsafeGpsRescueBankLimitHelp')"
+                                >
+                                    <UInputNumber
+                                        v-model="gpsRescue.bankLimit"
+                                        :min="30"
+                                        :max="90"
+                                        :step="1"
+                                        :disabled="isGpsSettingsDisabled"
+                                        size="xs"
+                                        orientation="vertical"
+                                        :format-options="{ useGrouping: false }"
+                                        class="w-16"
+                                    />
+                                </SettingRow>
+                                <SettingRow
                                     :label="$t('failsafeGpsRescueItemAllowArmingWithoutFix')"
                                     :help="$t('failsafeGpsRescueArmWithoutFixHelp')"
                                 >

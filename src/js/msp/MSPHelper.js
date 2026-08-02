@@ -13,6 +13,7 @@ import {
     API_VERSION_1_47,
     API_VERSION_1_48,
     API_VERSION_1_49,
+    API_VERSION_1_50,
 } from "../data_storage";
 import EscProtocols from "../utils/EscProtocols";
 import huffmanDecodeBuf from "../huffman";
@@ -601,6 +602,10 @@ MspHelper.prototype.process_data = function (dataHandler) {
                     // Introduced in API version 1.49
                     if (semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_49)) {
                         FC.GPS_RESCUE.descentBank = data.readU16();
+                    }
+                    // Introduced in API version 1.50
+                    if (semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_50)) {
+                        FC.GPS_RESCUE.bankLimit = data.readU16();
                     }
                     break;
                 case MSPCodes.MSP_RSSI_CONFIG:
@@ -2007,6 +2012,10 @@ MspHelper.prototype.crunch = function (code, modifierCode = undefined) {
             // Introduced in 1.49
             if (semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_49)) {
                 buffer.push16(FC.GPS_RESCUE.descentBank);
+            }
+            // Introduced in API version 1.50
+            if (semver.gte(FC.CONFIG.apiVersion, API_VERSION_1_50)) {
+                buffer.push8(FC.GPS_RESCUE.bankLimit);
             }
             break;
         case MSPCodes.MSP_SET_COMPASS_CONFIG:

@@ -5739,6 +5739,13 @@
     "message": "Maximum bank angle allowed during descent in GPS rescue mode (15–45 deg)",
     "description": "Help text for gps_rescue_descent_bank field"
   },
+  "failsafeGpsRescueItemBankLimit": {
+    "message": "GPS Rescue Max Bank Angle"
+  },
+  "failsafeGpsRescueBankLimitHelp": {
+    "message": "Maximum bank angle allowed during GPS rescue mode (30–90 deg)",
+    "description": "Help text for gps_rescue_bank_limit field"
+  },
   "failsafeGpsRescueItemAllowArmingWithoutFix": {
     "message": "Allow arming without fix - <span class=\"message-negative\">WARNING: No fix = disarm on failsafe!</span>"
   },

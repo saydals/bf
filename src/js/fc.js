@@ -681,6 +681,7 @@ const FC = {
             minStartDistM: 0,
             initialClimbM: 0,
             descentBank: 0,
+            bankLimit: 75,
         };
 
         this.RXFAIL_CONFIG = [];
