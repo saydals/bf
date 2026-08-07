@@ -997,7 +997,7 @@ watch(positionSignature, debouncedFetch, { immediate: true });
     font-size: 8px;
 }
 .wp-sa-label {
-    font-size: 7px;
+    font-size: 8px;
     fill: #000;
 }
 .y-axis-title {
