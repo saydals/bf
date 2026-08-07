@@ -96,7 +96,9 @@
                                 class="axis-label wp-sa-label"
                                 text-anchor="middle"
                             >
-                                ({{ label.speed }}/{{ label.angle !== null ? label.angle : "-" }})
+                                ({{ label.speed }},{{ formatAltitude(label.groundElev) }},{{
+                                    label.angle !== null ? label.angle : "-"
+                                }})
                             </text>
                         </g>
 
@@ -529,19 +531,21 @@ const scaledProfilePoints = computed(() =>
     })),
 );
 
-// 누적거리 하단 라벨: 해당 WP 속도(m/s) + 다음 WP까지 상승각도(deg)
+// 누적거리 하단 라벨: 해당 WP 속도 + 지상고도(AGL) + 다음 WP까지 상승각도(deg)
+// 지상고도는 툴팁과 동일하게 calcGroundElev 로 계산
 // 상승각도 X = atan2(다음고도 - 현재고도, 다음거리 - 현재거리) [deg], 소수점 버림
 const scaledProfilePointsLabel = computed(() => {
     const pts = scaledProfilePoints.value;
     return pts.map((p, i) => {
         const speed = Math.floor(settings.storageToMps(p.speed || 0));
+        const groundElev = Math.floor(calcGroundElev(p.altitude ?? 0, p.distance));
         let angle = null;
         if (i < pts.length - 1) {
             const dh = pts[i + 1].altitude - p.altitude;
             const dd = pts[i + 1].distance - p.distance;
             if (dd > 0) angle = Math.floor((Math.atan2(dh, dd) * 180) / Math.PI);
         }
-        return { x: p.x, speed, angle };
+        return { x: p.x, speed, groundElev, angle };
     });
 });
 
