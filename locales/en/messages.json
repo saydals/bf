@@ -3704,6 +3704,9 @@
   "flightPlanGroundElev": {
     "message": "Ground Elev"
   },
+  "flightPlanGroundElevTooltip": {
+    "message": "지상고도 (AGL)"
+  },
   "flightPlanMaxGroundElev": {
     "message": "Max Ground Elev"
   },

@@ -66,15 +66,15 @@
     "message": "연결 끊기"
   },
   "disconnectVirtual": {
-    "message": "연결끊김 (가상)",
+    "message": "연결끊기 (가상)",
     "description": "Disconnect button label shown when connected in virtual mode."
   },
   "disconnectManual": {
-    "message": "연결끊김 (수동)",
+    "message": "연결끊기 (수동)",
     "description": "Disconnect button label shown when connected via manual port override."
   },
   "disconnectBluetooth": {
-    "message": "연결끊김 (블루투스)",
+    "message": "연결끊기 (블루투스)",
     "description": "Disconnect button label shown when connected via Bluetooth."
   },
   "portsSelectNoSelection": {
@@ -3575,6 +3575,9 @@
   },
   "flightPlanGroundElev": {
     "message": "지면 표고"
+  },
+  "flightPlanGroundElevTooltip": {
+    "message": "지상고도 (AGL)"
   },
   "flightPlanMaxGroundElev": {
     "message": "최대 지면 표고"

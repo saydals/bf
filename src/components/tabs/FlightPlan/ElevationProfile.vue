@@ -184,7 +184,7 @@
                     }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div>지상고도: {{ formatAltitude(tooltipData.groundElev) }}</div>
+                    <div>{{ $t("flightPlanGroundElevTooltip") }}: {{ formatAltitude(tooltipData.groundElev) }}</div>
                     <div>{{ $t("flightPlanRelativeAltLabel") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
                     <div>{{ $t("flightPlanSpeedLabel") }}: {{ formatSpeedMps(tooltipData.speed) }}</div>
                 </div>
