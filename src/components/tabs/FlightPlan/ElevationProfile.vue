@@ -96,7 +96,7 @@
                                 class="axis-label wp-sa-label"
                                 text-anchor="middle"
                             >
-                                ({{ label.speed }},{{ formatAltitude(label.groundElev) }},{{
+                                ({{ label.speed }},{{ label.groundElev }},{{
                                     label.angle !== null ? label.angle : "-"
                                 }})
                             </text>
