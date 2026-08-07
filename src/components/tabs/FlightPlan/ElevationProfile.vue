@@ -96,8 +96,7 @@
                                 class="axis-label wp-sa-label"
                                 text-anchor="middle"
                             >
-                                {{ label.speed }}m/s
-                                <span v-if="label.angle !== null">{{ label.angle }}deg</span>
+                                {{ label.speed }}m/s{{ label.angle !== null ? ` ${label.angle}deg` : "" }}
                             </text>
                         </g>
 
@@ -199,7 +198,10 @@
                     }"
                 >
                     <div>WP{{ tooltipData.order }}</div>
-                    <div>{{ $t("flightPlanGroundElevTooltip") }}: {{ formatAltitude(tooltipData.groundElev) }}</div>
+                    <div>
+                        {{ locale === "ko" ? $t("flightPlanGroundElevKo") : $t("flightPlanGroundElevEn") }}:
+                        {{ formatAltitude(tooltipData.groundElev) }}
+                    </div>
                     <div>{{ $t("flightPlanRelativeAltLabel") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
                     <div>{{ $t("flightPlanSpeedLabel") }}: {{ formatSpeedMps(tooltipData.speed) }}</div>
                 </div>
@@ -214,6 +216,7 @@
 
 <script setup>
 import { ref, computed, watch, reactive, onMounted, onUnmounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { debounce } from "lodash-es";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
@@ -223,6 +226,7 @@ const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint
     useFlightPlan();
 const settings = useSettingsStore();
 const waypoints = positionalWaypoints;
+const { locale } = useI18n();
 
 const chartSvg = ref(null);
 

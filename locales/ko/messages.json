@@ -3576,8 +3576,11 @@
   "flightPlanGroundElev": {
     "message": "지면 표고"
   },
-  "flightPlanGroundElevTooltip": {
-    "message": "지상고도 (AGL)"
+  "flightPlanGroundElevKo": {
+    "message": "지상고도"
+  },
+  "flightPlanGroundElevEn": {
+    "message": "AGL"
   },
   "flightPlanMaxGroundElev": {
     "message": "최대 지면 표고"
