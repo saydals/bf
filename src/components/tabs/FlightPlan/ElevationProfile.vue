@@ -199,7 +199,7 @@
                 >
                     <div>WP{{ tooltipData.order }}</div>
                     <div>
-                        {{ locale === "ko" ? $t("flightPlanGroundElevKo") : $t("flightPlanGroundElevEn") }}:
+                        {{ currentLanguage === "ko" ? $t("flightPlanGroundElevKo") : $t("flightPlanGroundElevEn") }}:
                         {{ formatAltitude(tooltipData.groundElev) }}
                     </div>
                     <div>{{ $t("flightPlanRelativeAltLabel") }}: {{ formatAltitude(tooltipData.altitude) }}</div>
@@ -216,8 +216,8 @@
 
 <script setup>
 import { ref, computed, watch, reactive, onMounted, onUnmounted } from "vue";
-import { useI18n } from "vue-i18n";
 import { debounce } from "lodash-es";
+import i18next from "i18next";
 import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
@@ -226,7 +226,11 @@ const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint
     useFlightPlan();
 const settings = useSettingsStore();
 const waypoints = positionalWaypoints;
-const { locale } = useI18n();
+
+const currentLanguage = ref(i18next.language);
+i18next.on("languageChanged", (lng) => {
+    currentLanguage.value = lng;
+});
 
 const chartSvg = ref(null);
 
@@ -294,6 +298,7 @@ onUnmounted(() => {
     window.removeEventListener("touchmove", preventTouchScroll, true);
     window.removeEventListener("scroll", repositionActiveTooltip, true);
     window.removeEventListener("resize", repositionActiveTooltip);
+    i18next.off("languageChanged");
 });
 /* ────────────────── 터치 고정 끝 ────────────────── */
 
