@@ -96,7 +96,7 @@
                                 class="axis-label wp-sa-label"
                                 text-anchor="middle"
                             >
-                                {{ label.speed }}m/s{{ label.angle !== null ? ` ${label.angle}deg` : "" }}
+                                ({{ label.speed }}/{{ label.angle !== null ? label.angle : "-" }})
                             </text>
                         </g>
 
@@ -998,7 +998,7 @@ watch(positionSignature, debouncedFetch, { immediate: true });
 }
 .wp-sa-label {
     font-size: 7px;
-    fill: var(--surface-700);
+    fill: #000;
 }
 .y-axis-title {
     fill: var(--surface-700);
