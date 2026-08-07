@@ -96,7 +96,7 @@
                                 class="axis-label wp-sa-label"
                                 text-anchor="middle"
                             >
-                                ({{ label.speed }},{{ label.groundElev }},{{
+                                ({{ label.speed }},{{ formatAltitude(label.groundElev).replace(/[^0-9.-]/g, "") }},{{
                                     label.angle !== null ? label.angle : "-"
                                 }})
                             </text>
@@ -637,11 +637,12 @@ const repositionActiveTooltip = () => {
 // 🟢 위로 드래그 = 고도 올림 = 녹색
 // 🔵 아래로 드래그 = 고도 내림 = 파란색
 // 🩷 좌우 드래그 = 속도 변경 = 분홍
-// 지상고도 = 기체AMSL - 지면AMSL
+// 지상고도 = 기체AMSL - 지면AMSL (meters)
+// formatAltitude 는 storage(ft) 단위를 기대하므로 ft 로 변환해 반환
 const calcGroundElev = (altitude, distance) => {
     const terrainAMSL = getGroundElevAtPoint(distance);
     const aircraftAMSL = altitude + wp1GroundElevation.value;
-    return Math.round(aircraftAMSL - terrainAMSL);
+    return Math.round((aircraftAMSL - terrainAMSL) * METERS_TO_FEET);
 };
 const getMarkerColor = (p) => {
     if (dragState.value.active && dragState.value.wpUid === p.uid) {
