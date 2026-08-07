@@ -66,6 +66,20 @@ const state = reactive({
     showEditorDialog: false,
 });
 
+// Elevation-profile-derived per-waypoint values (ground elevation AGL in ft,
+// climb angle to next WP in deg, speed in m/s) shared with the waypoint list.
+// Populated by ElevationProfile once terrain samples are resolved.
+const wpElevationLabels = reactive({});
+
+const setWpElevationLabels = (map) => {
+    for (const key of Object.keys(wpElevationLabels)) {
+        if (!(key in map)) delete wpElevationLabels[key];
+    }
+    for (const [uid, value] of Object.entries(map)) {
+        wpElevationLabels[uid] = value;
+    }
+};
+
 // Undo/redo history for waypoint mutations.
 const MAX_UNDO = 50;
 const undoStack = ref([]);
@@ -630,6 +644,9 @@ export function useFlightPlan() {
         selectedWaypoint, // Already a computed property
         editingWaypoint, // Already a computed property
 
+        // Elevation profile derived labels (shared with waypoint list)
+        wpElevationLabels,
+        setWpElevationLabels,
         // Methods
         loadPlan,
         savePlan,

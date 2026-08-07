@@ -52,9 +52,22 @@
                                 {{ $t("flightPlanTypeYawRate") }}: {{ waypoint.speed }}°/s
                             </template>
                             <template v-else>
-                                {{ settings.formatAltitude(waypoint.altitude) }} AGL -
-                                {{ settings.formatSpeedMps(waypoint.speed) }} -
-                                {{ getWaypointTypeLabel(waypoint.type) }}
+                                <span class="wp-detail">{{ wpElevationLabels[waypoint.uid]?.speed ?? "-" }}m/s</span>
+                                <span class="wp-detail">
+                                    {{
+                                        wpElevationLabels[waypoint.uid]?.groundElev != null
+                                            ? settings.formatAltitude(wpElevationLabels[waypoint.uid].groundElev)
+                                            : "-"
+                                    }}
+                                </span>
+                                <span class="wp-detail">
+                                    {{
+                                        wpElevationLabels[waypoint.uid]?.angle != null
+                                            ? wpElevationLabels[waypoint.uid].angle + "°"
+                                            : "-"
+                                    }}
+                                </span>
+                                <span class="wp-detail">{{ getWaypointTypeLabel(waypoint.type) }}</span>
                                 <span v-if="waypoint.type === 'hold'" class="hold-details">
                                     ({{ waypoint.duration }}min, {{ getPatternLabel(waypoint.pattern) }})
                                 </span>
@@ -121,6 +134,7 @@ const {
     reorderWaypoints,
     getWaypointTypeLabel,
     isModifierWaypointType,
+    wpElevationLabels,
 } = useFlightPlan();
 
 const settings = useSettingsStore();
@@ -320,5 +334,9 @@ const handleDragEnd = (event) => {
 
 .hold-details {
     font-style: italic;
+}
+
+.wp-detail {
+    margin-right: 0.5rem;
 }
 </style>

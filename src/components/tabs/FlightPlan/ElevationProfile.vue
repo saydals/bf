@@ -224,8 +224,14 @@ import UiBox from "@/components/elements/UiBox.vue";
 import { useFlightPlan } from "@/composables/useFlightPlan";
 import { useSettingsStore } from "@/stores/settings";
 
-const { positionalWaypoints, selectedWaypointUid, selectWaypoint, updateWaypoint, insertWaypointAfter } =
-    useFlightPlan();
+const {
+    positionalWaypoints,
+    selectedWaypointUid,
+    selectWaypoint,
+    updateWaypoint,
+    insertWaypointAfter,
+    setWpElevationLabels,
+} = useFlightPlan();
 const settings = useSettingsStore();
 const waypoints = positionalWaypoints;
 
@@ -532,7 +538,7 @@ const scaledProfilePoints = computed(() =>
 );
 
 // 누적거리 하단 라벨: 해당 WP 속도 + 지상고도(AGL) + 다음 WP까지 상승각도(deg)
-// 지상고도는 툴팁과 동일하게 calcGroundElev 로 계산
+// 지상고도는 툴팁과 동일하게 calcGroundElev 로 계산 (ft, formatAltitude 입력 단위)
 // 상승각도 X = atan2(다음고도 - 현재고도, 다음거리 - 현재거리) [deg], 소수점 버림
 const scaledProfilePointsLabel = computed(() => {
     const pts = scaledProfilePoints.value;
@@ -545,9 +551,22 @@ const scaledProfilePointsLabel = computed(() => {
             const dd = pts[i + 1].distance - p.distance;
             if (dd > 0) angle = Math.floor((Math.atan2(dh, dd) * 180) / Math.PI);
         }
-        return { x: p.x, speed, groundElev, angle };
+        return { uid: p.uid, x: p.x, speed, groundElev, angle };
     });
 });
+
+// 웨이포인트 목록과 지상고도/각도 값 공유 (uid -> {speed, groundElev, angle})
+watch(
+    scaledProfilePointsLabel,
+    (labels) => {
+        const map = {};
+        for (const l of labels) {
+            map[l.uid] = { speed: l.speed, groundElev: l.groundElev, angle: l.angle };
+        }
+        setWpElevationLabels(map);
+    },
+    { immediate: true },
+);
 
 const linePath = computed(() => scaledProfilePoints.value.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" "));
 const areaPath = computed(() => {
