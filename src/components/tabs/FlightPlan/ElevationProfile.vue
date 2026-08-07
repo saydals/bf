@@ -86,6 +86,21 @@
                             </text>
                         </g>
 
+                        <!-- WP speed + climb angle to next WP (under cumulative distance) -->
+                        <g class="wp-speed-angle">
+                            <text
+                                v-for="(label, index) in scaledProfilePointsLabel"
+                                :key="`sa-label-${index}`"
+                                :x="label.x"
+                                :y="chartHeight - padding.bottom + 28"
+                                class="axis-label wp-sa-label"
+                                text-anchor="middle"
+                            >
+                                {{ label.speed }}m/s
+                                <span v-if="label.angle !== null">{{ label.angle }}deg</span>
+                            </text>
+                        </g>
+
                         <!-- Terrain area fill (ground elevation at each waypoint) -->
                         <path v-if="terrainAreaPath" :d="terrainAreaPath" class="terrain-area" />
 
@@ -212,7 +227,7 @@ const waypoints = positionalWaypoints;
 const chartSvg = ref(null);
 
 const chartWidth = 800;
-const chartHeight = 150;
+const chartHeight = 165;
 const padding = { top: 20, right: 20, bottom: 35, left: 45 };
 const DRAG_DIRECTION_THRESHOLD = 10;
 
@@ -504,6 +519,22 @@ const scaledProfilePoints = computed(() =>
         y: scaleY(p.altitudeAMSL),
     })),
 );
+
+// 누적거리 하단 라벨: 해당 WP 속도(m/s) + 다음 WP까지 상승각도(deg)
+// 상승각도 X = atan2(다음고도 - 현재고도, 다음거리 - 현재거리) [deg], 소수점 버림
+const scaledProfilePointsLabel = computed(() => {
+    const pts = scaledProfilePoints.value;
+    return pts.map((p, i) => {
+        const speed = Math.floor(settings.storageToMps(p.speed || 0));
+        let angle = null;
+        if (i < pts.length - 1) {
+            const dh = pts[i + 1].altitude - p.altitude;
+            const dd = pts[i + 1].distance - p.distance;
+            if (dd > 0) angle = Math.floor((Math.atan2(dh, dd) * 180) / Math.PI);
+        }
+        return { x: p.x, speed, angle };
+    });
+});
 
 const linePath = computed(() => scaledProfilePoints.value.map((p, i) => `${i ? "L" : "M"} ${p.x} ${p.y}`).join(" "));
 const areaPath = computed(() => {
@@ -955,6 +986,10 @@ watch(positionSignature, debouncedFetch, { immediate: true });
 .axis-label {
     fill: var(--text);
     font-size: 8px;
+}
+.wp-sa-label {
+    font-size: 7px;
+    fill: var(--surface-700);
 }
 .y-axis-title {
     fill: var(--surface-700);
