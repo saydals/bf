@@ -985,6 +985,6 @@ export function MapGrapher() {
 
         const unit = userSettings.altitudeUnits === 2 ? "ft" : "m";
         const converted = userSettings.altitudeUnits === 2 ? value * 3.28 : value;
-        valueEl.textContent = `${converted.toFixed(1)} ${unit}`;
+        valueEl.textContent = `${converted.toFixed(1)}${unit}`;
     };
 }
