@@ -683,9 +683,16 @@
     pointer-events: none;
 }
 
-/* Altitude readout control (top-right). The + toggle button height equals the
-   standard map button height (30px); its length is 4x the height (120px); the
-   numeric font size equals the + button height (30px). */
+/* Altitude readout control (bottom-left, to the right of the drag + button).
+   The button height equals the standard map button height (30px); its length is
+   4x the height (120px); the numeric font size matches the source label (12px). */
+.leaflet-bottom.leaflet-left {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 4px;
+}
+
 .leaflet-control-custom-altitude {
     padding: 4px 2px;
     background: var(--surface-100, #fff);
@@ -723,7 +730,7 @@
 }
 
 .leaflet-control-custom-altitude .altitude-value {
-    font-size: 30px;
+    font-size: 12px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     line-height: 1;

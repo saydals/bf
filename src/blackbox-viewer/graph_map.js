@@ -17,10 +17,11 @@ export function MapGrapher() {
         latIndexAtFrame,
         lngIndexAtFrame,
         altitudeIndexAtFrame,
-        baroAltitudeIndexAtFrame,
         groundCourseIndexAtFrame,
         flightLog,
-        altitudeSource = "baro";
+        altitudeSource = "asl",
+        homeGpsAltitude = null,
+        altitudeControl = null;
 
     const coordinateDivider = 10000000;
     const altitudeDivider = 10;
@@ -194,21 +195,22 @@ export function MapGrapher() {
         },
     });
 
-    // --- Leaflet control: altitude readout (click toggles baro/GPS source) ---
-    // Default source is barometer altitude; clicking switches to GPS altitude.
-    // Shown on the left side, to the right of the map drag (+) button.
-    // The numeric font size equals the standard map button height (30px);
-    // the readout length is 4x that height (120px).
+    // --- Leaflet control: altitude readout (click toggles ASL / MSL source) ---
+    // Default source is ASL (current GPS altitude - takeoff GPS altitude).
+    // Clicking switches to MSL (raw GPS altitude from the log).
+    // Placed on the bottom-left, to the right of the map drag (+) button.
+    // The readout length is 4x the standard map button height (120px);
+    // the numeric font size matches the source label font size (12px).
     L.Control.AltitudeDisplay = L.Control.extend({
-        options: { position: "topleft" },
+        options: { position: "bottomleft" },
         onAdd: function () {
             const g = this.options.grapher;
             const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-altitude");
             const btn = L.DomUtil.create("button", "", container);
             btn.type = "button";
             btn.classList.add("altitude-toggle-button");
-            btn.innerHTML = '<span class="altitude-source">BARO</span> <span class="altitude-value">--</span>';
-            btn.title = "Altitude (click to toggle Baro / GPS source)";
+            btn.innerHTML = '<span class="altitude-source">ASL</span> <span class="altitude-value">--</span>';
+            btn.title = "Altitude (click to toggle ASL / MSL source)";
             btn.setAttribute("aria-label", "Altitude readout, click to toggle source");
             L.DomEvent.on(btn, "click", L.DomEvent.stopPropagation);
             L.DomEvent.on(btn, "click", function () {
@@ -234,7 +236,6 @@ export function MapGrapher() {
         }).addTo(myMap);
 
         myMap.addControl(new L.Control.MapActions({ grapher: this }));
-        myMap.addControl(new L.Control.AltitudeDisplay({ grapher: this }));
 
         // Fix: map may render at 0×0 when container is hidden on init.
         // Observe container size and invalidate when it gets real dimensions.
@@ -372,6 +373,11 @@ export function MapGrapher() {
         if (!myMap || mapDragControl) return;
         mapDragControl = new L.Control.MapDrag();
         myMap.addControl(mapDragControl);
+        // Altitude readout is added after the drag (+) button so it sits to its right.
+        if (!altitudeControl) {
+            altitudeControl = new L.Control.AltitudeDisplay({ grapher: this });
+            myMap.addControl(altitudeControl);
+        }
     };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
@@ -445,10 +451,10 @@ export function MapGrapher() {
         latIndexAtFrame = null;
         lngIndexAtFrame = null;
         altitudeIndexAtFrame = null;
-        baroAltitudeIndexAtFrame = null;
         groundCourseIndexAtFrame = null;
-        altitudeSource = "baro";
-        this.updateAltitudeDisplay(null, null);
+        altitudeSource = "asl";
+        homeGpsAltitude = null;
+        this.updateAltitudeDisplay();
         myMap.setView(mapOptions.center, mapOptions.zoom);
     };
 
@@ -484,6 +490,7 @@ export function MapGrapher() {
             routeLayers.set(logIndex, this.createRouteLayers(routeData));
 
             homePosition = this.getHomeCoordinatesFromFlightLog(flightLog);
+            homeGpsAltitude = this.getHomeGpsAltitudeFromFlightLog(flightLog);
         } else {
             console.debug("FlightLog has no gps data.");
         }
@@ -495,7 +502,6 @@ export function MapGrapher() {
         latIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_coord[0]");
         lngIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_coord[1]");
         altitudeIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_altitude");
-        baroAltitudeIndexAtFrame = flightLog.getMainFieldIndexByName("baroAlt");
         groundCourseIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_ground_course");
     };
 
@@ -922,6 +928,15 @@ export function MapGrapher() {
         return [home[0].min / coordinateDivider, home[1].min / coordinateDivider];
     };
 
+    this.getHomeGpsAltitudeFromFlightLog = function (flightLog) {
+        const home = flightLog.getStats().frame.H.field;
+        const homeAltIndex = flightLog.getMainFieldIndexByName("GPS_altitude");
+        if (homeAltIndex === undefined || !home[homeAltIndex] || !this.isNumber(home[homeAltIndex].min)) {
+            return null;
+        }
+        return home[homeAltIndex].min / altitudeDivider;
+    };
+
     this.setCurrentTime = function (newTime) {
         currentTime = newTime;
         this.updateCurrentPosition();
@@ -929,18 +944,18 @@ export function MapGrapher() {
     };
 
     this.toggleAltitudeSource = function () {
-        altitudeSource = altitudeSource === "baro" ? "gps" : "baro";
+        altitudeSource = altitudeSource === "asl" ? "msl" : "asl";
         const btn = document.querySelector(".altitude-toggle-button");
         if (btn) {
             const sourceEl = btn.querySelector(".altitude-source");
             if (sourceEl) {
-                sourceEl.textContent = altitudeSource === "baro" ? "BARO" : "GPS";
+                sourceEl.textContent = altitudeSource === "asl" ? "ASL" : "MSL";
             }
         }
         this.updateAltitudeDisplay();
     };
 
-    this.updateAltitudeDisplay = function (baroAlt, gpsAlt) {
+    this.updateAltitudeDisplay = function () {
         const btn = document.querySelector(".altitude-toggle-button");
         if (!btn) {
             return;
@@ -950,28 +965,22 @@ export function MapGrapher() {
             return;
         }
 
-        if (baroAlt === undefined || gpsAlt === undefined) {
-            const frame = flightLog?.getCurrentFrameAtTime(currentTime);
-            if (frame && frame.current) {
-                baroAlt = this.isNumber(frame.current[baroAltitudeIndexAtFrame])
-                    ? frame.current[baroAltitudeIndexAtFrame] / altitudeDivider
-                    : null;
-                gpsAlt = this.isNumber(frame.current[altitudeIndexAtFrame])
-                    ? frame.current[altitudeIndexAtFrame] / altitudeDivider
-                    : null;
-            } else {
-                baroAlt = baroAlt ?? null;
-                gpsAlt = gpsAlt ?? null;
-            }
+        const frame = flightLog?.getCurrentFrameAtTime(currentTime);
+        const rawGpsAlt =
+            frame && frame.current && this.isNumber(frame.current[altitudeIndexAtFrame])
+                ? frame.current[altitudeIndexAtFrame] / altitudeDivider
+                : null;
+        if (rawGpsAlt === null) {
+            valueEl.textContent = "--";
+            return;
         }
 
-        const value = altitudeSource === "baro" ? baroAlt : gpsAlt;
-        if (value === null || value === undefined || Number.isNaN(value)) {
-            valueEl.textContent = "--";
-        } else {
-            const unit = userSettings.altitudeUnits === 2 ? "ft" : "m";
-            const converted = userSettings.altitudeUnits === 2 ? value * 3.28 : value;
-            valueEl.textContent = `${converted.toFixed(1)} ${unit}`;
-        }
+        // ASL: relative to takeoff GPS altitude (current GPS - home GPS)
+        // MSL: raw GPS altitude from the log (absolute)
+        const value = altitudeSource === "asl" ? rawGpsAlt - (homeGpsAltitude ?? 0) : rawGpsAlt;
+
+        const unit = userSettings.altitudeUnits === 2 ? "ft" : "m";
+        const converted = userSettings.altitudeUnits === 2 ? value * 3.28 : value;
+        valueEl.textContent = `${converted.toFixed(1)} ${unit}`;
     };
 }
