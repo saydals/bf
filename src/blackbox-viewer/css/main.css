@@ -683,9 +683,9 @@
     pointer-events: none;
 }
 
-/* Altitude readout control (bottom-left, to the right of the drag + button).
+/* Altitude readout control (bottom-left, to the left of the drag + button).
    The button height equals the standard map button height (30px); its length is
-   4x the height (120px); the numeric font size matches the source label (12px). */
+   2/3 of 120px (80px); the numeric font size matches the source label (12px). */
 .leaflet-bottom.leaflet-left {
     display: flex;
     flex-direction: row;
@@ -707,8 +707,8 @@
     justify-content: space-between;
     gap: 6px;
     height: 30px;
-    width: 120px;
-    padding: 0 10px;
+    width: 80px;
+    padding: 0 8px;
     border: none;
     background: transparent;
     color: var(--text-primary, #333);

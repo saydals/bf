@@ -371,13 +371,13 @@ export function MapGrapher() {
 
     this.enableDragControl = function () {
         if (!myMap || mapDragControl) return;
-        mapDragControl = new L.Control.MapDrag();
-        myMap.addControl(mapDragControl);
-        // Altitude readout is added after the drag (+) button so it sits to its right.
+        // Altitude readout is added before the drag (+) button so it sits to its left.
         if (!altitudeControl) {
             altitudeControl = new L.Control.AltitudeDisplay({ grapher: this });
             myMap.addControl(altitudeControl);
         }
+        mapDragControl = new L.Control.MapDrag();
+        myMap.addControl(mapDragControl);
     };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
@@ -490,7 +490,7 @@ export function MapGrapher() {
             routeLayers.set(logIndex, this.createRouteLayers(routeData));
 
             homePosition = this.getHomeCoordinatesFromFlightLog(flightLog);
-            homeGpsAltitude = this.getHomeGpsAltitudeFromFlightLog(flightLog);
+            homeGpsAltitude = this.getFirstFrameGpsAltitude(flightLog);
         } else {
             console.debug("FlightLog has no gps data.");
         }
@@ -928,13 +928,17 @@ export function MapGrapher() {
         return [home[0].min / coordinateDivider, home[1].min / coordinateDivider];
     };
 
-    this.getHomeGpsAltitudeFromFlightLog = function (flightLog) {
-        const home = flightLog.getStats().frame.H.field;
-        const homeAltIndex = flightLog.getMainFieldIndexByName("GPS_altitude");
-        if (homeAltIndex === undefined || !home[homeAltIndex] || !this.isNumber(home[homeAltIndex].min)) {
-            return null;
+    this.getFirstFrameGpsAltitude = function (flightLog) {
+        const chunks = flightLog.getChunksInTimeRange(flightLog.getMinTime(), flightLog.getMaxTime());
+        for (const chunk of chunks) {
+            for (const frame of chunk.frames) {
+                const alt = frame[altitudeIndexAtFrame];
+                if (this.isNumber(alt)) {
+                    return alt / altitudeDivider;
+                }
+            }
         }
-        return home[homeAltIndex].min / altitudeDivider;
+        return null;
     };
 
     this.setCurrentTime = function (newTime) {
