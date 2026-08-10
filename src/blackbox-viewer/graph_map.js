@@ -23,7 +23,8 @@ export function MapGrapher() {
         homeGpsAltitude = null,
         mapToolsControl = null,
         airplaneControl = null,
-        headingIndexAtFrame = null;
+        headingIndexAtFrame = null,
+        throttleIndexAtFrame = null;
 
     // Registered by MapView.vue; receives { roll, pitch, yaw } in radians.
     this.onAirplaneAttitude = null;
@@ -536,6 +537,10 @@ export function MapGrapher() {
             flightLog.getMainFieldIndexByName("heading[1]"),
             flightLog.getMainFieldIndexByName("heading[2]"),
         ];
+        // Throttle may be logged as "throttle" or inside rcCommand[3].
+        const throttleIdx = flightLog.getMainFieldIndexByName("throttle");
+        const rcThrottleIdx = flightLog.getMainFieldIndexByName("rcCommand[3]");
+        throttleIndexAtFrame = throttleIdx >= 0 ? throttleIdx : rcThrottleIdx;
     };
 
     this.getRouteData = function () {
@@ -1016,7 +1021,20 @@ export function MapGrapher() {
 
         // Use the raw heading (or GPS ground course fallback) directly so the model
         // points along the real flight direction instead of always resetting north.
-        this.onAirplaneAttitude({ roll, pitch, yaw });
+
+        // Throttle (0..1 from a 1000..2000 RC step, or raw 0..1000+ depending on log).
+        let throttle = 0;
+        if (throttleIndexAtFrame >= 0 && this.isNumber(f[throttleIndexAtFrame])) {
+            let raw = f[throttleIndexAtFrame];
+            // Normalize common scales to 0..1.
+            if (raw > 1.5) {
+                // Likely a 1000..2000 (or similar) RC pulse; shift and scale.
+                raw = Math.max(0, raw - 1000) / 1000;
+            }
+            throttle = Math.min(1, Math.max(0, raw));
+        }
+
+        this.onAirplaneAttitude({ roll, pitch, yaw, throttle });
     };
 
     this.toggleAltitudeSource = function () {

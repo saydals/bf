@@ -69,13 +69,14 @@ function hostIsDark() {
 
 // Mount the airplane attitude widget into the Leaflet control's mount point
 // (#mapAirplaneMount), which is created asynchronously when the map initializes.
-const attitude = ref({ roll: 0, pitch: 0, yaw: 0 });
+const attitude = ref({ roll: 0, pitch: 0, yaw: 0, throttle: 0 });
 const AttitudeHost = {
     render: () =>
         h(MapAirplane, {
             roll: attitude.value.roll,
             pitch: attitude.value.pitch,
             yaw: attitude.value.yaw,
+            throttle: attitude.value.throttle,
         }),
 };
 
