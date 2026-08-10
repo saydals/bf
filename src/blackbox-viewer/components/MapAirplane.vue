@@ -83,11 +83,12 @@ function animate(ts) {
     lastFrameTs = ts;
 
     // Spin speed scales with throttle (rad/s). Idle tick even at zero so it reads "alive".
-    const maxRpm = 40; // rad/s at full throttle
-    const speed = 2 + props.throttle * maxRpm;
+    const maxRpm = 400; // rad/s at full throttle (10x previous for a visible spin)
+    const speed = 20 + props.throttle * maxRpm;
     propAngle += speed * dt;
+    // Propeller spins around its own axis (Y in this model's orientation).
     for (const p of propellerNodes) {
-        p.rotation.z = propAngle;
+        p.rotation.y = propAngle;
     }
 
     renderer.render(scene, camera);
