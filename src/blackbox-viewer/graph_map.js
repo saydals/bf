@@ -23,9 +23,7 @@ export function MapGrapher() {
         homeGpsAltitude = null,
         mapToolsControl = null,
         airplaneControl = null,
-        headingIndexAtFrame = null,
-        yawFix = 0,
-        wasArmed = false;
+        headingIndexAtFrame = null;
 
     // Registered by MapView.vue; receives { roll, pitch, yaw } in radians.
     this.onAirplaneAttitude = null;
@@ -484,8 +482,6 @@ export function MapGrapher() {
         groundCourseIndexAtFrame = null;
         altitudeSource = "asl";
         homeGpsAltitude = null;
-        yawFix = 0;
-        wasArmed = false;
         this.updateAltitudeDisplay();
         myMap.setView(mapOptions.center, mapOptions.zoom);
     };
@@ -1014,18 +1010,9 @@ export function MapGrapher() {
             yaw = 0;
         }
 
-        // Auto-reset yaw offset on arming: capture the heading at the first
-        // armed frame so the model starts aligned with the runway.
-        const armIndex = FLIGHT_LOG_FLIGHT_MODE_NAME.indexOf("ARM");
-        const flightModeIndex = flightLog.getMainFieldIndexByName("flightModeFlags");
-        const armed =
-            armIndex >= 0 && this.isNumber(f[flightModeIndex]) && (f[flightModeIndex] & (1 << armIndex)) !== 0;
-        if (armed && !wasArmed) {
-            yawFix = yaw;
-        }
-        wasArmed = armed;
-
-        this.onAirplaneAttitude({ roll, pitch, yaw: yaw - yawFix });
+        // Use the raw heading (or GPS ground course fallback) directly so the model
+        // points along the real flight direction instead of always resetting north.
+        this.onAirplaneAttitude({ roll, pitch, yaw });
     };
 
     this.toggleAltitudeSource = function () {
