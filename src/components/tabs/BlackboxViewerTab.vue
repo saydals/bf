@@ -90,6 +90,12 @@ function mountAirplane() {
     mapGrapher.onAirplaneAttitude = (a) => {
         attitude.value = a;
     };
+
+    // Push the current frame's attitude immediately so the model doesn't start
+    // pointing north before the first playback tick.
+    if (typeof mapGrapher.setCurrentTime === "function") {
+        mapGrapher.setCurrentTime(mapGrapher.getCurrentTime());
+    }
 }
 
 function unmountAirplane() {

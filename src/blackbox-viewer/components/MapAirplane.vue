@@ -27,6 +27,10 @@ let modelWrapper = null;
 let model = null;
 let rafId = null;
 
+// Latest attitude received before the model finished loading, so the first
+// real frame isn't lost (and the model doesn't get stuck pointing north).
+let pendingAttitude = { roll: 0, pitch: 0, yaw: 0 };
+
 function canUseWebGL() {
     const detector = document.createElement("canvas");
     return window.WebGLRenderingContext && (detector.getContext("webgl") || detector.getContext("experimental-webgl"));
@@ -51,12 +55,18 @@ function render() {
     renderer.render(scene, camera);
 }
 
-function applyAttitude() {
+// Apply attitude from an explicit object (used both for live updates and the
+// pending value once the model becomes available).
+function applyAttitudeFrom(a) {
     if (!model) return;
-    model.rotation.x = props.pitch * -1;
-    modelWrapper.rotation.y = props.yaw * -1;
-    model.rotation.z = props.roll * -1;
+    model.rotation.x = a.pitch * -1;
+    modelWrapper.rotation.y = a.yaw * -1;
+    model.rotation.z = a.roll * -1;
     render();
+}
+
+function applyAttitude() {
+    applyAttitudeFrom(pendingAttitude);
 }
 
 function init() {
@@ -90,7 +100,8 @@ function init() {
             model.scale.set(15, 15, 15);
             modelWrapper.add(model);
             scene.add(modelWrapper);
-            applyAttitude();
+            // Apply whatever attitude we already received (or the latest) now.
+            applyAttitudeFrom(pendingAttitude);
         },
         undefined,
         (err) => console.error("MapAirplane: failed to load airplane.gltf", err),
@@ -126,5 +137,15 @@ onBeforeUnmount(() => {
     dispose();
 });
 
-watch(() => [props.roll, props.pitch, props.yaw], applyAttitude);
+watch(
+    () => [props.roll, props.pitch, props.yaw],
+    () => {
+        pendingAttitude = {
+            roll: props.roll,
+            pitch: props.pitch,
+            yaw: props.yaw,
+        };
+        applyAttitude();
+    },
+);
 </script>

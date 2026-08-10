@@ -981,6 +981,10 @@ export function MapGrapher() {
         this.redrawAll();
     };
 
+    this.getCurrentTime = function () {
+        return currentTime;
+    };
+
     // Read attitude from the current blackbox frame and push it to the airplane
     // display (MapAirplane.vue) via the onAirplaneAttitude callback.
     this.updateAirplaneAttitude = function () {
