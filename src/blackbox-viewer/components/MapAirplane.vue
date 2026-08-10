@@ -34,7 +34,16 @@ function canUseWebGL() {
 
 function getSize() {
     const el = wrapper.value;
-    return { width: el.clientWidth || 75, height: el.clientHeight || 75 };
+    return { width: el.clientWidth || 90, height: el.clientHeight || 90 };
+}
+
+function resize() {
+    if (!renderer || !camera) return;
+    const { width, height } = getSize();
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    render();
 }
 
 function render() {
@@ -99,11 +108,21 @@ function dispose() {
     model = null;
 }
 
+let resizeObserver = null;
+
 onMounted(() => {
     init();
+    if (typeof ResizeObserver !== "undefined" && wrapper.value) {
+        resizeObserver = new ResizeObserver(() => resize());
+        resizeObserver.observe(wrapper.value);
+    }
 });
 
 onBeforeUnmount(() => {
+    if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+    }
     dispose();
 });
 

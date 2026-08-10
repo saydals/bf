@@ -641,24 +641,106 @@
     color: var(--text-inverted, #fff);
 }
 
+/* Airplane attitude widget + tools row layout (bottom-left, column: airplane on top) */
+.leaflet-bottom.leaflet-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+/* Airplane attitude widget: circular, blue, 90x90 (180x180 in fullscreen map) */
 .leaflet-control-custom-map-airplane {
     padding: 0;
-    background: var(--surface-100, #fff);
-    border: 1px solid var(--border-color, #ccc);
-    border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+    width: 90px;
+    height: 90px;
+    background: #1e6fd9;
+    border: 2px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
     line-height: 0;
+    overflow: hidden;
+}
+
+.leaflet-control-custom-map-airplane.fullscreen {
+    width: 180px;
+    height: 180px;
 }
 
 .leaflet-control-custom-map-airplane .map-airplane-wrapper {
-    width: 75px;
-    height: 75px;
+    width: 100%;
+    height: 100%;
 }
 
 .leaflet-control-custom-map-airplane .map-airplane-canvas {
     width: 100%;
     height: 100%;
     display: block;
+}
+
+/* Tools row: drag (+) button + altitude readout, laid out horizontally */
+.leaflet-control-custom-map-tools {
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface-100, #fff);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+}
+
+.leaflet-control-custom-map-tools .map-drag-button {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary, #333);
+    font-size: 16px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    transition: background 150ms ease;
+}
+
+.leaflet-control-custom-map-tools .map-drag-button:hover {
+    background: var(--surface-200, #f0f0f0);
+}
+
+.leaflet-control-custom-map-tools .altitude-toggle-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 30px;
+    width: 80px;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary, #333);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 150ms ease;
+}
+
+.leaflet-control-custom-map-tools .altitude-toggle-button:hover {
+    background: var(--surface-200, #f0f0f0);
+}
+
+.leaflet-control-custom-map-tools .altitude-source {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.leaflet-control-custom-map-tools .altitude-value {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
 }
 
 .leaflet-control-custom-map-actions .leaflet-control-separator {
@@ -701,57 +783,4 @@
 .blackbox-waypoint-marker__label,
 .blackbox-route-marker__label {
     pointer-events: none;
-}
-
-/* Altitude readout control (bottom-left, to the left of the drag + button).
-   The button height equals the standard map button height (30px); its length is
-   2/3 of 120px (80px); the numeric font size matches the source label (12px). */
-.leaflet-bottom.leaflet-left {
-    display: flex;
-    flex-direction: row;
-    align-items: flex-end;
-    gap: 4px;
-}
-
-.leaflet-control-custom-altitude {
-    padding: 4px 2px;
-    background: var(--surface-100, #fff);
-    border: 1px solid var(--border-color, #ccc);
-    border-radius: 4px;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
-}
-
-.leaflet-control-custom-altitude .altitude-toggle-button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    height: 30px;
-    width: 80px;
-    padding: 0 8px;
-    border: none;
-    background: transparent;
-    color: var(--text-primary, #333);
-    cursor: pointer;
-    border-radius: 2px;
-    transition:
-        background 150ms ease,
-        color 150ms ease;
-}
-
-.leaflet-control-custom-altitude .altitude-toggle-button:hover {
-    background: var(--surface-200, #f0f0f0);
-}
-
-.leaflet-control-custom-altitude .altitude-source {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-}
-
-.leaflet-control-custom-altitude .altitude-value {
-    font-size: 12px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
 }

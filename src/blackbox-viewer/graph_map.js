@@ -21,7 +21,7 @@ export function MapGrapher() {
         flightLog,
         altitudeSource = "asl",
         homeGpsAltitude = null,
-        altitudeControl = null,
+        mapToolsControl = null,
         airplaneControl = null,
         headingIndexAtFrame = null,
         yawFix = 0,
@@ -202,20 +202,39 @@ export function MapGrapher() {
         },
     });
 
-    // --- Leaflet control: altitude readout (click toggles ASL / MSL source) ---
-    // Default source is ASL (current GPS altitude - takeoff GPS altitude).
-    // Clicking switches to MSL (raw GPS altitude from the log).
-    // Placed on the bottom-left, to the right of the map drag (+) button.
-    // The readout length is 4x the standard map button height (120px);
-    // the numeric font size matches the source label font size (12px).
-    L.Control.AltitudeDisplay = L.Control.extend({
+    // --- Leaflet control: bottom-left tools row (drag + altitude) ---
+    // A flex row holding the drag (+) button and the altitude readout, kept on a
+    // single line. The airplane attitude widget sits above this row (separate control).
+    L.Control.MapTools = L.Control.extend({
         options: { position: "bottomleft" },
         onAdd: function () {
             const g = this.options.grapher;
-            const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-altitude");
-            const btn = L.DomUtil.create("button", "", container);
+            const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-tools");
+
+            // Drag (+) button
+            const dragBtn = L.DomUtil.create("button", "map-drag-button", container);
+            dragBtn.type = "button";
+            dragBtn.innerHTML = "&#x270B;";
+            dragBtn.title = "Hold & drag to move map position";
+            dragBtn.setAttribute("aria-label", "Drag map position");
+            dragBtn.style.cssText = "font-size:16px;width:30px;height:30px;";
+            L.DomEvent.on(dragBtn, "mousedown", L.DomEvent.stopPropagation);
+            L.DomEvent.on(dragBtn, "touchstart", L.DomEvent.stopPropagation);
+            L.DomEvent.on(dragBtn, "mousedown", function (e) {
+                startMapDrag(e);
+            });
+            L.DomEvent.on(
+                dragBtn,
+                "touchstart",
+                function (e) {
+                    startMapDrag(e);
+                },
+                { passive: false },
+            );
+
+            // Altitude readout button (click toggles ASL / MSL source)
+            const btn = L.DomUtil.create("button", "altitude-toggle-button", container);
             btn.type = "button";
-            btn.classList.add("altitude-toggle-button");
             btn.innerHTML = '<span class="altitude-source">ASL</span> <span class="altitude-value">--</span>';
             btn.title = "Altitude (click to toggle ASL / MSL source)";
             btn.setAttribute("aria-label", "Altitude readout, click to toggle source");
@@ -223,8 +242,7 @@ export function MapGrapher() {
             L.DomEvent.on(btn, "click", function () {
                 g.toggleAltitudeSource();
             });
-            this._button = btn;
-            this._grapher = g;
+
             return container;
         },
     });
@@ -268,38 +286,10 @@ export function MapGrapher() {
         this.enableDragControl();
     };
 
-    // --- Leaflet control: draggable map frame button (bottomleft) ---
-    // Small grab-style button that, when held and dragged, moves the map frame on screen.
-    L.Control.MapDrag = L.Control.extend({
-        options: { position: "bottomleft" },
-        onAdd: function () {
-            const container = L.DomUtil.create("div", "leaflet-bar leaflet-control leaflet-control-custom-map-actions");
-            const btn = L.DomUtil.create("button", "", container);
-            btn.type = "button";
-            btn.innerHTML = "&#x270B;";
-            btn.title = "Hold & drag to move map position";
-            btn.setAttribute("aria-label", "Drag map position");
-            btn.style.cssText = "font-size:16px;width:30px;height:30px;";
-            L.DomEvent.on(btn, "mousedown", L.DomEvent.stopPropagation);
-            L.DomEvent.on(btn, "touchstart", L.DomEvent.stopPropagation);
-            L.DomEvent.on(btn, "mousedown", function (e) {
-                startMapDrag(e);
-            });
-            L.DomEvent.on(
-                btn,
-                "touchstart",
-                function (e) {
-                    startMapDrag(e);
-                },
-                { passive: false },
-            );
-            return container;
-        },
-    });
-
-    // --- Leaflet control: airplane attitude display (bottomleft, above drag button) ---
-    // A 75x75 box that hosts the Three.js airplane model (MapAirplane.vue).
-    // The actual model/canvas lives in Vue; this control only provides the mount point.
+    // --- Leaflet control: airplane attitude display (bottomleft, above tools row) ---
+    // A circular 90x90 (180x180 in fullscreen) box with a blue background that hosts
+    // the Three.js airplane model (MapAirplane.vue). The model/canvas lives in Vue;
+    // this control only provides the mount point and toggles the fullscreen class.
     L.Control.MapAirplane = L.Control.extend({
         options: { position: "bottomleft" },
         onAdd: function () {
@@ -396,18 +386,18 @@ export function MapGrapher() {
 
     this.enableDragControl = function () {
         if (!myMap || mapDragControl) return;
-        // Altitude readout is added before the drag (+) button so it sits to its left.
-        if (!altitudeControl) {
-            altitudeControl = new L.Control.AltitudeDisplay({ grapher: this });
-            myMap.addControl(altitudeControl);
-        }
-        // Airplane attitude display sits above the drag (+) button.
+        // Airplane attitude display sits ABOVE the tools row (drag + altitude).
+        // Added first so it stacks on top in the bottom-left column.
         if (!airplaneControl) {
             airplaneControl = new L.Control.MapAirplane();
             myMap.addControl(airplaneControl);
         }
-        mapDragControl = new L.Control.MapDrag();
-        myMap.addControl(mapDragControl);
+        // Drag (+) button + altitude readout on a single row below the airplane.
+        if (!mapToolsControl) {
+            mapToolsControl = new L.Control.MapTools({ grapher: this });
+            myMap.addControl(mapToolsControl);
+        }
+        mapDragControl = {}; // mark as initialized
     };
 
     // Tear down the Leaflet map so the viewer tab can be re-mounted without leaking
@@ -423,6 +413,8 @@ export function MapGrapher() {
         craftMarker = null;
         homeMarker = null;
         airplaneControl = null;
+        mapToolsControl = null;
+        mapDragControl = null;
     };
 
     this.setLayer = function (layerKey) {
@@ -455,12 +447,18 @@ export function MapGrapher() {
         if (!el) {
             return;
         }
-        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const entering = !document.fullscreenElement && !document.webkitFullscreenElement;
+        if (entering) {
             el.requestFullscreen?.();
             el.webkitRequestFullscreen?.();
         } else {
             document.exitFullscreen?.();
             document.webkitExitFullscreen?.();
+        }
+        // Scale the airplane widget up while the map is fullscreen.
+        const mount = document.getElementById("mapAirplaneMount");
+        if (mount) {
+            mount.classList.toggle("fullscreen", entering);
         }
     };
 
