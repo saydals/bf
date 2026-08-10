@@ -308,6 +308,9 @@ export function MapGrapher() {
                 "leaflet-bar leaflet-control leaflet-control-custom-map-airplane",
             );
             container.id = "mapAirplaneMount";
+            // Keep pointer/scroll events on the widget from panning or zooming the map.
+            L.DomEvent.disableClickPropagation(container);
+            L.DomEvent.disableScrollPropagation(container);
             return container;
         },
     });

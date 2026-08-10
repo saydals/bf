@@ -46,19 +46,60 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, onBeforeUnmount, ref } from "vue";
+import { nextTick, onMounted, onBeforeUnmount, ref, h, createApp } from "vue";
 import BaseTab from "./BaseTab.vue";
 import GUI from "../../js/gui";
 import { initBlackboxViewer, destroyBlackboxViewer, setBlackboxViewerDark } from "../../blackbox-viewer/vue_init.js";
 import { useDataflashPull } from "../../composables/useDataflashPull";
+import pinia from "../../blackbox-viewer/pinia_instance.js";
+import { useGraphStore } from "../../blackbox-viewer/stores/graph.js";
+import MapAirplane from "../../blackbox-viewer/components/MapAirplane.vue";
 
 const rootRef = ref(null);
 let themeObserver = null;
+let airplaneApp = null;
+let airplanePoll = null;
 const dataflash = useDataflashPull();
+const graphStore = useGraphStore(pinia);
 
 // The configurator drives dark mode by toggling `.dark` on <html>; mirror it into the viewer.
 function hostIsDark() {
     return document.documentElement.classList.contains("dark");
+}
+
+// Mount the airplane attitude widget into the Leaflet control's mount point
+// (#mapAirplaneMount), which is created asynchronously when the map initializes.
+const attitude = ref({ roll: 0, pitch: 0, yaw: 0 });
+const AttitudeHost = {
+    render: () =>
+        h(MapAirplane, {
+            roll: attitude.value.roll,
+            pitch: attitude.value.pitch,
+            yaw: attitude.value.yaw,
+        }),
+};
+
+function mountAirplane() {
+    const mapGrapher = graphStore.mapGrapher;
+    const mountEl = document.getElementById("mapAirplaneMount");
+    if (!mapGrapher || !mountEl || airplaneApp) return;
+
+    airplaneApp = createApp(AttitudeHost);
+    airplaneApp.mount(mountEl);
+
+    mapGrapher.onAirplaneAttitude = (a) => {
+        attitude.value = a;
+    };
+}
+
+function unmountAirplane() {
+    if (airplaneApp) {
+        airplaneApp.unmount();
+        airplaneApp = null;
+    }
+    if (graphStore.mapGrapher) {
+        graphStore.mapGrapher.onAirplaneAttitude = null;
+    }
 }
 
 onMounted(async () => {
@@ -71,12 +112,27 @@ onMounted(async () => {
     themeObserver = new MutationObserver(() => setBlackboxViewerDark(hostIsDark()));
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
+    // The map (and its airplane mount point) initializes on demand; poll until present.
+    if (document.getElementById("mapAirplaneMount")) {
+        mountAirplane();
+    } else {
+        airplanePoll = setInterval(() => {
+            if (document.getElementById("mapAirplaneMount")) {
+                mountAirplane();
+                clearInterval(airplanePoll);
+                airplanePoll = null;
+            }
+        }, 200);
+    }
+
     GUI.content_ready();
 });
 
 onBeforeUnmount(() => {
     themeObserver?.disconnect();
     themeObserver = null;
+    if (airplanePoll) clearInterval(airplanePoll);
+    unmountAirplane();
     destroyBlackboxViewer();
 });
 </script>
