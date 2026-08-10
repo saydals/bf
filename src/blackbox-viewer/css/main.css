@@ -641,6 +641,26 @@
     color: var(--text-inverted, #fff);
 }
 
+.leaflet-control-custom-map-airplane {
+    padding: 0;
+    background: var(--surface-100, #fff);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+    line-height: 0;
+}
+
+.leaflet-control-custom-map-airplane .map-airplane-wrapper {
+    width: 75px;
+    height: 75px;
+}
+
+.leaflet-control-custom-map-airplane .map-airplane-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
 .leaflet-control-custom-map-actions .leaflet-control-separator {
     width: 100%;
     height: 1px;

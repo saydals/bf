@@ -21,7 +21,14 @@ export function MapGrapher() {
         flightLog,
         altitudeSource = "asl",
         homeGpsAltitude = null,
-        altitudeControl = null;
+        altitudeControl = null,
+        airplaneControl = null,
+        headingIndexAtFrame = null,
+        yawFix = 0,
+        wasArmed = false;
+
+    // Registered by MapView.vue; receives { roll, pitch, yaw } in radians.
+    this.onAirplaneAttitude = null;
 
     const coordinateDivider = 10000000;
     const altitudeDivider = 10;
@@ -290,6 +297,21 @@ export function MapGrapher() {
         },
     });
 
+    // --- Leaflet control: airplane attitude display (bottomleft, above drag button) ---
+    // A 75x75 box that hosts the Three.js airplane model (MapAirplane.vue).
+    // The actual model/canvas lives in Vue; this control only provides the mount point.
+    L.Control.MapAirplane = L.Control.extend({
+        options: { position: "bottomleft" },
+        onAdd: function () {
+            const container = L.DomUtil.create(
+                "div",
+                "leaflet-bar leaflet-control leaflet-control-custom-map-airplane",
+            );
+            container.id = "mapAirplaneMount";
+            return container;
+        },
+    });
+
     let mapDragState = null;
     let mapDragControl = null;
 
@@ -376,6 +398,11 @@ export function MapGrapher() {
             altitudeControl = new L.Control.AltitudeDisplay({ grapher: this });
             myMap.addControl(altitudeControl);
         }
+        // Airplane attitude display sits above the drag (+) button.
+        if (!airplaneControl) {
+            airplaneControl = new L.Control.MapAirplane();
+            myMap.addControl(airplaneControl);
+        }
         mapDragControl = new L.Control.MapDrag();
         myMap.addControl(mapDragControl);
     };
@@ -392,6 +419,7 @@ export function MapGrapher() {
         routeLayers = new Map();
         craftMarker = null;
         homeMarker = null;
+        airplaneControl = null;
     };
 
     this.setLayer = function (layerKey) {
@@ -454,6 +482,8 @@ export function MapGrapher() {
         groundCourseIndexAtFrame = null;
         altitudeSource = "asl";
         homeGpsAltitude = null;
+        yawFix = 0;
+        wasArmed = false;
         this.updateAltitudeDisplay();
         myMap.setView(mapOptions.center, mapOptions.zoom);
     };
@@ -503,6 +533,11 @@ export function MapGrapher() {
         lngIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_coord[1]");
         altitudeIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_altitude");
         groundCourseIndexAtFrame = flightLog.getMainFieldIndexByName("GPS_ground_course");
+        headingIndexAtFrame = [
+            flightLog.getMainFieldIndexByName("heading[0]"),
+            flightLog.getMainFieldIndexByName("heading[1]"),
+            flightLog.getMainFieldIndexByName("heading[2]"),
+        ];
     };
 
     this.getRouteData = function () {
@@ -944,7 +979,51 @@ export function MapGrapher() {
     this.setCurrentTime = function (newTime) {
         currentTime = newTime;
         this.updateCurrentPosition();
+        this.updateAirplaneAttitude();
         this.redrawAll();
+    };
+
+    // Read attitude from the current blackbox frame and push it to the airplane
+    // display (MapAirplane.vue) via the onAirplaneAttitude callback.
+    this.updateAirplaneAttitude = function () {
+        if (!this.onAirplaneAttitude || !flightLog) {
+            return;
+        }
+        const frame = flightLog.getCurrentFrameAtTime(currentTime);
+        if (!frame || !frame.current) {
+            return;
+        }
+
+        const f = frame.current;
+        const hasHeading = headingIndexAtFrame && headingIndexAtFrame.every((i) => this.isNumber(f[i]));
+
+        let roll = 0;
+        let pitch = 0;
+        let yaw;
+
+        if (hasHeading) {
+            roll = f[headingIndexAtFrame[0]];
+            pitch = f[headingIndexAtFrame[1]];
+            yaw = f[headingIndexAtFrame[2]];
+        } else if (this.isNumber(f[groundCourseIndexAtFrame])) {
+            // Fallback: yaw from GPS ground course, roll/pitch stay level.
+            yaw = f[groundCourseIndexAtFrame] / grounCourseDivider;
+        } else {
+            yaw = 0;
+        }
+
+        // Auto-reset yaw offset on arming: capture the heading at the first
+        // armed frame so the model starts aligned with the runway.
+        const armIndex = FLIGHT_LOG_FLIGHT_MODE_NAME.indexOf("ARM");
+        const flightModeIndex = flightLog.getMainFieldIndexByName("flightModeFlags");
+        const armed =
+            armIndex >= 0 && this.isNumber(f[flightModeIndex]) && (f[flightModeIndex] & (1 << armIndex)) !== 0;
+        if (armed && !wasArmed) {
+            yawFix = yaw;
+        }
+        wasArmed = armed;
+
+        this.onAirplaneAttitude({ roll, pitch, yaw: yaw - yawFix });
     };
 
     this.toggleAltitudeSource = function () {
