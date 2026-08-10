@@ -386,16 +386,17 @@ export function MapGrapher() {
 
     this.enableDragControl = function () {
         if (!myMap || mapDragControl) return;
-        // Airplane attitude display sits ABOVE the tools row (drag + altitude).
-        // Added first so it stacks on top in the bottom-left column.
-        if (!airplaneControl) {
-            airplaneControl = new L.Control.MapAirplane();
-            myMap.addControl(airplaneControl);
-        }
-        // Drag (+) button + altitude readout on a single row below the airplane.
+        // Leaflet stacks bottom-left controls with the FIRST added on top. We want the
+        // airplane widget ABOVE the tools row (drag + altitude), so add the tools first
+        // and the airplane last.
         if (!mapToolsControl) {
             mapToolsControl = new L.Control.MapTools({ grapher: this });
             myMap.addControl(mapToolsControl);
+        }
+        // Airplane attitude display sits ABOVE the tools row.
+        if (!airplaneControl) {
+            airplaneControl = new L.Control.MapAirplane();
+            myMap.addControl(airplaneControl);
         }
         mapDragControl = {}; // mark as initialized
     };
