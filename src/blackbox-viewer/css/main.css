@@ -652,8 +652,8 @@
 /* Airplane attitude widget: circular, blue, 90x90 (180x180 in fullscreen map) */
 .leaflet-control-custom-map-airplane {
     padding: 0;
-    width: 90px;
-    height: 90px;
+    width: 120px;
+    height: 120px;
     background: #1e6fd9;
     border: 2px solid rgba(255, 255, 255, 0.85);
     border-radius: 50%;
@@ -663,8 +663,8 @@
 }
 
 .leaflet-control-custom-map-airplane.fullscreen {
-    width: 180px;
-    height: 180px;
+    width: 240px;
+    height: 240px;
 }
 
 .leaflet-control-custom-map-airplane .map-airplane-wrapper {
