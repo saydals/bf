@@ -81,7 +81,9 @@ function init() {
     modelWrapper = new THREE.Object3D();
 
     camera = new THREE.PerspectiveCamera(60, width / height, 1, 10000);
-    camera.position.z = 125;
+    // Pull the camera back so the model fills ~80% of the frame, leaving margin
+    // so wings aren't clipped by the circular widget edge.
+    camera.position.z = 175;
 
     const light = new THREE.AmbientLight(0x404040);
     const light2 = new THREE.DirectionalLight(new THREE.Color(1, 1, 1), 1.5);
