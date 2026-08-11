@@ -22,6 +22,11 @@ const props = defineProps({
 const wrapper = ref(null);
 const canvas = ref(null);
 
+// User-adjustable heading compensation. Click the widget to rotate the model
+// 90° at a time when the model's forward axis doesn't line up with the log heading.
+let yawOffset = Math.PI / 2;
+let bgFlash = false;
+
 let renderer = null;
 let scene = null;
 let camera = null;
@@ -91,13 +96,20 @@ function animate(ts) {
         p.rotation.y = propAngle;
     }
 
+    // Click feedback: flash the background a lighter sky blue, then ease back.
+    if (scene.background) {
+        const target = bgFlash ? 0x4aa3e8 : 0x1e6fd9;
+        scene.background.lerp(new THREE.Color(target), 0.2);
+        if (bgFlash && scene.background.getHex() === 0x4aa3e8) bgFlash = false;
+    }
+
     renderer.render(scene, camera);
 }
 
 function applyAttitudeFrom(a) {
     if (!model) return;
     model.rotation.x = a.pitch * -1;
-    modelWrapper.rotation.y = a.yaw * -1;
+    modelWrapper.rotation.y = a.yaw * -1 + yawOffset;
     model.rotation.z = a.roll * -1;
 }
 
@@ -114,6 +126,7 @@ function init() {
     renderer.setSize(width, height);
 
     scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e6fd9);
     modelWrapper = new THREE.Object3D();
 
     camera = new THREE.PerspectiveCamera(60, width / height, 1, 10000);
@@ -127,6 +140,18 @@ function init() {
     scene.add(light2);
     scene.add(camera);
     scene.add(modelWrapper);
+
+    // Click the widget to rotate the model 90° (heading calibration). The
+    // background briefly lightens as click feedback.
+    if (canvas.value) {
+        canvas.value.style.cursor = "pointer";
+        canvas.value.addEventListener("click", () => {
+            yawOffset += Math.PI / 2;
+            bgFlash = true;
+            // Re-apply the current attitude so the new offset takes effect at once.
+            applyAttitudeFrom(pendingAttitude);
+        });
+    }
 
     const loader = new GLTFLoader();
     loader.load(

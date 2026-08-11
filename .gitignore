@@ -58,3 +58,7 @@ components.d.ts
 /.claude
 app.apk
 app-release.apk
+
+# Blackbox sample logs (large binaries) — keep replay tool only
+log/*.csv
+log/*.bbl
