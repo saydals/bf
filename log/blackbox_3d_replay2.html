@@ -44,14 +44,14 @@
 <body>
 <div id="app">
     <div id="toolbar">
-        <label>BBL/CSV 열기
-            <input type="file" id="fileInput" accept=".csv,.gpscsv,.txt" style="display:none" />
+        <label>CSV Open
+            <input type="file" id="fileInput" accept=".csv" style="display:none" />
         </label>
-        <button id="playBtn">▶ 재생</button>
-        <button id="resetViewBtn">↺ 시점 초기화</button>
+        <button id="playBtn">▶ Play</button>
+        <button id="resetViewBtn">↺ Reset View</button>
         <div class="sep"></div>
         <button id="yawBtn">↻ heading 90°</button>
-        <span id="status">CSV 파일을 불러오세요</span>
+        <span id="status">Open a CSV file</span>
     </div>
 
     <div id="seekWrap">
@@ -60,12 +60,12 @@
         <span id="timeLabel">0.0s</span>
     </div>
 
-    <div id="drop">파일을 여기로 드래그하세요</div>
+    <div id="drop">Drop a CSV file here</div>
     <div id="hud">
-        <div>고도(상대): <span id="hudAltRel">0.0</span> m</div>
-        <div>고도(ASL): <span id="hudAltAsl">0.0</span> m</div>
-        <div>raw ASL: <span id="hudRaw">0</span> / home: <span id="hudHome">0</span></div>
-        <div>위치: <span id="hudPos">0, 0</span></div>
+        <div>Altitude (relative): <span id="hudAltRel">0.0</span> m</div>
+        <div>Altitude (ASL): <span id="hudAltAsl">0.0</span> m</div>
+        <div>Raw ASL: <span id="hudRaw">0</span> / Home: <span id="hudHome">0</span></div>
+        <div>Position: <span id="hudPos">0, 0</span></div>
     </div>
 </div>
 
@@ -224,7 +224,7 @@ function loadAirplane() {
         console.log("airplane loaded; propellers:", propellers.map((p) => p.name));
     }, undefined, (err) => {
         console.error("airplane load failed", err);
-        document.getElementById("status").textContent = "비행기 모델 로드 실패";
+        document.getElementById("status").textContent = "Failed to load airplane model";
     });
 }
 
@@ -244,7 +244,7 @@ function parseCSV(text) {
     for (let i = 0; i < lines.length; i++) {
         if (/"?loopIteration"?/.test(lines[i]) || /"time"/.test(lines[i])) { headerIdx = i; break; }
     }
-    if (headerIdx < 0) throw new Error("CSV 헤더를 찾을 수 없습니다");
+    if (headerIdx < 0) throw new Error("CSV header not found");
 
     const headers = splitCSVLine(lines[headerIdx]);
     const idx = (name) => headers.findIndex((h) => h.replace(/^"|"$/g, "") === name);
@@ -308,48 +308,107 @@ function splitCSVLine(line) {
 }
 
 // GPS (deg * 1e7) -> meters relative to home. 1 deg lat ~ 111320 m.
+// The log may be recorded at 500Hz while GPS is only updated at 10Hz.  Build
+// a real 50Hz playback timeline and interpolate GPS between actual GPS fixes.
+const PLAYBACK_HZ = 50;
+const PLAYBACK_STEP_US = 1e6 / PLAYBACK_HZ;
+let sourceRows = [];
+let gpsFixes = [];
+
+function validGpsRow(row) {
+    return row.lat != null && row.lon != null && Number.isFinite(row.lat) && Number.isFinite(row.lon);
+}
+
+function interpolateRowsAt(rows, t) {
+    if (!rows.length) return null;
+    if (t <= rows[0].t) return rows[0];
+    if (t >= rows[rows.length - 1].t) return rows[rows.length - 1];
+    let lo = 0, hi = rows.length - 1;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (rows[mid].t < t) lo = mid; else hi = mid;
+    }
+    const a = rows[lo], b = rows[hi];
+    const f = (t - a.t) / (b.t - a.t || 1);
+    return {
+        t,
+        roll: a.roll + shortestAngleDiff(b.roll, a.roll) * f,
+        pitch: a.pitch + shortestAngleDiff(b.pitch, a.pitch) * f,
+        yaw: a.yaw + shortestAngleDiff(b.yaw, a.yaw) * f,
+        throttle: a.throttle + (b.throttle - a.throttle) * f,
+        velN: a.velN + (b.velN - a.velN) * f,
+        velE: a.velE + (b.velE - a.velE) * f,
+        baroAlt: a.baroAlt + (b.baroAlt - a.baroAlt) * f,
+        gpsAlt: a.gpsAlt + (b.gpsAlt - a.gpsAlt) * f,
+    };
+}
+
+function interpolateGpsAt(t) {
+    if (!gpsFixes.length) return null;
+    if (t <= gpsFixes[0].t) return gpsFixes[0];
+    if (t >= gpsFixes[gpsFixes.length - 1].t) return gpsFixes[gpsFixes.length - 1];
+    let lo = 0, hi = gpsFixes.length - 1;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (gpsFixes[mid].t < t) lo = mid; else hi = mid;
+    }
+    const a = gpsFixes[lo], b = gpsFixes[hi];
+    const f = (t - a.t) / (b.t - a.t || 1);
+    return {
+        lat: a.lat + (b.lat - a.lat) * f,
+        lon: a.lon + (b.lon - a.lon) * f,
+        gpsAlt: a.gpsAlt + (b.gpsAlt - a.gpsAlt) * f,
+    };
+}
+
 function buildFrames(data) {
     const { out } = data;
+    sourceRows = out.slice().sort((a, b) => a.t - b.t);
     frames = [];
-    hasGps = out.some((f) => f.lat != null && f.lon != null);
-    if (hasGps) {
-        // home = first frame with a valid GPS position.
-        const first = out.find(
-            (f) => f.lat != null && f.lon != null && !isNaN(f.lat) && !isNaN(f.lon),
-        );
-        if (first) {
-            homeLat = first.lat / 1e7;
-            homeLon = first.lon / 1e7;
-            console.log("Home position:", homeLat, homeLon);
+    hasGps = sourceRows.some(validGpsRow);
+
+    // Keep only actual GPS fixes. Repeated 500Hz GPS rows are not useful
+    // keyframes and would collapse the interpolation interval to 2ms.
+    gpsFixes = [];
+    for (const row of sourceRows) {
+        if (!validGpsRow(row)) continue;
+        const previous = gpsFixes[gpsFixes.length - 1];
+        if (!previous || row.lat !== previous.lat || row.lon !== previous.lon || row.gpsAlt !== previous.gpsAlt) {
+            gpsFixes.push({ t: row.t, lat: row.lat, lon: row.lon, gpsAlt: row.gpsAlt ?? 0 });
         }
     }
-    // Initial ASL (GPS_altitude, meters) used as the ground-reference zero point.
-    const firstAsl = out.find((f) => f.gpsAlt != null && !isNaN(f.gpsAlt) && f.gpsAlt !== 0);
-    homeAsl = firstAsl ? (firstAsl.gpsAlt / 10) : 0;
 
-    for (const f of out) {
-        let x = 0, z = 0;
-        if (hasGps && f.lat != null && f.lon != null) {
-            const lat = f.lat / 1e7, lon = f.lon / 1e7;
-            const dLat = lat - homeLat;
-            const dLon = lon - homeLon;
-            const latM = dLat * 111320;
-            const lonM = dLon * 111320 * Math.cos((homeLat * Math.PI) / 180);
-            // north -> -Z, east -> +X
-            z = -latM;
-            x = lonM;
-        }
-        // GPS_altitude is ASL in 0.1m units -> meters.
-        const gpsAltM = (f.gpsAlt || 0) / 10; // 0.1m -> m
-        // Relative altitude = current ASL - initial ASL (baroAlt unused).
-        const relAlt = gpsAltM - homeAsl;
-        if (out.indexOf(f) < 5) console.log("Frame:", f.t, "gpsAltM:", gpsAltM, "homeAsl:", homeAsl, "relAlt:", relAlt);
+    const first = gpsFixes[0];
+    if (first) {
+        homeLat = first.lat / 1e7;
+        homeLon = first.lon / 1e7;
+        console.log("Home position:", homeLat, homeLon, "GPS fixes:", gpsFixes.length);
+    }
+    const firstAsl = gpsFixes.find((f) => Number.isFinite(f.gpsAlt) && f.gpsAlt !== 0);
+    homeAsl = firstAsl ? firstAsl.gpsAlt / 10 : 0;
+
+    const firstTime = sourceRows[0]?.t ?? 0;
+    const lastTime = sourceRows[sourceRows.length - 1]?.t ?? firstTime;
+    startTime = firstTime;
+    endTime = lastTime;
+
+    // Generate exactly one frame every 20ms. Attitude/throttle/etc. are also
+    // sampled on this timeline, while GPS is interpolated from real fixes.
+    for (let t = startTime; t <= endTime + 0.5; t += PLAYBACK_STEP_US) {
+        const row = interpolateRowsAt(sourceRows, Math.min(t, endTime));
+        if (!row) continue;
+        const gps = interpolateGpsAt(Math.min(t, endTime));
+        const gpsAltM = gps ? (gps.gpsAlt || 0) / 10 : (row.gpsAlt || 0) / 10;
+        const lat = gps ? gps.lat / 1e7 : homeLat;
+        const lon = gps ? gps.lon / 1e7 : homeLon;
+        const dLat = (lat - homeLat) * 111320;
+        const dLon = (lon - homeLon) * 111320 * Math.cos((homeLat * Math.PI) / 180);
         frames.push({
-            t: f.t, x, z, alt: relAlt,
-            roll: f.roll, pitch: f.pitch, yaw: f.yaw, throttle: f.throttle,
-            vx: f.velE, vz: -f.velN, // east -> +X, north -> -Z (ground frame)
-            baroAltM: gpsAltM, // keep ASL in baroAltM slot for HUD raw display
-            gpsAltM: gpsAltM,
+            t: Math.min(t, endTime), x: dLon, z: -dLat,
+            alt: gpsAltM - homeAsl,
+            roll: row.roll, pitch: row.pitch, yaw: row.yaw, throttle: row.throttle,
+            vx: row.velE, vz: -row.velN,
+            baroAltM: gpsAltM, gpsAltM,
         });
     }
     if (frames.length) {
@@ -395,8 +454,8 @@ function frameAt(t) {
     return {
         x: a.x + (b.x - a.x) * f,
         z: a.z + (b.z - a.z) * f,
-        roll: a.roll + (b.roll - a.roll) * f,
-        pitch: a.pitch + (b.pitch - a.pitch) * f,
+        roll: a.roll + shortestAngleDiff(b.roll, a.roll) * f,
+        pitch: a.pitch + shortestAngleDiff(b.pitch, a.pitch) * f,
         yaw: a.yaw + shortestAngleDiff(b.yaw, a.yaw) * f,
         throttle: a.throttle + (b.throttle - a.throttle) * f,
         alt: a.alt + (b.alt - a.alt) * f,
@@ -439,7 +498,7 @@ function updatePropellers(dt, throttle) {
 
 function setPlaying(p) {
     playing = p;
-    playBtn.textContent = p ? "⏸ 일시정지" : "▶ 재생";
+    playBtn.textContent = p ? "⏸ Pause" : "▶ Play";
     playBtn2.textContent = p ? "⏸" : "▶";
     if (p) lastPlayWall = performance.now();
 }
@@ -491,18 +550,18 @@ function loadFile(file) {
     reader.onload = () => {
         try {
             const { out } = parseCSV(reader.result);
-            if (!out.length) throw new Error("데이터 행이 없습니다");
+            if (!out.length) throw new Error("No data rows found");
             buildFrames({ out });
             playT = startTime;
             seek.value = 0;
             const fr = frameAt(playT);
             applyFrame(fr);
-            statusEl.textContent = `로드됨: ${frames.length} 프레임, GPS ${hasGps ? "있음" : "없음"}`;
+            statusEl.textContent = `Loaded: ${frames.length} frames (${PLAYBACK_HZ}Hz), GPS ${hasGps ? `interpolated from ${gpsFixes.length} fixes` : "unavailable"}`;
             timeLabel.textContent = "0.0s";
             setPlaying(true);
         } catch (err) {
             console.error(err);
-            statusEl.textContent = "파싱 실패: " + err.message;
+            statusEl.textContent = "Parse failed: " + err.message;
         }
     };
     reader.readAsText(file);
