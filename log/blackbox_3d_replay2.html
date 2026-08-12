@@ -229,6 +229,162 @@ function loadAirplane() {
 }
 
 // ---------------------------------------------------------------------------
+// Waypoint / rescue markers (WP: yellow number, A/B: red letter)
+// ---------------------------------------------------------------------------
+let markersGroup = null;
+
+// Make a camera-facing text sprite. heightM ~ world height in meters (field scale).
+function makeTextSprite(text, color, heightM) {
+    const pad = 24;
+    const fontPx = 96;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.font = `bold ${fontPx}px system-ui, sans-serif`;
+    const w = Math.ceil(ctx.measureText(text).width) + pad * 2;
+    const h = fontPx + pad * 2;
+    canvas.width = w; canvas.height = h;
+    ctx.font = `bold ${fontPx}px system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.strokeText(text, w / 2, h / 2);
+    ctx.fillStyle = color;
+    ctx.fillText(text, w / 2, h / 2);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.anisotropy = 4;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true });
+    const sprite = new THREE.Sprite(mat);
+    const aspect = w / h;
+    sprite.scale.set(heightM * aspect, heightM, 1);
+    return sprite;
+}
+
+function clearMarkers() {
+    if (markersGroup) {
+        scene.remove(markersGroup);
+        markersGroup.traverse((o) => {
+            if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+            if (o.geometry) o.geometry.dispose();
+        });
+    }
+    markersGroup = new THREE.Group();
+    scene.add(markersGroup);
+}
+
+// lat/lon in degrees -> meters relative to home (matches buildFrames projection)
+function degToMeters(lat, lon) {
+    const dLat = (lat - homeLat) * 111320;
+    const dLon = (lon - homeLon) * 111320 * Math.cos((homeLat * Math.PI) / 180);
+    return { x: dLon, z: -dLat };
+}
+
+// Build WP (0..14) and A/B markers from the raw parsed rows.
+// WP are static (fixed target altitude). A/B are dynamic: they first appear
+// when the log starts reporting them, then their altitude tracks the live
+// GPS rescue altitude every frame.
+let abMarker = { a: null, b: null };   // { sprite, latDeg, lonDeg, altIdx }
+let abFirstSeen = { a: null, b: null };
+
+function buildMarkers(data) {
+    clearMarkers();
+    abMarker = { a: null, b: null };
+    abFirstSeen = { a: null, b: null };
+    const { out, wpLat, wpLon, wpAlt, iALat, iALon, iAAlt, iBLat, iBLon, iBAlt } = data;
+    const num = (vals, k) => {
+        if (k < 0) return null;
+        const v = parseFloat(vals[k]);
+        return isNaN(v) ? null : v;
+    };
+    // Waypoint target altitude is logged as absolute GPS altitude in cm, ground
+    // referenced. Convert cm -> metres directly (no home offset, so it shares
+    // the ground datum the plane is launched from).
+    const toAltM = (cm) => (cm == null ? 0 : cm / 100);
+    const addMarker = (latDeg, lonDeg, text, color, heightM, altCm) => {
+        const m = degToMeters(latDeg, lonDeg);
+        const sprite = makeTextSprite(text, color, heightM);
+        // float above the target altitude by half the glyph height so it reads clearly in the air
+        sprite.position.set(m.x, toAltM(altCm) + heightM * 0.6, m.z);
+        markersGroup.add(sprite);
+        return sprite;
+    };
+
+    // Waypoints: read from the first rows that carry values (early in the log).
+    // Each WP uses its own fixed target altitude (GPS_wp_N_alt).
+    const wpDrawn = new Set();
+    for (const row of out) {
+        const vals = row._raw;
+        if (!vals) continue;
+        for (let i = 0; i < 15; i++) {
+            if (wpDrawn.has(i)) continue;
+            const lat = num(vals, wpLat[i]), lon = num(vals, wpLon[i]);
+            if (lat != null && lon != null && (lat !== 0 || lon !== 0)) {
+                const altCm = num(vals, wpAlt[i]);
+                addMarker(lat / 1e7, lon / 1e7, String(i), "#ffd166", 4, altCm);
+                wpDrawn.add(i);
+            }
+        }
+        if (wpDrawn.size === 15) break;
+    }
+
+    // Rescue points A / B: capture their (static) GPS position. Coordinates may
+    // be logged as 0 until the point is first touched, so fall back to home when
+    // no non-zero coordinate is ever seen. The sprite is shown/hidden per-frame
+    // by updateABMarkers based on whether a live altitude is present.
+    for (const row of out) {
+        const vals = row._raw;
+        if (!vals) continue;
+        const aLat = num(vals, iALat), aLon = num(vals, iALon);
+        if (abFirstSeen.a === null) abFirstSeen.a = { latDeg: 0, lonDeg: 0 };
+        if (aLat != null && aLat !== 0) abFirstSeen.a.latDeg = aLat / 1e7;
+        if (aLon != null && aLon !== 0) abFirstSeen.a.lonDeg = aLon / 1e7;
+        const bLat = num(vals, iBLat), bLon = num(vals, iBLon);
+        if (abFirstSeen.b === null) abFirstSeen.b = { latDeg: 0, lonDeg: 0 };
+        if (bLat != null && bLat !== 0) abFirstSeen.b.latDeg = bLat / 1e7;
+        if (bLon != null && bLon !== 0) abFirstSeen.b.lonDeg = bLon / 1e7;
+    }
+
+    const total = wpDrawn.size + (abFirstSeen.a ? 1 : 0) + (abFirstSeen.b ? 1 : 0);
+    console.log(`Markers: ${wpDrawn.size} waypoints, A=${!!abFirstSeen.a}, B=${!!abFirstSeen.b}`);
+    console.log(`[AB debug] iALat=${iALat} iALon=${iALon} iAAlt=${iAAlt} iBLat=${iBLat} iBLon=${iBLon} iBAlt=${iBAlt}`);
+    console.log(`[AB debug] A pos=`, abFirstSeen.a, `B pos=`, abFirstSeen.b);
+    return total;
+}
+
+// Per-frame update for the dynamic A/B markers. `fr` is the interpolated frame,
+// which already carries the live A/B rescue altitude (fr.aAlt / fr.bAlt, in cm).
+// The sprite is created lazily the first time the point's altitude is non-zero,
+// then raised to the current altitude every frame.
+function updateABMarkers(fr) {
+    if (!fr) return;
+    for (const point of ["a", "b"]) {
+        const seen = abFirstSeen[point];
+        if (!seen) continue;
+        const altCm = point === "a" ? (fr.aAlt || 0) : (fr.bAlt || 0);
+        let entry = abMarker[point];
+        if (!entry) {
+            const m = degToMeters(seen.latDeg, seen.lonDeg);
+            const sprite = makeTextSprite(point.toUpperCase(), "#ff3b3b", 5);
+            sprite.position.set(m.x, 0, m.z);
+            sprite.visible = altCm !== 0;
+            markersGroup.add(sprite);
+            entry = abMarker[point] = { sprite, latDeg: seen.latDeg, lonDeg: seen.lonDeg };
+        }
+        entry.sprite.visible = altCm !== 0;
+        const m = degToMeters(seen.latDeg, seen.lonDeg);
+        entry.sprite.position.set(m.x, (altCm / 100) + 5 * 0.6, m.z);
+    }
+}
+
+// read a raw value from a CSV row using a field index (guard for missing field)
+function numRaw(vals, k) {
+    if (k < 0 || vals == null) return null;
+    const v = parseFloat(vals[k]);
+    return isNaN(v) ? null : v;
+}
+
+// ---------------------------------------------------------------------------
 // Blackbox CSV parsing
 // ---------------------------------------------------------------------------
 let frames = [];     // { t, x, y, z, roll, pitch, yaw, throttle }
@@ -262,6 +418,16 @@ function parseCSV(text) {
     const iTime = idx("time");
     const iLoop = idx("loopIteration");
 
+    // Waypoint / rescue-point fields (lat/lon in deg * 1e7, alt in cm)
+    const wpLat = [], wpLon = [], wpAlt = [];
+    for (let i = 0; i < 15; i++) {
+        wpLat.push(idx(`GPS_wp_${i}_lat`));
+        wpLon.push(idx(`GPS_wp_${i}_lon`));
+        wpAlt.push(idx(`GPS_wp_${i}_alt`));
+    }
+    const iALat = idx("GPS_A_lat"), iALon = idx("GPS_A_lon"), iAAlt = idx("GPS_A_alt");
+    const iBLat = idx("GPS_B_lat"), iBLon = idx("GPS_B_lon"), iBAlt = idx("GPS_B_alt");
+
     const out = [];
     for (let i = headerIdx + 1; i < lines.length; i++) {
         const vals = splitCSVLine(lines[i]);
@@ -276,6 +442,7 @@ function parseCSV(text) {
         const t = iTime >= 0 ? num(iTime) : (iLoop >= 0 ? num(iLoop) : out.length);
         if (t == null) continue;
         out.push({
+            _raw: vals,
             t,
             lat: iLat >= 0 ? num(iLat) : null,
             lon: iLon >= 0 ? num(iLon) : null,
@@ -290,7 +457,10 @@ function parseCSV(text) {
             velE: iVelE >= 0 ? num(iVelE) : 0,
         });
     }
-    return { out, headers };
+    return {
+        out, headers,
+        wpLat, wpLon, wpAlt, iALat, iALon, iAAlt, iBLat, iBLon, iBAlt, iAlt,
+    };
 }
 
 function splitCSVLine(line) {
@@ -362,8 +532,22 @@ function interpolateGpsAt(t) {
 }
 
 function buildFrames(data) {
-    const { out } = data;
+    const { out, iAAlt, iBAlt } = data;
     sourceRows = out.slice().sort((a, b) => a.t - b.t);
+
+    // Interpolated A/B rescue altitude (cm) at time t, read from the raw rows.
+    // A/B coordinates are static, only the altitude varies over the log.
+    const rawAbAt = (t, k) => {
+        if (k < 0 || !sourceRows.length) return 0;
+        let lo = 0, hi = sourceRows.length - 1;
+        if (t <= sourceRows[0].t) lo = hi = 0;
+        else if (t >= sourceRows[hi].t) lo = hi = hi;
+        else { while (hi - lo > 1) { const m = (lo + hi) >> 1; if (sourceRows[m].t < t) lo = m; else hi = m; } }
+        const pick = (i) => { const v = sourceRows[i]._raw ? parseFloat(sourceRows[i]._raw[k]) : NaN; return isNaN(v) ? 0 : v; };
+        const a = pick(lo), b = pick(hi);
+        const f = (t - sourceRows[lo].t) / ((sourceRows[hi].t - sourceRows[lo].t) || 1);
+        return a + (b - a) * (hi === lo ? 0 : f);
+    };
     frames = [];
     hasGps = sourceRows.some(validGpsRow);
 
@@ -409,6 +593,8 @@ function buildFrames(data) {
             roll: row.roll, pitch: row.pitch, yaw: row.yaw, throttle: row.throttle,
             vx: row.velE, vz: -row.velN,
             baroAltM: gpsAltM, gpsAltM,
+            aAlt: rawAbAt(Math.min(t, endTime), iAAlt),
+            bAlt: rawAbAt(Math.min(t, endTime), iBAlt),
         });
     }
     if (frames.length) {
@@ -461,6 +647,8 @@ function frameAt(t) {
         alt: a.alt + (b.alt - a.alt) * f,
         baroAltM: a.baroAltM + (b.baroAltM - a.baroAltM) * f,
         gpsAltM: a.gpsAltM + (b.gpsAltM - a.gpsAltM) * f,
+        aAlt: a.aAlt + (b.aAlt - a.aAlt) * f,
+        bAlt: a.bAlt + (b.bAlt - a.bAlt) * f,
     };
 }
 
@@ -471,7 +659,7 @@ const hudAltAsl = document.getElementById("hudAltAsl");
 const hudRaw = document.getElementById("hudRaw");
 const hudHome = document.getElementById("hudHome");
 const hudPos = document.getElementById("hudPos");
-function applyFrame(fr) {
+function applyFrame(fr, t) {
     if (!airplane || !fr) return;
     airplane.position.x = fr.x;
     airplane.position.z = fr.z;
@@ -487,6 +675,18 @@ function applyFrame(fr) {
     airplane.rotation.set(fr.pitch * -1, fr.yaw * -1 + yawOffset, fr.roll * -1, 'YXZ');
 
     prevPos = { x: fr.x, z: fr.z };
+
+    // dynamic A/B markers track the live (per-frame) rescue altitude
+    updateABMarkers(fr);
+
+    // [AB debug] log first few frames + altitude changes
+    if (!window.__abDbg) window.__abDbg = { n: 0, lastA: null, lastB: null };
+    const d = window.__abDbg;
+    if (d.n < 5 || (fr.aAlt || 0) !== d.lastA || (fr.bAlt || 0) !== d.lastB) {
+        d.n++;
+        d.lastA = fr.aAlt || 0; d.lastB = fr.bAlt || 0;
+        console.log(`[AB frame] aAlt=${Math.round(fr.aAlt || 0)} bAlt=${Math.round(fr.bAlt || 0)} Avis=${abMarker.a ? abMarker.a.sprite.visible : 'none'} Bvis=${abMarker.b ? abMarker.b.sprite.visible : 'none'}`);
+    }
 }
 
 function updatePropellers(dt, throttle) {
@@ -509,7 +709,7 @@ yawBtn.onclick = () => {
     yawOffset += Math.PI / 2;
     if (!frames.length) return;
     const fr = frameAt(playT);
-    applyFrame(fr);
+    applyFrame(fr, playT);
 };
 
 seek.oninput = () => {
@@ -519,7 +719,7 @@ seek.oninput = () => {
     prevPos = null;
     setPlaying(false);
     const fr = frameAt(playT);
-    applyFrame(fr);
+    applyFrame(fr, playT);
     timeLabel.textContent = ((playT - startTime) / 1e6).toFixed(1) + "s";
 };
 
@@ -549,14 +749,16 @@ function loadFile(file) {
     const reader = new FileReader();
     reader.onload = () => {
         try {
-            const { out } = parseCSV(reader.result);
+            const data = parseCSV(reader.result);
+            const { out } = data;
             if (!out.length) throw new Error("No data rows found");
-            buildFrames({ out });
+            buildFrames(data);
+            const markerCount = buildMarkers(data);
             playT = startTime;
             seek.value = 0;
             const fr = frameAt(playT);
-            applyFrame(fr);
-            statusEl.textContent = `Loaded: ${frames.length} frames (${PLAYBACK_HZ}Hz), GPS ${hasGps ? `interpolated from ${gpsFixes.length} fixes` : "unavailable"}`;
+            applyFrame(fr, playT);
+            statusEl.textContent = `Loaded: ${frames.length} frames (${PLAYBACK_HZ}Hz), GPS ${hasGps ? `interpolated from ${gpsFixes.length} fixes` : "unavailable"}` + (markerCount ? `, ${markerCount} markers` : "");
             timeLabel.textContent = "0.0s";
             setPlaying(true);
         } catch (err) {
@@ -593,7 +795,7 @@ function animate(ts) {
         const frac = (playT - startTime) / (endTime - startTime || 1);
         seek.value = Math.max(0, Math.min(1000, frac * 1000));
         const fr = frameAt(playT);
-        applyFrame(fr);
+        applyFrame(fr, playT);
         // Camera follows the plane horizontally, but tracks altitude only very
         // gently and ignores small height changes to avoid vertical jitter.
         if (airplane) {
