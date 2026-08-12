@@ -94,6 +94,7 @@ const replayLabel = ref("▶ Replay");
 // Scene setup
 // ---------------------------------------------------------------------------
 let scene, camera, renderer, controls;
+let resizeObserver = null;
 let airplane = null;
 let propellers = [];
 let propAngle = 0;
@@ -886,16 +887,22 @@ function init() {
 
     window.addEventListener("resize", resize);
     rafId = requestAnimationFrame(animate);
-    // The tab pane may not have its final size on mount; correct the renderer
-    // size once layout settles so the airfield is visible immediately.
-    requestAnimationFrame(resize);
-    setTimeout(resize, 200);
+    // Keep the renderer sized to the host even if layout settles after mount or
+    // the tab pane resizes — otherwise the canvas can stay 0px tall and the
+    // airfield never becomes visible.
+    resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(rootRef.value);
+    resize();
 }
 
 function dispose() {
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     window.removeEventListener("resize", resize);
+    if (resizeObserver) {
+        resizeObserver.disconnect();
+        resizeObserver = null;
+    }
     clearContrail();
     if (airplane) {
         scene.remove(airplane);
