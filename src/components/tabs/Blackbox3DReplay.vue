@@ -1,42 +1,54 @@
 <template>
     <BaseTab tab-name="blackbox_3d" extra-class="tab-blackbox-3d-host">
         <div ref="rootRef" class="blackbox-3d-replay">
-            <div v-if="!hasLog" class="b3d-empty">
-                Load a blackbox log in the Blackbox Viewer, then open this tab to replay it in 3D.
+            <div id="toolbar" class="b3d-toolbar">
+                <button id="b3dReplayBtn" class="b3d-btn" :disabled="!hasLog" @click="onReplay">
+                    {{ replayLabel }}
+                </button>
+                <button class="b3d-btn" @click="onResetView">Reset View</button>
+                <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
+                <button class="b3d-btn" @click="onYaw">Heading 90</button>
+                <button class="b3d-btn" @click="onOpenFile">Load BBL</button>
+                <span id="b3dStatus" class="b3d-status">{{ status }}</span>
             </div>
-            <template v-else>
-                <div id="toolbar" class="b3d-toolbar">
-                    <button id="b3dReplayBtn" class="b3d-btn" @click="onReplay">{{ replayLabel }}</button>
-                    <button class="b3d-btn" @click="onResetView">Reset View</button>
-                    <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
-                    <button class="b3d-btn" @click="onYaw">Heading 90</button>
-                    <span id="b3dStatus" class="b3d-status">{{ status }}</span>
-                </div>
 
-                <div id="seekWrap" class="b3d-seek">
-                    <button class="b3d-btn" @click="onTogglePlay">{{ playing ? "⏸" : "▶" }}</button>
-                    <input
-                        id="b3dSeek"
-                        ref="seekRef"
-                        class="b3d-seek-input"
-                        type="range"
-                        min="0"
-                        max="1000"
-                        value="0"
-                        @input="onSeek"
-                    />
-                    <span id="b3dTime" class="b3d-time">{{ timeLabel }}</span>
-                </div>
+            <input
+                ref="fileInputRef"
+                type="file"
+                accept=".bbl,.txt,.log,.csv"
+                class="b3d-hidden-file"
+                @change="onFilePicked"
+            />
 
-                <div id="b3dDrop" class="b3d-drop">Drop a log here</div>
+            <div id="seekWrap" class="b3d-seek">
+                <button class="b3d-btn" :disabled="!hasLog" @click="onTogglePlay">{{ playing ? "⏸" : "▶" }}</button>
+                <input
+                    id="b3dSeek"
+                    ref="seekRef"
+                    class="b3d-seek-input"
+                    type="range"
+                    min="0"
+                    max="1000"
+                    value="0"
+                    :disabled="!hasLog"
+                    @input="onSeek"
+                />
+                <span id="b3dTime" class="b3d-time">{{ timeLabel }}</span>
+            </div>
 
-                <div id="b3dHud" class="b3d-hud">
-                    <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
-                    <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
-                    <div>Raw ASL: <span id="b3dRaw">0</span> / Home: <span id="b3dHome">0</span></div>
-                    <div>Position: <span id="b3dPos">0, 0</span></div>
-                </div>
-            </template>
+            <div id="b3dDrop" class="b3d-drop">Drop a log here</div>
+
+            <div id="b3dHud" class="b3d-hud">
+                <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
+                <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
+                <div>Raw ASL: <span id="b3dRaw">0</span> / Home: <span id="b3dHome">0</span></div>
+                <div>Position: <span id="b3dPos">0, 0</span></div>
+            </div>
+
+            <div v-if="!hasLog" class="b3d-empty">
+                <p>Load a blackbox log (.bbl) to replay the flight in 3D.</p>
+                <button class="b3d-btn b3d-btn--load" @click="onOpenFile">Open BBL Log</button>
+            </div>
         </div>
     </BaseTab>
 </template>
@@ -48,12 +60,27 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import BaseTab from "./BaseTab.vue";
 import { useLogStore } from "../../blackbox-viewer/stores/log.js";
+import { FlightLog } from "../../blackbox-viewer/flightlog.js";
 import { buildReplayDataFromFlightLog } from "../../blackbox-viewer/blackbox3d_adapter.js";
 
 const rootRef = ref(null);
 const seekRef = ref(null);
+const fileInputRef = ref(null);
+const localLog = ref(null);
 const logStore = useLogStore();
-const hasLog = computed(() => logStore.hasLog);
+
+// The 3D replay is self-contained: it works from its own loaded .bbl, but also
+// reuses a log already loaded in the Blackbox Viewer if present.
+const hasLog = computed(() => !!localLog.value || logStore.hasLog);
+
+function ensureActiveLog() {
+    if (localLog.value) {
+        logStore.flightLog = localLog.value;
+        logStore.hasLog = true;
+        return localLog.value;
+    }
+    return logStore.flightLog;
+}
 
 const status = ref("Load a blackbox log, then press Replay");
 const timeLabel = ref("0.0s");
@@ -645,12 +672,44 @@ function setPlaying(p) {
 // ---------------------------------------------------------------------------
 // Load from the active FlightLog
 // ---------------------------------------------------------------------------
+function onOpenFile() {
+    fileInputRef.value?.click();
+}
+
+function onFilePicked(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const bytes = e.target.result;
+            const dataArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+            const log = new FlightLog(dataArray);
+            localLog.value = log;
+            logStore.flightLog = log;
+            logStore.flightLogDataArray = dataArray;
+            logStore.hasLog = true;
+            status.value = `Loaded ${file.name} — press Replay`;
+            setPlaying(false);
+            playT = 0;
+            const fr = frameAt(playT);
+            applyFrame(fr);
+        } catch (err) {
+            console.error(err);
+            status.value = `Failed to open log: ${err.message}`;
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
 function onReplay() {
     if (playingFlag) {
         setPlaying(false);
         return;
     }
     try {
+        ensureActiveLog();
         const data = buildReplayDataFromFlightLog();
         const { out } = data;
         if (!out.length) throw new Error("No data rows found");
@@ -799,6 +858,10 @@ function init() {
 
     window.addEventListener("resize", resize);
     rafId = requestAnimationFrame(animate);
+    // The tab pane may not have its final size on mount; correct the renderer
+    // size once layout settles so the airfield is visible immediately.
+    requestAnimationFrame(resize);
+    setTimeout(resize, 200);
 }
 
 function dispose() {
@@ -935,14 +998,27 @@ onBeforeUnmount(() => {
     height: 100%;
 }
 .b3d-empty {
+    position: absolute;
+    inset: 0;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    gap: 12px;
     padding: 0 20%;
     text-align: center;
-    color: #9fb3c8;
-    font-size: 14px;
+    color: #fff;
+    font-size: 15px;
     line-height: 1.6;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    background: rgba(10, 20, 35, 0.28);
+    z-index: 30;
+    pointer-events: none;
+}
+.b3d-empty .b3d-btn--load {
+    pointer-events: auto;
+}
+.b3d-hidden-file {
+    display: none;
 }
 </style>
