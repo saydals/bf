@@ -878,7 +878,6 @@ function init() {
 
     hudAltRel = rootRef.value.querySelector("#b3dAltRel");
     hudAltAsl = rootRef.value.querySelector("#b3dAltAsl");
-    hudRaw = rootRef.value.querySelector("#b3dRaw");
     hudHome = rootRef.value.querySelector("#b3dHome");
     hudPos = rootRef.value.querySelector("#b3dPos");
     hudMode = rootRef.value.querySelector("#b3dMode");
