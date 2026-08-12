@@ -49,8 +49,9 @@
         </label>
         <button id="playBtn">▶ Play</button>
         <button id="resetViewBtn">↺ Reset View</button>
+        <button id="fullScreenBtn">⛶ Full Screen</button>
         <div class="sep"></div>
-        <button id="yawBtn">↻ heading 90°</button>
+        <button id="yawBtn">↻ Heading 90°</button>
         <span id="status">Open a CSV file</span>
     </div>
 
@@ -559,7 +560,12 @@ function buildFrames(data) {
         if (t <= sourceRows[0].t) lo = hi = 0;
         else if (t >= sourceRows[hi].t) lo = hi = hi;
         else { while (hi - lo > 1) { const m = (lo + hi) >> 1; if (sourceRows[m].t < t) lo = m; else hi = m; } }
-        const pick = (i) => { const v = sourceRows[i]._raw ? parseFloat(sourceRows[i]._raw[iMode]) : NaN; return isNaN(v) ? 0 : (v | 0); };
+        const pick = (i) => {
+            const raw = sourceRows[i]._raw ? String(sourceRows[i]._raw[iMode] ?? "").trim() : "";
+            if (!raw || raw === "NaN") return 0;
+            const v = /^0x/i.test(raw) ? parseInt(raw, 16) : parseFloat(raw);
+            return isNaN(v) ? 0 : (v | 0);
+        };
         return pick(lo);
     };
 
@@ -629,6 +635,7 @@ const statusEl = document.getElementById("status");
 const playBtn = document.getElementById("playBtn");
 const playBtn2 = document.getElementById("playBtn2");
 const yawBtn = document.getElementById("yawBtn");
+const fullScreenBtn = document.getElementById("fullScreenBtn");
 
 // Shortest angular path for wrap-around (e.g. 2π -> 0 should interpolate forward, not backward).
 function shortestAngleDiff(target, current) {
@@ -680,7 +687,7 @@ const hudPos = document.getElementById("hudPos");
 // ---------------------------------------------------------------------------
 const WING_HALF_SPAN = 2.2; // approx half wing width in model units (scale 0.75)
 const CONTRAIL_COUNT = 120; // max particles per side
-const CONTRAIL_LIFE = 1.8; // seconds
+const CONTRAIL_LIFE = 3.6; // seconds (2x trail length)
 const CONTRAIL_SIZE = 0.6; // metres
 const contrailGroup = new THREE.Group();
 scene.add(contrailGroup);
@@ -691,8 +698,9 @@ let contrailAccum = 0;
 function spawnContrail(worldPos, side) {
     const pool = side === "left" ? contrailLeft : contrailRight;
     const geom = new THREE.PlaneGeometry(CONTRAIL_SIZE, CONTRAIL_SIZE);
+    // Use the current trail color (updates with flight mode); defaults to white.
     const mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide,
+        color: contrailGroup.userData.color || 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide,
     });
     const sprite = new THREE.Mesh(geom, mat);
     sprite.position.copy(worldPos);
@@ -787,7 +795,7 @@ function applyFrame(fr, t) {
         const localRight = new THREE.Vector3(WING_HALF_SPAN, 0.2, 0);
         airplane.localToWorld(localLeft);
         airplane.localToWorld(localRight);
-        if (contrailAccum >= 0.05) {
+        if (contrailAccum >= 0.075) {
             spawnContrail(localLeft, "left");
             spawnContrail(localRight, "right");
             contrailAccum = 0;
@@ -822,6 +830,19 @@ function setPlaying(p) {
 
 playBtn.onclick = () => setPlaying(!playing);
 playBtn2.onclick = () => setPlaying(!playing);
+fullScreenBtn.onclick = () => {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+        fullScreenBtn.textContent = "⛶ Full Screen";
+    } else {
+        document.documentElement.requestFullscreen();
+        fullScreenBtn.textContent = "⛶ Exit Full Screen";
+    }
+};
+document.addEventListener("fullscreenchange", () => {
+    fullScreenBtn.textContent = document.fullscreenElement ? "⛶ Exit Full Screen" : "⛶ Full Screen";
+});
+
 yawBtn.onclick = () => {
     yawOffset += Math.PI / 2;
     if (!frames.length) return;
