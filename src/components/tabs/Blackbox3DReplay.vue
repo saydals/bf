@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -53,7 +53,7 @@ import { buildReplayDataFromFlightLog } from "../../blackbox-viewer/blackbox3d_a
 const rootRef = ref(null);
 const seekRef = ref(null);
 const logStore = useLogStore();
-const hasLog = logStore.hasLog;
+const hasLog = computed(() => logStore.hasLog);
 
 const status = ref("Load a blackbox log, then press Replay");
 const timeLabel = ref("0.0s");

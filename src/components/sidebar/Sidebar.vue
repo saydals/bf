@@ -224,6 +224,25 @@ onUnmounted(() => {
     width: 100%;
 }
 
+/* Custom 3D badge icon used by the Blackbox 3D navigation item. */
+:deep(.i-3d-icon) {
+    display: inline-flex;
+    width: 1.25rem;
+    height: 1.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid currentColor;
+    border-radius: 0.25rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+:deep(.i-3d-icon::before) {
+    content: "3D";
+}
+
 .sidebar-footer--compact {
     flex-direction: column;
     align-items: center;
