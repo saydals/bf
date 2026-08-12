@@ -152,7 +152,7 @@ import { useConnectionStore } from "@/stores/connection";
 const iconPositionGps = new URL("../../../images/icons/cf_icon_position.png", import.meta.url).href;
 const iconPositionMag = new URL("../../../images/icons/cf_icon_position_mag.png", import.meta.url).href;
 const iconPositionNoFix = new URL("../../../images/icons/cf_icon_position_nofix.png", import.meta.url).href;
-const plusCursorUrl = new URL("../../../public/images/plus-cursor.svg", import.meta.url).href;
+const plusCursorUrl = "/images/plus-cursor.svg";
 
 const {
     waypoints,
