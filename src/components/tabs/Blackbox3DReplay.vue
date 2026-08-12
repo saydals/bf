@@ -41,9 +41,10 @@
             <div id="b3dHud" class="b3d-hud">
                 <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
                 <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
-                <div>Raw ASL: <span id="b3dRaw">0</span> / Dist to home: <span id="b3dHome">0</span> m</div>
+                <div>Dist to home: <span id="b3dHome">0</span> m</div>
                 <div>Position: <span id="b3dPos">0, 0</span></div>
-                <div>Mode: <span id="b3dMode">Manual</span></div>
+                <div>Mode: <span id="b3dMode" class="b3d-mode">Manual</span></div>
+                <div class="b3d-file">Log: <span id="b3dFile">—</span></div>
             </div>
 
             <div v-if="!hasLog" class="b3d-empty">
@@ -68,6 +69,7 @@ const rootRef = ref(null);
 const seekRef = ref(null);
 const fileInputRef = ref(null);
 const localLog = ref(null);
+const loadedFile = ref("—");
 const logStore = useLogStore();
 
 // The 3D replay is self-contained: it works from its own loaded .bbl, but also
@@ -117,7 +119,7 @@ const PLAYBACK_HZ = 50;
 const PLAYBACK_STEP_US = 1e6 / PLAYBACK_HZ;
 
 // HUD elements (kept as refs for fast updates)
-let hudAltRel, hudAltAsl, hudRaw, hudHome, hudPos, hudMode;
+let hudAltRel, hudAltAsl, hudHome, hudPos, hudMode, hudFile;
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -634,14 +636,16 @@ function applyFrame(fr) {
 
     if (hudAltRel) hudAltRel.textContent = altRel.toFixed(1);
     if (hudAltAsl) hudAltAsl.textContent = (fr.gpsAltM || 0).toFixed(0);
-    if (hudRaw) hudRaw.textContent = ((fr.gpsAltM || 0) * 10).toFixed(0);
     const distToHome = Math.sqrt((fr.x || 0) * (fr.x || 0) + (fr.z || 0) * (fr.z || 0));
     if (hudHome) hudHome.textContent = distToHome.toFixed(1);
     if (hudPos) hudPos.textContent = `${fr.x.toFixed(1)}, ${fr.z.toFixed(1)}`;
 
     const modeVal = fr && fr.mode != null ? fr.mode | 0 : 0;
     const isAuto = (modeVal & ~1) !== 0;
-    if (hudMode) hudMode.textContent = isAuto ? "Autopilot" : "Manual";
+    if (hudMode) {
+        hudMode.textContent = isAuto ? "Autopilot" : "Manual";
+        hudMode.classList.toggle("b3d-mode--auto", isAuto);
+    }
 
     airplane.rotation.order = "YXZ";
     airplane.rotation.set(fr.pitch * -1, fr.yaw * -1 + yawOffset, fr.roll * -1, "YXZ");
@@ -696,6 +700,7 @@ function onFilePicked(event) {
             logStore.flightLog = log;
             logStore.flightLogDataArray = dataArray;
             logStore.hasLog = true;
+            loadedFile.value = file.name;
             status.value = `Loaded ${file.name} — press Replay`;
             setPlaying(false);
             playT = 0;
@@ -862,6 +867,8 @@ function init() {
     hudHome = rootRef.value.querySelector("#b3dHome");
     hudPos = rootRef.value.querySelector("#b3dPos");
     hudMode = rootRef.value.querySelector("#b3dMode");
+    hudFile = rootRef.value.querySelector("#b3dFile");
+    if (hudFile) hudFile.textContent = loadedFile.value;
 
     window.addEventListener("resize", resize);
     rafId = requestAnimationFrame(animate);
@@ -990,16 +997,35 @@ onBeforeUnmount(() => {
     right: 10px;
     z-index: 10;
     background: rgba(20, 24, 30, 0.82);
-    color: #cfe8ff;
+    color: #e8f4ff;
     padding: 8px 12px;
     border-radius: 8px;
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.7;
     font-family: ui-monospace, monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-weight: 600;
 }
 .b3d-hud span {
     color: #ffd166;
-    font-weight: 700;
+    font-weight: 800;
+}
+.b3d-mode {
+    color: #ffffff;
+    font-weight: 800;
+}
+.b3d-mode--auto {
+    color: #ff3b3b;
+}
+.b3d-file {
+    margin-top: 4px;
+    font-size: 12px;
+    color: #9fb3c8;
+}
+.b3d-file span {
+    color: #cfe8ff;
 }
 .tab-blackbox-3d-host {
     height: 100%;
