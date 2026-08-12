@@ -101,6 +101,7 @@ const replayLabel = ref("▶ Replay");
 // ---------------------------------------------------------------------------
 let scene, camera, renderer, controls;
 let resizeObserver = null;
+let worldGroup = null;
 let airplane = null;
 let propellers = [];
 let propAngle = 0;
@@ -132,6 +133,7 @@ let hudAltRel, hudHome, hudPos, hudMode, hudFile, hudSpeed;
 // Environment
 // ---------------------------------------------------------------------------
 function buildEnvironment() {
+    const parent = worldGroup;
     const GROUND_SIZE = 600;
     const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
@@ -139,7 +141,7 @@ function buildEnvironment() {
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
-    scene.add(ground);
+    parent.add(ground);
 
     const runway = new THREE.Mesh(
         new THREE.BoxGeometry(12, 0.2, 160),
@@ -147,14 +149,14 @@ function buildEnvironment() {
     );
     runway.position.set(0, 0.1, 0);
     runway.receiveShadow = true;
-    scene.add(runway);
+    parent.add(runway);
     for (let z = -70; z <= 70; z += 14) {
         const dash = new THREE.Mesh(
             new THREE.BoxGeometry(0.6, 0.05, 5),
             new THREE.MeshStandardMaterial({ color: 0xffffff }),
         );
         dash.position.set(0, 0.22, z);
-        scene.add(dash);
+        parent.add(dash);
     }
 
     const rand = (a, b) => a + Math.random() * (b - a);
@@ -178,7 +180,7 @@ function buildEnvironment() {
         t.position.set(x, 0, z);
         treeGroup.add(t);
     }
-    scene.add(treeGroup);
+    parent.add(treeGroup);
 
     const flowerColors = [0xff5d8f, 0xffd166, 0x9b5de5, 0xffffff, 0xf15bb5];
     const flowerGeo = new THREE.SphereGeometry(0.35, 6, 5);
@@ -193,8 +195,33 @@ function buildEnvironment() {
             }),
         );
         f.position.set(x, 0.35, z);
-        scene.add(f);
+        parent.add(f);
     }
+}
+
+// Align the static airfield (runway long axis = world +Z) so its direction
+// matches the A→B bearing in the ground plane. The airplane and A/B markers
+// live in the GPS frame, so they stay consistent with each other; only the
+// environment is rotated. If A or B is missing, leave the airfield unrotated.
+function applyAirfieldAlignment() {
+    if (!worldGroup) return;
+    const a = abFirstSeen.a;
+    const b = abFirstSeen.b;
+    if (!a || !b) {
+        worldGroup.rotation.y = 0;
+        return;
+    }
+    const ma = degToMeters(a.latDeg, a.lonDeg);
+    const mb = degToMeters(b.latDeg, b.lonDeg);
+    const dx = mb.x - ma.x;
+    const dz = mb.z - ma.z;
+    if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) {
+        worldGroup.rotation.y = 0;
+        return;
+    }
+    // Angle of the A→B vector measured from world +Z about the Y axis. Rotating
+    // +Z by this angle yields (sin, cos) in (x, z), i.e. the runway bearing.
+    worldGroup.rotation.y = Math.atan2(dx, dz);
 }
 
 // ---------------------------------------------------------------------------
@@ -753,6 +780,7 @@ function onReplay() {
         clearContrail();
         buildFrames(data);
         const markerCount = buildMarkers(data);
+        applyAirfieldAlignment();
         playT = startTime;
         if (seekRef.value) seekRef.value.value = 0;
         const fr = frameAt(playT);
@@ -882,6 +910,8 @@ function init() {
     sun.shadow.camera.bottom = -150;
     scene.add(sun);
 
+    worldGroup = new THREE.Group();
+    scene.add(worldGroup);
     buildEnvironment();
     scene.add(contrailGroup);
     loadAirplane();
@@ -913,6 +943,14 @@ function dispose() {
         resizeObserver = null;
     }
     clearContrail();
+    if (worldGroup) {
+        worldGroup.traverse((o) => {
+            if (o.geometry) o.geometry.dispose();
+            if (o.material) o.material.dispose();
+        });
+        scene.remove(worldGroup);
+        worldGroup = null;
+    }
     if (airplane) {
         scene.remove(airplane);
         airplane.traverse((o) => {
