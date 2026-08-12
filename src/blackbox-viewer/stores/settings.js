@@ -16,7 +16,7 @@ function deepMerge(target, source) {
     }
 }
 
-export const useSettingsStore = defineStore("settings", () => {
+export const useSettingsStore = defineStore("blackboxSettings", () => {
     const userSettings = reactive(structuredClone(defaultUserSettings));
 
     function load() {
