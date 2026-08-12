@@ -82,13 +82,10 @@ const displayName = computed(() => (loadedFile.value === "—" ? "—" : stripEx
 // reuses a log already loaded in the Blackbox Viewer if present.
 const hasLog = computed(() => !!localLog.value || logStore.hasLog);
 
+// Return the log to replay WITHOUT writing into the shared viewer store (that
+// would pollute other tabs such as the Blackbox Viewer / Flight Plan map).
 function ensureActiveLog() {
-    if (localLog.value) {
-        logStore.flightLog = localLog.value;
-        logStore.hasLog = true;
-        return localLog.value;
-    }
-    return logStore.flightLog;
+    return localLog.value || logStore.flightLog;
 }
 
 const status = ref("Load a blackbox log, then press Replay");
@@ -763,9 +760,6 @@ function onFilePicked(event) {
             const dataArray = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
             const log = new FlightLog(dataArray);
             localLog.value = log;
-            logStore.flightLog = log;
-            logStore.flightLogDataArray = dataArray;
-            logStore.hasLog = true;
             loadedFile.value = file.name;
             status.value = `Loaded ${displayName.value} — press Replay`;
             resetPlayback();
@@ -783,8 +777,7 @@ function onReplay() {
         return;
     }
     try {
-        ensureActiveLog();
-        const data = buildReplayDataFromFlightLog();
+        const data = buildReplayDataFromFlightLog(ensureActiveLog());
         const { out } = data;
         if (!out.length) throw new Error("No data rows found");
         loadAirplane();
@@ -843,7 +836,12 @@ function onSeek() {
 // Loop
 // ---------------------------------------------------------------------------
 let rafId = null;
+let disposed = false;
 function animate(ts) {
+    if (disposed || !renderer || !scene || !camera) {
+        rafId = null;
+        return;
+    }
     rafId = requestAnimationFrame(animate);
     const dt = lastTs ? (ts - lastTs) / 1000 : 0;
     lastTs = ts;
@@ -890,6 +888,7 @@ function resize() {
 }
 
 function init() {
+    disposed = false;
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87b9e6);
     scene.fog = new THREE.Fog(0x87b9e6, 60, 400);
@@ -946,6 +945,7 @@ function init() {
 }
 
 function dispose() {
+    disposed = true;
     if (rafId) cancelAnimationFrame(rafId);
     rafId = null;
     window.removeEventListener("resize", resize);
@@ -953,6 +953,7 @@ function dispose() {
         resizeObserver.disconnect();
         resizeObserver = null;
     }
+    setPlaying(false);
     clearContrail();
     if (worldGroup) {
         worldGroup.traverse((o) => {
@@ -971,6 +972,9 @@ function dispose() {
     }
     if (renderer) {
         renderer.dispose();
+        // Release the WebGL context so switching tabs doesn't exhaust the
+        // browser's context limit (which breaks other canvas-based tabs).
+        if (renderer.forceContextLoss) renderer.forceContextLoss();
         if (renderer.domElement && renderer.domElement.parentNode) {
             renderer.domElement.parentNode.removeChild(renderer.domElement);
         }

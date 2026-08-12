@@ -18,22 +18,24 @@ function fieldIndexOrNeg(log, name) {
     return i === undefined || i === null ? -1 : i;
 }
 
-export function buildReplayDataFromFlightLog() {
+export function buildReplayDataFromFlightLog(log) {
     const logStore = useLogStore();
-    const log = logStore.flightLog;
-    if (!log) {
+    // Prefer an explicitly provided log (e.g. a locally loaded .bbl in the 3D
+    // replay tab) so we never mutate or depend on the shared viewer store.
+    const resolved = log || logStore.flightLog;
+    if (!resolved) {
         throw new Error("No blackbox log is loaded");
     }
 
     // Ensure the correct sub-log (multiple logs can live in one .bbl) is selected.
     const index = logStore.activeLogIndex ?? 0;
-    if (typeof log.openLog === "function") {
-        log.openLog(index);
+    if (typeof resolved.openLog === "function") {
+        resolved.openLog(index);
     }
 
-    const names = log.getMainFieldNames();
+    const names = resolved.getMainFieldNames();
 
-    const idx = (name) => fieldIndexOrNeg(log, name);
+    const idx = (name) => fieldIndexOrNeg(resolved, name);
     const iLat = idx("GPS_coord[0]");
     const iLon = idx("GPS_coord[1]");
     const iRoll = idx("heading[0]");
@@ -70,13 +72,13 @@ export function buildReplayDataFromFlightLog() {
         return Number.isNaN(v) ? null : v;
     };
 
-    const minTime = log.getMinTime(index);
-    const maxTime = log.getMaxTime(index);
+    const minTime = resolved.getMinTime(index);
+    const maxTime = resolved.getMaxTime(index);
     const out = [];
     // Walk the parsed frames directly via chunk enumeration (loop-iteration
     // granularity, matching the prototype's per-CSV-row sampling) instead of
     // doing a getFrameAtTime() lookup per millisecond.
-    const chunks = log.getChunksInTimeRange(minTime, maxTime);
+    const chunks = resolved.getChunksInTimeRange(minTime, maxTime);
     for (const chunk of chunks) {
         for (const row of chunk.frames) {
             const loopIter = iLoop >= 0 ? num(row, iLoop) : -1;
