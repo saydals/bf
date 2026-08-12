@@ -449,6 +449,14 @@
     "message": "블랙박스 뷰어",
     "description": "Navigation sidebar label for the Blackbox log viewer tab"
   },
+  "tabBlackbox3D": {
+    "message": "3D 블랙박스",
+    "description": "Sub-tab label for the 3D blackbox replay view"
+  },
+  "tabBlackbox3DDisabled": {
+    "message": "3D 재생을 사용하려면 먼저 블랙박스 로그를 불러오세요",
+    "description": "Tooltip shown on the disabled 3D replay sub-tab"
+  },
   "autotuneImportTitle": {
     "message": "블랙박스 처프 분석"
   },

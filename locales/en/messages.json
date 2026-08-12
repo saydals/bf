@@ -528,6 +528,14 @@
     "message": "Blackbox Viewer",
     "description": "Navigation sidebar label for the Blackbox log viewer tab"
   },
+  "tabBlackbox3D": {
+    "message": "3D Blackbox",
+    "description": "Sub-tab label for the 3D blackbox replay view"
+  },
+  "tabBlackbox3DDisabled": {
+    "message": "Load a blackbox log first to use the 3D replay",
+    "description": "Tooltip shown on the disabled 3D replay sub-tab"
+  },
   "autotuneImportTitle": {
     "message": "Blackbox Chirp Analysis"
   },
