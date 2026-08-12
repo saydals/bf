@@ -41,8 +41,9 @@
             <div id="b3dHud" class="b3d-hud">
                 <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
                 <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
-                <div>Raw ASL: <span id="b3dRaw">0</span> / Home: <span id="b3dHome">0</span></div>
+                <div>Raw ASL: <span id="b3dRaw">0</span> / Dist to home: <span id="b3dHome">0</span> m</div>
                 <div>Position: <span id="b3dPos">0, 0</span></div>
+                <div>Mode: <span id="b3dMode">Manual</span></div>
             </div>
 
             <div v-if="!hasLog" class="b3d-empty">
@@ -116,7 +117,7 @@ const PLAYBACK_HZ = 50;
 const PLAYBACK_STEP_US = 1e6 / PLAYBACK_HZ;
 
 // HUD elements (kept as refs for fast updates)
-let hudAltRel, hudAltAsl, hudRaw, hudHome, hudPos;
+let hudAltRel, hudAltAsl, hudRaw, hudHome, hudPos, hudMode;
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -634,8 +635,13 @@ function applyFrame(fr) {
     if (hudAltRel) hudAltRel.textContent = altRel.toFixed(1);
     if (hudAltAsl) hudAltAsl.textContent = (fr.gpsAltM || 0).toFixed(0);
     if (hudRaw) hudRaw.textContent = ((fr.gpsAltM || 0) * 10).toFixed(0);
-    if (hudHome) hudHome.textContent = (homeAsl * 10).toFixed(0);
+    const distToHome = Math.sqrt((fr.x || 0) * (fr.x || 0) + (fr.z || 0) * (fr.z || 0));
+    if (hudHome) hudHome.textContent = distToHome.toFixed(1);
     if (hudPos) hudPos.textContent = `${fr.x.toFixed(1)}, ${fr.z.toFixed(1)}`;
+
+    const modeVal = fr && fr.mode != null ? fr.mode | 0 : 0;
+    const isAuto = (modeVal & ~1) !== 0;
+    if (hudMode) hudMode.textContent = isAuto ? "Autopilot" : "Manual";
 
     airplane.rotation.order = "YXZ";
     airplane.rotation.set(fr.pitch * -1, fr.yaw * -1 + yawOffset, fr.roll * -1, "YXZ");
@@ -855,6 +861,7 @@ function init() {
     hudRaw = rootRef.value.querySelector("#b3dRaw");
     hudHome = rootRef.value.querySelector("#b3dHome");
     hudPos = rootRef.value.querySelector("#b3dPos");
+    hudMode = rootRef.value.querySelector("#b3dMode");
 
     window.addEventListener("resize", resize);
     rafId = requestAnimationFrame(animate);
