@@ -1,25 +1,9 @@
 <template>
     <BaseTab tab-name="blackbox_viewer" extra-class="tab-blackbox-viewer-host">
-        <!-- Sub-tab strip: the classic 2D log viewer and the new 3D replay. -->
-        <div class="b3d-subtabs">
-            <button class="b3d-subtab" :class="{ active: view === 'viewer' }" @click="view = 'viewer'">
-                {{ t("tabBlackboxViewer") }}
-            </button>
-            <button
-                class="b3d-subtab"
-                :class="{ active: view === '3d' }"
-                :disabled="!hasLog"
-                :title="hasLog ? '' : t('tabBlackbox3DDisabled')"
-                @click="onShow3D"
-            >
-                {{ t("tabBlackbox3D") }}
-            </button>
-        </div>
-
         <!-- Vendored blackbox-log-viewer scaffold. The viewer's Vue app mounts into
              #vue-app and teleports its UI into the divs below; the legacy bootstrap wires
              the canvases by id. All styling is scoped under .blackbox-viewer-root. -->
-        <div v-show="view === 'viewer'" ref="rootRef" class="blackbox-viewer-root">
+        <div ref="rootRef" class="blackbox-viewer-root">
             <div id="vue-welcome"></div>
             <div id="vue-navbar" class="app-navbar" style="z-index: 100"></div>
 
@@ -58,10 +42,6 @@
             <!-- Mount point for the viewer's Vue app -->
             <div id="vue-app"></div>
         </div>
-
-        <div v-show="view === '3d'" class="blackbox-3d-host">
-            <Blackbox3DReplay v-if="view === '3d'" />
-        </div>
     </BaseTab>
 </template>
 
@@ -73,10 +53,7 @@ import { initBlackboxViewer, destroyBlackboxViewer, setBlackboxViewerDark } from
 import { useDataflashPull } from "../../composables/useDataflashPull";
 import pinia from "../../blackbox-viewer/pinia_instance.js";
 import { useGraphStore } from "../../blackbox-viewer/stores/graph.js";
-import { useLogStore } from "../../blackbox-viewer/stores/log.js";
-import { i18n } from "../../js/localization";
 import MapAirplane from "../../blackbox-viewer/components/MapAirplane.vue";
-import Blackbox3DReplay from "./Blackbox3DReplay.vue";
 
 const rootRef = ref(null);
 let themeObserver = null;
@@ -84,18 +61,6 @@ let airplaneApp = null;
 let airplanePoll = null;
 const dataflash = useDataflashPull();
 const graphStore = useGraphStore(pinia);
-const logStore = useLogStore(pinia);
-const hasLog = logStore.hasLog;
-
-// Sub-tab selection between the classic 2D viewer and the new 3D replay.
-const view = ref("viewer");
-function t(key) {
-    return i18n.getMessage(key);
-}
-function onShow3D() {
-    if (!hasLog.value) return;
-    view.value = "3d";
-}
 
 // The configurator drives dark mode by toggling `.dark` on <html>; mirror it into the viewer.
 function hostIsDark() {
@@ -182,55 +147,16 @@ onBeforeUnmount(() => {
 <style scoped>
 .tab-blackbox-viewer-host {
     height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.b3d-subtabs {
-    display: flex;
-    gap: 4px;
-    padding: 6px 10px;
-    background: var(--bb-subtab-bg, rgba(20, 24, 30, 0.9));
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    flex: 0 0 auto;
-    z-index: 30;
-}
-.b3d-subtab {
-    background: transparent;
-    color: #cfe8ff;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 6px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-}
-.b3d-subtab:hover:not(:disabled) {
-    border-color: #2db0e3;
-}
-.b3d-subtab.active {
-    background: #2db0e3;
-    color: #fff;
-    border-color: #2db0e3;
-}
-.b3d-subtab:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
 }
 
 .blackbox-viewer-root {
     position: relative;
-    flex: 1 1 auto;
+    height: 100%;
     width: 100%;
     overflow: hidden;
     /* The vendored viewer was a full-page app and lays out with position: fixed. A transform
        on this root makes those fixed descendants resolve against the tab pane instead of the
        window, so the viewer stays inside the content area and never covers the sidebar. */
     transform: translateZ(0);
-}
-
-.blackbox-3d-host {
-    flex: 1 1 auto;
-    width: 100%;
-    overflow: hidden;
 }
 </style>

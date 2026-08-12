@@ -1,37 +1,44 @@
 <template>
-    <div ref="rootRef" class="blackbox-3d-replay">
-        <div id="toolbar" class="b3d-toolbar">
-            <button id="b3dReplayBtn" class="b3d-btn" @click="onReplay">{{ replayLabel }}</button>
-            <button class="b3d-btn" @click="onResetView">Reset View</button>
-            <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
-            <button class="b3d-btn" @click="onYaw">Heading 90</button>
-            <span id="b3dStatus" class="b3d-status">{{ status }}</span>
-        </div>
+    <BaseTab tab-name="blackbox_3d" extra-class="tab-blackbox-3d-host">
+        <div ref="rootRef" class="blackbox-3d-replay">
+            <div v-if="!hasLog" class="b3d-empty">
+                Load a blackbox log in the Blackbox Viewer, then open this tab to replay it in 3D.
+            </div>
+            <template v-else>
+                <div id="toolbar" class="b3d-toolbar">
+                    <button id="b3dReplayBtn" class="b3d-btn" @click="onReplay">{{ replayLabel }}</button>
+                    <button class="b3d-btn" @click="onResetView">Reset View</button>
+                    <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
+                    <button class="b3d-btn" @click="onYaw">Heading 90</button>
+                    <span id="b3dStatus" class="b3d-status">{{ status }}</span>
+                </div>
 
-        <div id="seekWrap" class="b3d-seek">
-            <button class="b3d-btn" @click="onTogglePlay">{{ playing ? "⏸" : "▶" }}</button>
-            <input
-                id="b3dSeek"
-                ref="seekRef"
-                class="b3d-seek-input"
-                type="range"
-                min="0"
-                max="1000"
-                value="0"
-                @input="onSeek"
-            />
-            <span id="b3dTime" class="b3d-time">{{ timeLabel }}</span>
-        </div>
+                <div id="seekWrap" class="b3d-seek">
+                    <button class="b3d-btn" @click="onTogglePlay">{{ playing ? "⏸" : "▶" }}</button>
+                    <input
+                        id="b3dSeek"
+                        ref="seekRef"
+                        class="b3d-seek-input"
+                        type="range"
+                        min="0"
+                        max="1000"
+                        value="0"
+                        @input="onSeek"
+                    />
+                    <span id="b3dTime" class="b3d-time">{{ timeLabel }}</span>
+                </div>
 
-        <div id="b3dDrop" class="b3d-drop">Drop a log here</div>
+                <div id="b3dDrop" class="b3d-drop">Drop a log here</div>
 
-        <div id="b3dHud" class="b3d-hud">
-            <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
-            <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
-            <div>Raw ASL: <span id="b3dRaw">0</span> / Home: <span id="b3dHome">0</span></div>
-            <div>Position: <span id="b3dPos">0, 0</span></div>
+                <div id="b3dHud" class="b3d-hud">
+                    <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
+                    <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
+                    <div>Raw ASL: <span id="b3dRaw">0</span> / Home: <span id="b3dHome">0</span></div>
+                    <div>Position: <span id="b3dPos">0, 0</span></div>
+                </div>
+            </template>
         </div>
-    </div>
+    </BaseTab>
 </template>
 
 <script setup>
@@ -39,10 +46,14 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import BaseTab from "./BaseTab.vue";
+import { useLogStore } from "../../blackbox-viewer/stores/log.js";
 import { buildReplayDataFromFlightLog } from "../../blackbox-viewer/blackbox3d_adapter.js";
 
 const rootRef = ref(null);
 const seekRef = ref(null);
+const logStore = useLogStore();
+const hasLog = logStore.hasLog;
 
 const status = ref("Load a blackbox log, then press Replay");
 const timeLabel = ref("0.0s");
@@ -919,5 +930,19 @@ onBeforeUnmount(() => {
 .b3d-hud span {
     color: #ffd166;
     font-weight: 700;
+}
+.tab-blackbox-3d-host {
+    height: 100%;
+}
+.b3d-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 0 20%;
+    text-align: center;
+    color: #9fb3c8;
+    font-size: 14px;
+    line-height: 1.6;
 }
 </style>
