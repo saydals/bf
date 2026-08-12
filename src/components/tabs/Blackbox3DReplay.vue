@@ -547,7 +547,7 @@ function frameAt(t) {
 // ---------------------------------------------------------------------------
 // Contrail
 // ---------------------------------------------------------------------------
-const WING_HALF_SPAN = 2.2;
+const WING_HALF_SPAN = 3.1;
 const CONTRAIL_COUNT = 120;
 const CONTRAIL_LIFE = 3.6;
 const CONTRAIL_SIZE = 0.6;
