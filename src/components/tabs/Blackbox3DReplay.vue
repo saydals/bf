@@ -530,14 +530,25 @@ function buildFrames(data) {
             pitch: row.pitch,
             yaw: row.yaw,
             throttle: row.throttle,
-            vx: row.velE,
-            vz: -row.velN,
+            vx: 0,
+            vz: 0,
             baroAltM: gpsAltM,
             gpsAltM,
             aAlt: rawAbAt(Math.min(t, endTime), iAAlt),
             bAlt: rawAbAt(Math.min(t, endTime), iBAlt),
             mode: rawModeAt(Math.min(t, endTime)),
         });
+    }
+    // Always derive ground speed from the displacement between consecutive
+    // frames. The playback step is fixed (PLAYBACK_STEP_US at PLAYBACK_HZ), so dt
+    // is known exactly — this works whether or not the log carries GPS_velned.
+    const dtSec = PLAYBACK_STEP_US / 1e6;
+    for (let i = 0; i < frames.length; i++) {
+        const a = frames[Math.max(0, i - 1)];
+        const b = frames[Math.min(frames.length - 1, i + 1)];
+        const span = (b.t - a.t) / 1e6 || dtSec;
+        frames[i].vx = (frames[i].x - a.x) / span;
+        frames[i].vz = (frames[i].z - a.z) / span;
     }
     if (frames.length) {
         startTime = frames[0].t;
