@@ -6,7 +6,11 @@
         tooltip
         :ui="navMenuUi"
         class="sidebar-nav pb-2"
-    />
+    >
+        <template #3d-icon>
+            <span class="sidebar-3d-badge">3D</span>
+        </template>
+    </UNavigationMenu>
     <div
         class="flex flex-row gap-1 border-t border-default pt-2 mt-auto items-center flex-wrap"
         :class="{ 'sidebar-footer--compact': isCompact }"
@@ -138,17 +142,24 @@ const activeItems = computed(() =>
 );
 
 const visibleItems = computed(() =>
-    activeItems.value.map((item) => ({
-        label: t(item.i18n),
-        icon: item.icon,
-        active: vueTabState.activeTabName === (item.tab ?? item.key),
-        tooltip: { text: t(item.i18n) },
-        onSelect: (event) => {
-            event?.preventDefault?.();
-            switchTab(item.tab ?? item.key, { mode: item.mode, label: t(item.i18n) });
-            closeMobileSidebar();
-        },
-    })),
+    activeItems.value.map((item) => {
+        const entry = {
+            label: t(item.i18n),
+            icon: item.icon,
+            active: vueTabState.activeTabName === (item.tab ?? item.key),
+            tooltip: { text: t(item.i18n) },
+            onSelect: (event) => {
+                event?.preventDefault?.();
+                switchTab(item.tab ?? item.key, { mode: item.mode, label: t(item.i18n) });
+                closeMobileSidebar();
+            },
+        };
+        if (item.icon === "i-3d-icon") {
+            delete entry.icon;
+            entry.slot = "3d-icon";
+        }
+        return entry;
+    }),
 );
 
 // Options dialog
@@ -225,7 +236,7 @@ onUnmounted(() => {
 }
 
 /* Custom 3D badge icon used by the Blackbox 3D navigation item. */
-:deep(.i-3d-icon) {
+.sidebar-3d-badge {
     display: inline-flex;
     width: 1.25rem;
     height: 1.25rem;
@@ -237,10 +248,6 @@ onUnmounted(() => {
     font-size: 0.625rem;
     font-weight: 700;
     line-height: 1;
-}
-
-:deep(.i-3d-icon::before) {
-    content: "3D";
 }
 
 .sidebar-footer--compact {
