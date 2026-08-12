@@ -679,6 +679,23 @@ function setPlaying(p) {
     if (p) lastPlayWall = performance.now();
 }
 
+// Reset the bottom playback controls (play button + seek bar + time) and any
+// in-flight replay state when a new log is loaded.
+function resetPlayback() {
+    setPlaying(false);
+    playT = 0;
+    frames = [];
+    gpsFixes = [];
+    startTime = 0;
+    endTime = 0;
+    clearContrail();
+    clearMarkers();
+    if (seekRef.value) seekRef.value.value = 0;
+    timeLabel.value = "0.0s";
+    const fr = frameAt(playT);
+    applyFrame(fr);
+}
+
 // ---------------------------------------------------------------------------
 // Load from the active FlightLog
 // ---------------------------------------------------------------------------
@@ -702,10 +719,7 @@ function onFilePicked(event) {
             logStore.hasLog = true;
             loadedFile.value = file.name;
             status.value = `Loaded ${file.name} — press Replay`;
-            setPlaying(false);
-            playT = 0;
-            const fr = frameAt(playT);
-            applyFrame(fr);
+            resetPlayback();
         } catch (err) {
             console.error(err);
             status.value = `Failed to open log: ${err.message}`;
