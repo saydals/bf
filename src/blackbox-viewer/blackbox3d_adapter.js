@@ -101,6 +101,40 @@ export function buildReplayDataFromFlightLog() {
         }
     }
 
+    // Fallback: if the log doesn't carry GPS velocity (GPS_velned[*]), derive
+    // ground speed from the displacement between consecutive GPS fixes. Velocities
+    // are in m/s: North = d(Lat)/dt, East = d(Lon*cos(Lat))/dt.
+    if (iVelN < 0 || iVelE < 0) {
+        const toRad = (deg) => (deg * Math.PI) / 180;
+        for (let i = 0; i < out.length; i++) {
+            const cur = out[i];
+            if (cur.lat == null || cur.lon == null) continue;
+            let prev = null,
+                next = null;
+            for (let j = i - 1; j >= 0; j--) {
+                if (out[j].lat != null && out[j].lon != null && out[j].t !== cur.t) {
+                    prev = out[j];
+                    break;
+                }
+            }
+            for (let j = i + 1; j < out.length; j++) {
+                if (out[j].lat != null && out[j].lon != null && out[j].t !== cur.t) {
+                    next = out[j];
+                    break;
+                }
+            }
+            const ref = next || prev;
+            if (!ref) continue;
+            const dt = (cur.t - ref.t) / 1e6; // us -> s
+            if (dt === 0) continue;
+            const latM = (cur.lat - ref.lat) * 111320;
+            const lonM = (cur.lon - ref.lon) * 111320 * Math.cos(toRad((cur.lat + ref.lat) / 2 / 1e7));
+            const sign = next ? 1 : -1; // prev yields velocity reversed in time
+            cur.velN = (sign * latM) / dt;
+            cur.velE = (sign * lonM) / dt;
+        }
+    }
+
     return {
         out,
         headers: names,
