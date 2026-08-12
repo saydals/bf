@@ -7,7 +7,7 @@
         :ui="navMenuUi"
         class="sidebar-nav pb-2"
     >
-        <template #3d-icon>
+        <template #3d-icon-leading>
             <span class="sidebar-3d-badge">3D</span>
         </template>
     </UNavigationMenu>
