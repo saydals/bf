@@ -72,6 +72,12 @@ const localLog = ref(null);
 const loadedFile = ref("—");
 const logStore = useLogStore();
 
+// File name without its extension, for display in the status bar / HUD.
+function stripExt(name) {
+    return name.replace(/\.[^./\\]+$/, "");
+}
+const displayName = computed(() => (loadedFile.value === "—" ? "—" : stripExt(loadedFile.value)));
+
 // The 3D replay is self-contained: it works from its own loaded .bbl, but also
 // reuses a log already loaded in the Blackbox Viewer if present.
 const hasLog = computed(() => !!localLog.value || logStore.hasLog);
@@ -693,6 +699,7 @@ function resetPlayback() {
     clearMarkers();
     if (seekRef.value) seekRef.value.value = 0;
     timeLabel.value = "0.0s";
+    if (hudFile) hudFile.textContent = displayName.value;
     const fr = frameAt(playT);
     applyFrame(fr);
 }
@@ -719,7 +726,7 @@ function onFilePicked(event) {
             logStore.flightLogDataArray = dataArray;
             logStore.hasLog = true;
             loadedFile.value = file.name;
-            status.value = `Loaded ${file.name} — press Replay`;
+            status.value = `Loaded ${displayName.value} — press Replay`;
             resetPlayback();
         } catch (err) {
             console.error(err);
@@ -882,7 +889,7 @@ function init() {
     hudPos = rootRef.value.querySelector("#b3dPos");
     hudMode = rootRef.value.querySelector("#b3dMode");
     hudFile = rootRef.value.querySelector("#b3dFile");
-    if (hudFile) hudFile.textContent = loadedFile.value;
+    if (hudFile) hudFile.textContent = displayName.value;
 
     window.addEventListener("resize", resize);
     rafId = requestAnimationFrame(animate);
