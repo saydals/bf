@@ -40,7 +40,7 @@
 
             <div id="b3dHud" class="b3d-hud">
                 <div>Altitude (relative): <span id="b3dAltRel">0.0</span> m</div>
-                <div>Altitude (ASL): <span id="b3dAltAsl">0.0</span> m</div>
+                <div>Craft Speed: <span id="b3dSpeed">0.0</span> m/s</div>
                 <div>Dist to home: <span id="b3dHome">0</span> m</div>
                 <div>Position: <span id="b3dPos">0, 0</span></div>
                 <div>Mode: <span id="b3dMode" class="b3d-mode">Manual</span></div>
@@ -126,7 +126,7 @@ const PLAYBACK_HZ = 50;
 const PLAYBACK_STEP_US = 1e6 / PLAYBACK_HZ;
 
 // HUD elements (kept as refs for fast updates)
-let hudAltRel, hudAltAsl, hudHome, hudPos, hudMode, hudFile;
+let hudAltRel, hudHome, hudPos, hudMode, hudFile, hudSpeed;
 
 // ---------------------------------------------------------------------------
 // Environment
@@ -545,6 +545,8 @@ function frameAt(t) {
         alt: a.alt + (b.alt - a.alt) * f,
         baroAltM: a.baroAltM + (b.baroAltM - a.baroAltM) * f,
         gpsAltM: a.gpsAltM + (b.gpsAltM - a.gpsAltM) * f,
+        vx: a.vx + (b.vx - a.vx) * f,
+        vz: a.vz + (b.vz - a.vz) * f,
         aAlt: a.aAlt + (b.aAlt - a.aAlt) * f,
         bAlt: a.bAlt + (b.bAlt - a.bAlt) * f,
         mode: a.mode,
@@ -642,7 +644,8 @@ function applyFrame(fr) {
     airplane.position.y = altRel + 1.5;
 
     if (hudAltRel) hudAltRel.textContent = altRel.toFixed(1);
-    if (hudAltAsl) hudAltAsl.textContent = (fr.gpsAltM || 0).toFixed(0);
+    const speed = Math.sqrt((fr.vx || 0) * (fr.vx || 0) + (fr.vz || 0) * (fr.vz || 0));
+    if (hudSpeed) hudSpeed.textContent = speed.toFixed(1);
     const distToHome = Math.sqrt((fr.x || 0) * (fr.x || 0) + (fr.z || 0) * (fr.z || 0));
     if (hudHome) hudHome.textContent = distToHome.toFixed(1);
     if (hudPos) hudPos.textContent = `${fr.x.toFixed(1)}, ${fr.z.toFixed(1)}`;
@@ -884,7 +887,7 @@ function init() {
     loadAirplane();
 
     hudAltRel = rootRef.value.querySelector("#b3dAltRel");
-    hudAltAsl = rootRef.value.querySelector("#b3dAltAsl");
+    hudSpeed = rootRef.value.querySelector("#b3dSpeed");
     hudHome = rootRef.value.querySelector("#b3dHome");
     hudPos = rootRef.value.querySelector("#b3dPos");
     hudMode = rootRef.value.querySelector("#b3dMode");
@@ -980,8 +983,9 @@ onBeforeUnmount(() => {
     background: #444;
 }
 .b3d-status {
-    font-size: 12px;
-    color: #9fb3c8;
+    font-size: 12.5px;
+    color: #e6f0fb;
+    font-weight: 600;
 }
 .b3d-seek {
     position: absolute;
@@ -1023,20 +1027,29 @@ onBeforeUnmount(() => {
     top: 10px;
     right: 10px;
     z-index: 10;
-    background: rgba(20, 24, 30, 0.82);
-    color: #e8f4ff;
-    padding: 8px 12px;
+    background: rgba(15, 18, 24, 0.92);
+    color: #ffffff;
+    padding: 9px 13px;
     border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.7;
-    font-family: ui-monospace, monospace;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 13.5px;
+    line-height: 1.75;
+    font-family:
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-weight: 600;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 .b3d-hud span {
-    color: #ffd166;
+    color: #ffd54a;
     font-weight: 800;
 }
 .b3d-mode {
@@ -1044,12 +1057,12 @@ onBeforeUnmount(() => {
     font-weight: 800;
 }
 .b3d-mode--auto {
-    color: #ff3b3b;
+    color: #ff5b5b;
 }
 .b3d-file {
     margin-top: 4px;
-    font-size: 12px;
-    color: #9fb3c8;
+    font-size: 12.5px;
+    color: #c7d6e6;
 }
 .b3d-file span {
     color: #cfe8ff;
