@@ -417,6 +417,7 @@ function parseCSV(text) {
     const iBaroAlt = idx("baroAlt");
     const iTime = idx("time");
     const iLoop = idx("loopIteration");
+    const iMode = idx("flightModeFlags");
 
     // Waypoint / rescue-point fields (lat/lon in deg * 1e7, alt in cm)
     const wpLat = [], wpLon = [], wpAlt = [];
@@ -459,7 +460,7 @@ function parseCSV(text) {
     }
     return {
         out, headers,
-        wpLat, wpLon, wpAlt, iALat, iALon, iAAlt, iBLat, iBLon, iBAlt, iAlt,
+        wpLat, wpLon, wpAlt, iALat, iALon, iAAlt, iBLat, iBLon, iBAlt, iAlt, iMode,
     };
 }
 
@@ -532,7 +533,7 @@ function interpolateGpsAt(t) {
 }
 
 function buildFrames(data) {
-    const { out, iAAlt, iBAlt } = data;
+    const { out, iAAlt, iBAlt, iMode } = data;
     sourceRows = out.slice().sort((a, b) => a.t - b.t);
 
     // Interpolated A/B rescue altitude (cm) at time t, read from the raw rows.
@@ -550,6 +551,17 @@ function buildFrames(data) {
     };
     frames = [];
     hasGps = sourceRows.some(validGpsRow);
+
+    // flightModeFlags: bit 0 = ARM. Anything beyond pure ARM means assisted/auto mode.
+    const rawModeAt = (t) => {
+        if (iMode < 0 || !sourceRows.length) return 0;
+        let lo = 0, hi = sourceRows.length - 1;
+        if (t <= sourceRows[0].t) lo = hi = 0;
+        else if (t >= sourceRows[hi].t) lo = hi = hi;
+        else { while (hi - lo > 1) { const m = (lo + hi) >> 1; if (sourceRows[m].t < t) lo = m; else hi = m; } }
+        const pick = (i) => { const v = sourceRows[i]._raw ? parseFloat(sourceRows[i]._raw[iMode]) : NaN; return isNaN(v) ? 0 : (v | 0); };
+        return pick(lo);
+    };
 
     // Keep only actual GPS fixes. Repeated 500Hz GPS rows are not useful
     // keyframes and would collapse the interpolation interval to 2ms.
@@ -595,6 +607,7 @@ function buildFrames(data) {
             baroAltM: gpsAltM, gpsAltM,
             aAlt: rawAbAt(Math.min(t, endTime), iAAlt),
             bAlt: rawAbAt(Math.min(t, endTime), iBAlt),
+            mode: rawModeAt(Math.min(t, endTime)),
         });
     }
     if (frames.length) {
@@ -649,6 +662,7 @@ function frameAt(t) {
         gpsAltM: a.gpsAltM + (b.gpsAltM - a.gpsAltM) * f,
         aAlt: a.aAlt + (b.aAlt - a.aAlt) * f,
         bAlt: a.bAlt + (b.bAlt - a.bAlt) * f,
+        mode: a.mode,
     };
 }
 
@@ -659,6 +673,94 @@ const hudAltAsl = document.getElementById("hudAltAsl");
 const hudRaw = document.getElementById("hudRaw");
 const hudHome = document.getElementById("hudHome");
 const hudPos = document.getElementById("hudPos");
+
+// ---------------------------------------------------------------------------
+// Contrail: wingtip particle trail
+// White = manual flight (ARM only), Pink = assisted/auto (anything else)
+// ---------------------------------------------------------------------------
+const WING_HALF_SPAN = 2.2; // approx half wing width in model units (scale 0.75)
+const CONTRAIL_COUNT = 120; // max particles per side
+const CONTRAIL_LIFE = 1.8; // seconds
+const CONTRAIL_SIZE = 0.6; // metres
+const contrailGroup = new THREE.Group();
+scene.add(contrailGroup);
+const contrailLeft = [];
+const contrailRight = [];
+let contrailAccum = 0;
+
+function spawnContrail(worldPos, side) {
+    const pool = side === "left" ? contrailLeft : contrailRight;
+    const geom = new THREE.PlaneGeometry(CONTRAIL_SIZE, CONTRAIL_SIZE);
+    const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const sprite = new THREE.Mesh(geom, mat);
+    sprite.position.copy(worldPos);
+    sprite.lookAt(camera.position);
+    sprite.userData.life = CONTRAIL_LIFE;
+    sprite.userData.maxLife = CONTRAIL_LIFE;
+    contrailGroup.add(sprite);
+    pool.push(sprite);
+}
+
+function updateContrail(dt, color) {
+    contrailAccum += dt;
+    for (const side of ["left", "right"]) {
+        const pool = side === "left" ? contrailLeft : contrailRight;
+        for (let i = pool.length - 1; i >= 0; i--) {
+            const p = pool[i];
+            p.userData.life -= dt;
+            p.material.opacity = Math.max(0, p.userData.life / p.userData.maxLife) * 0.7;
+            p.scale.setScalar(Math.max(0.01, p.userData.life / p.userData.maxLife));
+            if (p.userData.life <= 0) {
+                contrailGroup.remove(p);
+                p.geometry.dispose();
+                p.material.dispose();
+                pool.splice(i, 1);
+            }
+        }
+    }
+    // trim excess
+    for (const side of ["left", "right"]) {
+        const pool = side === "left" ? contrailLeft : contrailRight;
+        while (pool.length > CONTRAIL_COUNT) {
+            const old = pool.shift();
+            contrailGroup.remove(old);
+            old.geometry.dispose();
+            old.material.dispose();
+        }
+    }
+    // set color for next spawns
+    contrailGroup.userData.color = color;
+}
+
+function setContrailColor(fr) {
+    const mode = (fr && fr.mode != null) ? (fr.mode | 0) : 0;
+    const isAuto = (mode & ~1) !== 0; // anything beyond pure ARM
+    const color = isAuto ? 0xff99cc : 0xffffff; // pink or white
+    if (contrailGroup.userData.color !== color) {
+        contrailGroup.userData.color = color;
+        for (const side of ["left", "right"]) {
+            const pool = side === "left" ? contrailLeft : contrailRight;
+            for (const p of pool) p.material.color.setHex(color);
+        }
+    }
+}
+
+function clearContrail() {
+    for (const side of ["left", "right"]) {
+        const pool = side === "left" ? contrailLeft : contrailRight;
+        while (pool.length) {
+            const p = pool.pop();
+            contrailGroup.remove(p);
+            p.geometry.dispose();
+            p.material.dispose();
+        }
+    }
+    contrailGroup.userData.color = null;
+    contrailAccum = 0;
+}
+
 function applyFrame(fr, t) {
     if (!airplane || !fr) return;
     airplane.position.x = fr.x;
@@ -678,6 +780,21 @@ function applyFrame(fr, t) {
 
     // dynamic A/B markers track the live (per-frame) rescue altitude
     updateABMarkers(fr);
+
+    // contrail: spawn wingtip particles when in air
+    if (airplane && (fr.alt || 0) > 0.5) {
+        const localLeft = new THREE.Vector3(-WING_HALF_SPAN, 0.2, 0);
+        const localRight = new THREE.Vector3(WING_HALF_SPAN, 0.2, 0);
+        airplane.localToWorld(localLeft);
+        airplane.localToWorld(localRight);
+        if (contrailAccum >= 0.05) {
+            spawnContrail(localLeft, "left");
+            spawnContrail(localRight, "right");
+            contrailAccum = 0;
+        }
+        setContrailColor(fr);
+    }
+    updateContrail(0.016, contrailGroup.userData.color || 0xffffff);
 
     // [AB debug] log first few frames + altitude changes
     if (!window.__abDbg) window.__abDbg = { n: 0, lastA: null, lastB: null };
@@ -746,6 +863,7 @@ function loadFile(file) {
     camTargetY = 2;
     controls.target.set(0, 2, 0);
     loadAirplane(); // (re)load model fresh each time
+    clearContrail();
     const reader = new FileReader();
     reader.onload = () => {
         try {
