@@ -161,7 +161,7 @@ let airplane = null;
 let propellers = [];
 let propAngle = 0;
 let lastTs = 0;
-let yawOffset = Math.PI / 2;
+let yawOffset = -Math.PI / 2;
 let camTargetY = 2;
 const CAM_HOME = new THREE.Vector3(0, 25, 55);
 
