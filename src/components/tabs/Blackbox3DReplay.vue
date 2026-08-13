@@ -119,6 +119,11 @@ const PROP_MODELS = new Set(["airplane", "Biplane"]);
 // Currently selected model key. Defaults to the airplane on first run.
 const currentModel = ref("airplane");
 
+// Track the last builtin model so we can restore it after "My Repository" picker
+// closes. This allows the user to re-select "My Repository" and trigger the
+// change event again to open the file picker another time.
+let previousBuiltinModel = "airplane";
+
 // File name without its extension, for display in the status bar / HUD.
 function stripExt(name) {
     return name.replace(/\.[^./\\]+$/, "");
@@ -336,11 +341,17 @@ function loadAirplane() {
 // Dropdown change: built-in model → reload it; "My Repository" → open picker.
 function onModelChange(e) {
     const key = e.target.value;
-    currentModel.value = key;
     if (key === MY_REPO_KEY) {
+        // Open the file picker, then reset the dropdown to the last builtin
+        // model so the user can re-select "My Repository" again (change event
+        // fires when value changes from builtin -> "__myrepo__").
         modelFileInputRef.value?.click();
+        currentModel.value = previousBuiltinModel;
         return;
     }
+    // Track the last builtin model for "My Repository" re-selection.
+    previousBuiltinModel = key;
+    currentModel.value = key;
     customModelFile = null;
     loadAirplane();
 }
@@ -350,13 +361,17 @@ function onModelFilePicked(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
-        // Cancelled — keep the previously loaded model.
+        // Cancelled — restore the dropdown to the last builtin model.
+        currentModel.value = previousBuiltinModel;
         return;
     }
-    // currentModel is already "__myrepo__" (set in onModelChange). Store the
-    // file so Replay can re-load it, then (re)load it now.
+    // currentModel is already "__myrepo__" (set in onModelChange before picker).
+    // Store the file so Replay can re-load it, then (re)load it now.
     customModelFile = file;
     loadAirplane();
+    // Keep showing "My Repository" in the dropdown so the user knows a custom
+    // model is active. The user can re-select "My Repository" to pick another.
+    currentModel.value = MY_REPO_KEY;
 }
 
 // ---------------------------------------------------------------------------
@@ -1142,7 +1157,7 @@ onBeforeUnmount(() => {
     border-radius: 5px;
     font-size: 13px;
     font-family: inherit;
-    line-height: normal;
+    line-height: 1.2;
     padding: 6px 26px 6px 12px;
     box-sizing: border-box;
     vertical-align: middle;
@@ -1150,6 +1165,14 @@ onBeforeUnmount(() => {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
+    /* Ensure native select styles don't override our styling */
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    outline: none;
+}
+.b3d-select:focus {
+    outline: none;
 }
 .b3d-select:hover {
     background-color: #1e8fc0;
