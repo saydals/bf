@@ -282,10 +282,10 @@ function applyAirfieldAlignment() {
 // ---------------------------------------------------------------------------
 // Airplane (loaded from the program's resources/models/airplane.gltf)
 // ---------------------------------------------------------------------------
-function loadAirplane() {
-    const key = currentModel.value;
+function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
+    const key = modelKey;
     // "My Repository" resolves to the session file (or airplane if none yet).
-    const fileObj = key === MY_REPO_KEY ? customModelFile : null;
+    const fileObj = key === MY_REPO_KEY ? selectedFile || customModelFile : null;
     const pathKey = key === MY_REPO_KEY ? "airplane" : key;
 
     if (airplane) {
@@ -383,7 +383,11 @@ function onModelFilePicked(event) {
     // currentModel is already "__myrepo__" (set in onModelChange before picker).
     // Store the file so Replay can re-load it, then (re)load it now.
     customModelFile = file;
-    loadAirplane();
+    // `onModelChange` restores the select to the last built-in model so that
+    // Custom can be selected repeatedly. Pass the selected model explicitly;
+    // otherwise loadAirplane() would read that restored built-in value and
+    // silently load the wrong model.
+    loadAirplane(MY_REPO_KEY, file);
     // Keep showing "My Repository" in the dropdown so the user knows a custom
     // model is active. The user can re-select "My Repository" to pick another.
     currentModel.value = MY_REPO_KEY;
@@ -1151,34 +1155,34 @@ onBeforeUnmount(() => {
     z-index: 10;
 }
 .b3d-btn {
-    background: #2db0e3;
-    color: #fff;
+    background: #2db0e3 !important;
+    color: #fff !important;
     border: none;
     padding: 6px 12px;
     border-radius: 5px;
     cursor: pointer;
     font-size: 13px;
+    line-height: 18px;
+    height: 30px;
+    box-sizing: border-box;
 }
 .b3d-btn:hover {
-    background: #1e8fc0;
+    background: #1e8fc0 !important;
 }
 .b3d-select {
     -webkit-appearance: none;
     -moz-appearance: none;
     appearance: none;
-    background-color: #2db0e3;
-    color: #fff;
+    background-color: #2db0e3 !important;
+    color: #fff !important;
     border: none;
     border-radius: 5px;
     font-size: 13px;
     font-family: inherit;
-    line-height: 1.2;
     padding: 6px 26px 6px 12px;
     box-sizing: border-box;
     vertical-align: middle;
     cursor: pointer;
-    height: 30px;
-    min-height: 30px;
     line-height: 18px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -1191,7 +1195,7 @@ onBeforeUnmount(() => {
     outline: none;
 }
 .b3d-select:hover {
-    background-color: #1e8fc0;
+    background-color: #1e8fc0 !important;
 }
 .b3d-select option {
     color: #111;
