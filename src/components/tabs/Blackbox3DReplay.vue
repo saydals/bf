@@ -8,7 +8,13 @@
                 <button class="b3d-btn" @click="onResetView">Reset View</button>
                 <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
                 <button class="b3d-btn" @click="onYaw">Heading 90</button>
-                <select id="b3dModelSel" class="b3d-btn b3d-select" :value="currentModel" @change="onModelChange">
+                <select
+                    id="b3dModelSel"
+                    class="b3d-btn b3d-select"
+                    :value="currentModel"
+                    @click="onModelSelectClick"
+                    @change="onModelChange"
+                >
                     <option v-for="m in availableModels" :key="m.key" :value="m.key">{{ m.label }}</option>
                 </select>
                 <button class="b3d-btn" @click="onOpenFile">Load BBL</button>
@@ -103,7 +109,7 @@ const availableModels = [
     { key: "tricopter", label: "Tricopter" },
     { key: "y4", label: "Y4" },
     { key: "y6", label: "Y6" },
-    { key: "__myrepo__", label: "My Repository" },
+    { key: "__myrepo__", label: "Custom" },
 ];
 const MY_REPO_KEY = "__myrepo__";
 
@@ -354,6 +360,15 @@ function onModelChange(e) {
     currentModel.value = key;
     customModelFile = null;
     loadAirplane();
+}
+
+// A native select does not emit `change` when the already-selected option is
+// chosen again. Reset the displayed value just before opening the menu so
+// Custom can be selected repeatedly and open the file picker each time.
+function onModelSelectClick() {
+    if (currentModel.value === MY_REPO_KEY) {
+        currentModel.value = previousBuiltinModel;
+    }
 }
 
 // User picked a file from "My Repository": load it for this session only.
@@ -1162,12 +1177,13 @@ onBeforeUnmount(() => {
     box-sizing: border-box;
     vertical-align: middle;
     cursor: pointer;
+    height: 30px;
+    min-height: 30px;
+    line-height: 18px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
     /* Ensure native select styles don't override our styling */
-    min-height: 0;
-    height: auto;
     margin: 0;
     outline: none;
 }
