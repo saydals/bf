@@ -118,13 +118,19 @@ const MY_REPO_KEY = "__myrepo__";
 // (which reloads the model) can re-load it. Session only — never persisted.
 let customModelFile = null;
 
-// A mesh is a spinning propeller/rotor when its name contains "prop", "rotor"
-// or the legacy "cylinder" (airplane models). This works for every craft —
-// fixed-wing, multicopters and helicopters (main + tail rotor) — because glTF
-// is Y-up and a rotor's spin axis is the mesh's local Y. Detection is by name
-// first, so there is no per-model allowlist: any model (including a custom
-// "My Repository" model) spins the meshes it names accordingly.
-const PROP_NAME_RE = /(prop|rotor|cylinder)/i;
+// Per-model propeller/rotor rules. Each entry maps a model key to the name
+// pattern of the meshes that should spin around their local Y axis (glTF is
+// Y-up, so a rotor's spin axis is the mesh's local Y). Models not listed here
+// never spin — guessing by geometry produced wrong results (arms/legs), so we
+// keep an explicit rule per craft instead.
+//   - airplane / Biplane: legacy "cylinder" propeller meshes
+//   - helicopter: "rotor" meshes (main + tail rotor, heads included)
+const PROP_RULES = {
+    airplane: /cylinder/i,
+    Biplane: /cylinder/i,
+    helicopter: /rotor/i,
+    quad_x: /prop/i,
+};
 
 // Currently selected model key. Defaults to the airplane on first run.
 const currentModel = ref("airplane");
@@ -287,49 +293,18 @@ function applyAirfieldAlignment() {
 // Airplane (loaded from the program's resources/models/airplane.gltf)
 // ---------------------------------------------------------------------------
 
-// Gather the meshes that should spin as propellers/rotors. Name match wins
-// first (see PROP_NAME_RE); if a model names none of its meshes, fall back to
-// geometry: a propeller is a small mesh mounted away from the craft centre.
-function collectPropellers(model) {
-    const byName = [];
+// Collect the nodes that should spin, using the model's explicit name rule.
+// A match may be a mesh OR a group node (e.g. airplane's "Cylinder_0" is a
+// group wrapping the blade meshes) — rotating the group spins its whole
+// subtree, which is the original working behaviour. Returns [] when the model
+// has no rule, so nothing unexpected rotates. spinProp is PROP_RULES[key] or null.
+function collectPropellers(model, spinProp) {
+    if (!spinProp) return [];
+    const found = [];
     model.traverse((o) => {
-        if (o.isMesh && PROP_NAME_RE.test((o.name || "").toLowerCase())) byName.push(o);
+        if (spinProp.test((o.name || "").toLowerCase())) found.push(o);
     });
-    if (byName.length) return byName;
-    return detectPropellersByGeometry(model);
-}
-
-function detectPropellersByGeometry(model) {
-    const meshes = [];
-    model.traverse((o) => {
-        if (o.isMesh && o.geometry) meshes.push(o);
-    });
-    if (!meshes.length) return [];
-
-    const bounds = new THREE.Box3();
-    meshes.forEach((m) => bounds.expandByObject(m));
-    const ext = new THREE.Vector3();
-    bounds.getSize(ext);
-    const maxExtent = Math.max(ext.x, ext.y, ext.z) || 1;
-
-    const items = meshes.map((m) => {
-        if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
-        const bs = new THREE.Vector3();
-        m.geometry.boundingBox.getSize(bs);
-        const center = new THREE.Vector3();
-        m.geometry.boundingBox.getCenter(center);
-        m.localToWorld(center);
-        model.worldToLocal(center);
-        return {
-            m,
-            radius: 0.5 * Math.max(bs.x, bs.y, bs.z),
-            dist: center.length(),
-        };
-    });
-
-    const maxRadius = Math.max(...items.map((i) => i.radius)) || 1;
-    // Small (relative to the largest mesh) and mounted away from the centre.
-    return items.filter((i) => i.radius < maxRadius * 0.35 && i.dist > maxExtent * 0.15).map((i) => i.m);
+    return found;
 }
 
 function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
@@ -348,9 +323,9 @@ function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
     airplane = null;
     propellers = [];
 
-    // Any mesh named like a propeller/rotor (see PROP_NAME_RE) spins around its
-    // local Y axis, regardless of which craft model is loaded. When the model
-    // names none, geometry-based detection finds the propeller meshes instead.
+    // Per-model name rule for which meshes spin (null => no spinning).
+    const spinProp = PROP_RULES[key] || null;
+
     const onLoaded = (gltf) => {
         airplane = gltf.scene;
         airplane.scale.set(0.75, 0.75, 0.75);
@@ -360,7 +335,7 @@ function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
         airplane.position.y = 4;
         scene.add(airplane);
         airplane.updateMatrixWorld(true);
-        propellers = collectPropellers(airplane);
+        propellers = collectPropellers(airplane, spinProp);
     };
     const onError = (err) => {
         console.error("model load failed", err);
