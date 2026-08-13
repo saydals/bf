@@ -8,6 +8,9 @@
                 <button class="b3d-btn" @click="onResetView">Reset View</button>
                 <button class="b3d-btn" @click="onFullScreen">Full Screen</button>
                 <button class="b3d-btn" @click="onYaw">Heading 90</button>
+                <select id="b3dModelSel" class="b3d-btn b3d-select" :value="currentModel" @change="onModelChange">
+                    <option v-for="m in availableModels" :key="m.key" :value="m.key">{{ m.label }}</option>
+                </select>
                 <button class="b3d-btn" @click="onOpenFile">Load BBL</button>
                 <span id="b3dStatus" class="b3d-status">{{ status }}</span>
             </div>
@@ -18,6 +21,14 @@
                 accept=".bbl,.txt,.log,.csv"
                 class="b3d-hidden-file"
                 @change="onFilePicked"
+            />
+
+            <input
+                ref="modelFileInputRef"
+                type="file"
+                accept=".gltf,.glb"
+                class="b3d-hidden-file"
+                @change="onModelFilePicked"
             />
 
             <div id="seekWrap" class="b3d-seek">
@@ -68,9 +79,42 @@ import { buildReplayDataFromFlightLog } from "../../blackbox-viewer/blackbox3d_a
 const rootRef = ref(null);
 const seekRef = ref(null);
 const fileInputRef = ref(null);
+const modelFileInputRef = ref(null);
 const localLog = ref(null);
 const loadedFile = ref("—");
 const logStore = useLogStore();
+
+// ---------------------------------------------------------------------------
+// Model selection
+// ---------------------------------------------------------------------------
+// Built-in models shipped in resources/models/ (key === filename without .gltf).
+// "My Repository" opens the OS file picker so the user can load their own
+// .gltf/.glb for this session only (never written to resources/models/).
+const availableModels = [
+    { key: "airplane", label: "Airplane" },
+    { key: "Biplane", label: "Biplane" },
+    { key: "car", label: "Car" },
+    { key: "fallback", label: "Fallback" },
+    { key: "hex_plus", label: "Hex +" },
+    { key: "hex_x", label: "Hex X" },
+    { key: "quad_atail", label: "Quad A-Tail" },
+    { key: "quad_vtail", label: "Quad V-Tail" },
+    { key: "quad_x", label: "Quad X" },
+    { key: "tricopter", label: "Tricopter" },
+    { key: "y4", label: "Y4" },
+    { key: "y6", label: "Y6" },
+    { key: "__myrepo__", label: "My Repository" },
+];
+const MY_REPO_KEY = "__myrepo__";
+const CUSTOM_KEY = "__custom__";
+
+// Propeller spin is only meaningful for the fixed-wing airplane models. Other
+// built-ins (car, multicopters, etc.) and any custom "My Repository" model must
+// NOT spin, per requirement.
+const PROP_MODELS = new Set(["airplane", "Biplane"]);
+
+// Currently selected model key. Defaults to the airplane on first run.
+const currentModel = ref("airplane");
 
 // File name without its extension, for display in the status bar / HUD.
 function stripExt(name) {
@@ -224,7 +268,7 @@ function applyAirfieldAlignment() {
 // ---------------------------------------------------------------------------
 // Airplane (loaded from the program's resources/models/airplane.gltf)
 // ---------------------------------------------------------------------------
-function loadAirplane() {
+function loadAirplane(modelKey = currentModel.value, fileObj = null) {
     if (airplane) {
         scene.remove(airplane);
         airplane.traverse((o) => {
@@ -235,26 +279,72 @@ function loadAirplane() {
     airplane = null;
     propellers = [];
 
-    const loader = new GLTFLoader();
-    loader.load(
-        "./resources/models/airplane.gltf",
-        (gltf) => {
-            airplane = gltf.scene;
-            airplane.scale.set(0.75, 0.75, 0.75);
-            airplane.traverse((o) => {
-                if (o.isMesh) o.castShadow = true;
+    // Only the fixed-wing airplane / biplane models spin their propellers.
+    // Cars, multicopters and any custom "My Repository" model stay static.
+    const spinProps = PROP_MODELS.has(modelKey);
+
+    const onLoaded = (gltf) => {
+        airplane = gltf.scene;
+        airplane.scale.set(0.75, 0.75, 0.75);
+        airplane.traverse((o) => {
+            if (o.isMesh) o.castShadow = true;
+            if (spinProps) {
                 const name = (o.name || "").toLowerCase();
                 if (/^cylinder/.test(name)) propellers.push(o);
-            });
-            airplane.position.y = 4;
-            scene.add(airplane);
-        },
-        undefined,
-        (err) => {
-            console.error("airplane load failed", err);
-            status.value = "Failed to load airplane model";
-        },
-    );
+            }
+        });
+        airplane.position.y = 4;
+        scene.add(airplane);
+    };
+    const onError = (err) => {
+        console.error("model load failed", err);
+        status.value = "Failed to load model";
+    };
+
+    if (fileObj) {
+        // Session-only load of a user-picked .gltf/.glb via an object URL.
+        // The file is never written to resources/models/.
+        const url = URL.createObjectURL(fileObj);
+        const loader = new GLTFLoader();
+        loader.load(
+            url,
+            (gltf) => {
+                URL.revokeObjectURL(url);
+                onLoaded(gltf);
+            },
+            undefined,
+            (err) => {
+                URL.revokeObjectURL(url);
+                onError(err);
+            },
+        );
+        return;
+    }
+
+    const loader = new GLTFLoader();
+    loader.load(`./resources/models/${modelKey}.gltf`, onLoaded, undefined, onError);
+}
+
+// Dropdown change: built-in model → reload it; "My Repository" → open picker.
+function onModelChange(e) {
+    const key = e.target.value;
+    currentModel.value = key;
+    if (key === MY_REPO_KEY) {
+        modelFileInputRef.value?.click();
+        return;
+    }
+    loadAirplane(key, null);
+}
+
+// User picked a file from "My Repository": load it for this session only.
+function onModelFilePicked(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+        // Cancelled — leave the previously selected model untouched.
+        return;
+    }
+    loadAirplane(CUSTOM_KEY, file);
 }
 
 // ---------------------------------------------------------------------------
@@ -780,7 +870,7 @@ function onReplay() {
         const data = buildReplayDataFromFlightLog(ensureActiveLog());
         const { out } = data;
         if (!out.length) throw new Error("No data rows found");
-        loadAirplane();
+        loadAirplane(currentModel.value, null);
         clearContrail();
         buildFrames(data);
         const markerCount = buildMarkers(data);
@@ -924,7 +1014,7 @@ function init() {
     scene.add(worldGroup);
     buildEnvironment();
     scene.add(contrailGroup);
-    loadAirplane();
+    loadAirplane(currentModel.value, null);
 
     hudAltRel = rootRef.value.querySelector("#b3dAltRel");
     hudSpeed = rootRef.value.querySelector("#b3dSpeed");
@@ -1029,6 +1119,17 @@ onBeforeUnmount(() => {
 }
 .b3d-btn:hover {
     background: #1e8fc0;
+}
+.b3d-select {
+    -webkit-appearance: none;
+    appearance: none;
+    padding-right: 26px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23ffffff'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+}
+.b3d-select option {
+    color: #111;
 }
 .b3d-sep {
     width: 1px;
