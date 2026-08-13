@@ -1122,11 +1122,25 @@ onBeforeUnmount(() => {
 }
 .b3d-select {
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
-    padding-right: 26px;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23ffffff'/></svg>");
+    background-color: #2db0e3;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: normal;
+    padding: 6px 26px 6px 12px;
+    box-sizing: border-box;
+    vertical-align: middle;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23ffffff'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
+}
+.b3d-select:hover {
+    background-color: #1e8fc0;
 }
 .b3d-select option {
     color: #111;
