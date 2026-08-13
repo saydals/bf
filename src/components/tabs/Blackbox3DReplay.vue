@@ -106,7 +106,10 @@ const availableModels = [
     { key: "__myrepo__", label: "My Repository" },
 ];
 const MY_REPO_KEY = "__myrepo__";
-const CUSTOM_KEY = "__custom__";
+
+// Holds the user-picked file from "My Repository" for the session, so Replay
+// (which reloads the model) can re-load it. Session only — never persisted.
+let customModelFile = null;
 
 // Propeller spin is only meaningful for the fixed-wing airplane models. Other
 // built-ins (car, multicopters, etc.) and any custom "My Repository" model must
@@ -268,7 +271,12 @@ function applyAirfieldAlignment() {
 // ---------------------------------------------------------------------------
 // Airplane (loaded from the program's resources/models/airplane.gltf)
 // ---------------------------------------------------------------------------
-function loadAirplane(modelKey = currentModel.value, fileObj = null) {
+function loadAirplane() {
+    const key = currentModel.value;
+    // "My Repository" resolves to the session file (or airplane if none yet).
+    const fileObj = key === MY_REPO_KEY ? customModelFile : null;
+    const pathKey = key === MY_REPO_KEY ? "airplane" : key;
+
     if (airplane) {
         scene.remove(airplane);
         airplane.traverse((o) => {
@@ -281,7 +289,7 @@ function loadAirplane(modelKey = currentModel.value, fileObj = null) {
 
     // Only the fixed-wing airplane / biplane models spin their propellers.
     // Cars, multicopters and any custom "My Repository" model stay static.
-    const spinProps = PROP_MODELS.has(modelKey);
+    const spinProps = PROP_MODELS.has(key);
 
     const onLoaded = (gltf) => {
         airplane = gltf.scene;
@@ -322,7 +330,7 @@ function loadAirplane(modelKey = currentModel.value, fileObj = null) {
     }
 
     const loader = new GLTFLoader();
-    loader.load(`./resources/models/${modelKey}.gltf`, onLoaded, undefined, onError);
+    loader.load(`./resources/models/${pathKey}.gltf`, onLoaded, undefined, onError);
 }
 
 // Dropdown change: built-in model → reload it; "My Repository" → open picker.
@@ -333,7 +341,8 @@ function onModelChange(e) {
         modelFileInputRef.value?.click();
         return;
     }
-    loadAirplane(key, null);
+    customModelFile = null;
+    loadAirplane();
 }
 
 // User picked a file from "My Repository": load it for this session only.
@@ -341,10 +350,13 @@ function onModelFilePicked(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) {
-        // Cancelled — leave the previously selected model untouched.
+        // Cancelled — keep the previously loaded model.
         return;
     }
-    loadAirplane(CUSTOM_KEY, file);
+    // currentModel is already "__myrepo__" (set in onModelChange). Store the
+    // file so Replay can re-load it, then (re)load it now.
+    customModelFile = file;
+    loadAirplane();
 }
 
 // ---------------------------------------------------------------------------
@@ -870,7 +882,7 @@ function onReplay() {
         const data = buildReplayDataFromFlightLog(ensureActiveLog());
         const { out } = data;
         if (!out.length) throw new Error("No data rows found");
-        loadAirplane(currentModel.value, null);
+        loadAirplane();
         clearContrail();
         buildFrames(data);
         const markerCount = buildMarkers(data);
@@ -1014,7 +1026,7 @@ function init() {
     scene.add(worldGroup);
     buildEnvironment();
     scene.add(contrailGroup);
-    loadAirplane(currentModel.value, null);
+    loadAirplane();
 
     hudAltRel = rootRef.value.querySelector("#b3dAltRel");
     hudSpeed = rootRef.value.querySelector("#b3dSpeed");
