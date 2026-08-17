@@ -129,6 +129,7 @@ const PROP_RULES = {
     airplane: /cylinder/i,
     Biplane: /cylinder/i,
     helicopter: /rotor/i,
+    quad_x: /prop/i,
 };
 
 // Currently selected model key. Defaults to the airplane on first run.
