@@ -93,17 +93,23 @@ const logStore = useLogStore();
 // ---------------------------------------------------------------------------
 // Model selection
 // ---------------------------------------------------------------------------
-// Built-in models shipped in resources/models/ (key === filename without .glb/.gltf).
+// Built-in models shipped in resources/models/ (key === filename without .gltf).
 // "My Repository" opens the OS file picker so the user can load their own
 // .gltf/.glb for this session only (never written to resources/models/).
 const availableModels = [
     { key: "airplane", label: "Airplane" },
     { key: "Biplane", label: "Biplane" },
     { key: "car", label: "Car" },
+    { key: "fallback", label: "Fallback" },
     { key: "helicopter", label: "Helicopter" },
-    { key: "airplane3", label: "Airplane 3" },
-    { key: "dae_rustairborn", label: "Rustairborn" },
-    { key: "f14_tomcat", label: "F-14 Tomcat" },
+    { key: "hex_plus", label: "Hex +" },
+    { key: "hex_x", label: "Hex X" },
+    { key: "quad_atail", label: "Quad A-Tail" },
+    { key: "quad_vtail", label: "Quad V-Tail" },
+    { key: "quad_x", label: "Quad X" },
+    { key: "tricopter", label: "Tricopter" },
+    { key: "y4", label: "Y4" },
+    { key: "y6", label: "Y6" },
     { key: "__myrepo__", label: "Custom" },
 ];
 const MY_REPO_KEY = "__myrepo__";
@@ -113,18 +119,15 @@ const MY_REPO_KEY = "__myrepo__";
 let customModelFile = null;
 
 // Per-model propeller/rotor rules. Each entry maps a model key to the name
-// pattern of the meshes that should spin. Props are wrapped in a pivot at their
-// own centre and spun around the model's world Y axis (the prop shaft); this is
-// independent of how the source node is oriented. Models not listed here never
-// spin — guessing by geometry produced wrong results (arms/legs), so we keep an
-// explicit rule per craft instead.
+// pattern of the meshes that should spin around their local Y axis (glTF is
+// Y-up, so a rotor's spin axis is the mesh's local Y). Models not listed here
+// never spin — guessing by geometry produced wrong results (arms/legs), so we
+// keep an explicit rule per craft instead.
 //   - airplane / Biplane: legacy "cylinder" propeller meshes
 //   - helicopter: "rotor" meshes (main + tail rotor, heads included)
 const PROP_RULES = {
     airplane: /cylinder/i,
     Biplane: /cylinder/i,
-    airplane3: /prop/i,
-    dae_rustairborn: /prop/i,
     helicopter: /rotor/i,
 };
 
@@ -291,37 +294,16 @@ function applyAirfieldAlignment() {
 
 // Collect the nodes that should spin, using the model's explicit name rule.
 // A match may be a mesh OR a group node (e.g. airplane's "Cylinder_0" is a
-// group wrapping the blade meshes). Each matched object is wrapped in a pivot
-// Group whose origin sits at the object's own bounding-box centre, so it spins
-// in place around its own centre instead of orbiting the model origin (some
-// models bake prop geometry in world space, e.g. drone's 4 props). Descendants
-// of a matched object are skipped so a group and its child blade are not both
-// wrapped (which would double-spin). Returns [] when the model has no rule.
-// spinProp is PROP_RULES[key] or null.
+// group wrapping the blade meshes) — rotating the group spins its whole
+// subtree, which is the original working behaviour. Returns [] when the model
+// has no rule, so nothing unexpected rotates. spinProp is PROP_RULES[key] or null.
 function collectPropellers(model, spinProp) {
     if (!spinProp) return [];
-    const pivots = [];
-    const skip = new Set();
+    const found = [];
     model.traverse((o) => {
-        if (skip.has(o)) return;
-        if (!spinProp.test((o.name || "").toLowerCase())) return;
-        const box = new THREE.Box3().setFromObject(o);
-        if (box.isEmpty()) return; // e.g. empty pivot nodes with no geometry
-        const center = box.getCenter(new THREE.Vector3());
-        // Parent the pivot to the scene root (model.parent) which is unrotated,
-        // rather than to o's own parent or even the model root. Some models nest
-        // the prop under a rotated node, and the model root itself may be rotated
-        // (e.g. dae_rustairborn's scene), so rotating a pivot there would spin
-        // around a tilted (pitch) axis instead of the true prop shaft (world Y).
-        const parent = model.parent || model;
-        const pivot = new THREE.Group();
-        parent.add(pivot);
-        pivot.position.copy(parent.worldToLocal(center.clone()));
-        pivot.attach(o); // keep o's world transform, now under the pivot
-        pivots.push(pivot);
-        o.traverse((d) => skip.add(d)); // don't also wrap nested matches
+        if (spinProp.test((o.name || "").toLowerCase())) found.push(o);
     });
-    return pivots;
+    return found;
 }
 
 function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
@@ -896,10 +878,8 @@ function applyFrame(fr) {
     updateContrail(0.016, contrailGroup.userData.color || 0xffffff);
 }
 function updatePropellers(dt, throttle) {
-    // Throttle-based spin: 10% -> 5 rotations/s, 100% -> 50 rotations/s
-    // (rotations/s = throttle% * 0.5), converted to rad/s (× 2π).
-    const t = Math.min(1, Math.max(0, throttle));
-    const speed = t * 50 * 2 * Math.PI;
+    const maxRpm = 400;
+    const speed = 20 + Math.min(1, Math.max(0, throttle)) * maxRpm;
     propAngle += speed * dt;
     for (const p of propellers) p.rotation.y = propAngle;
 }
