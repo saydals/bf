@@ -130,7 +130,11 @@ const PROP_RULES = {
 const PROP_AXES = {
     airplane: "z",
     Biplane: "z",
+    helicopter: "y",
     drone: "y",
+};
+const PROP_TAIL_AXES = {
+    helicopter: "z",
 };
 
 // Currently selected model key. Defaults to the airplane on first run.
@@ -312,7 +316,6 @@ function collectPropellers(model, spinProp) {
     });
     const pivots = [];
     for (const o of matched) {
-        // Drone: pair propN with its hub centre cN.
         let centerObj = o;
         const pm = /^prop([1-4])$/i.exec(o.name || "");
         if (pm) {
@@ -323,16 +326,17 @@ function collectPropellers(model, spinProp) {
         }
         const box = new THREE.Box3().setFromObject(centerObj);
         const center = box.getCenter(new THREE.Vector3());
-        // Parent the pivot to the model (gltf.scene), which has no rotation
-        // (only scale + position are set on load). This keeps the prop in the
-        // craft's hierarchy so it moves/rotates WITH the airplane, while the
-        // pivot's local Y still equals world Y (so the spin axis is correct and
-        // not tilted by an intermediate rotated node).
         const parent = model;
         const pivot = new THREE.Group();
         parent.add(pivot);
         pivot.position.copy(parent.worldToLocal(center.clone()));
-        pivot.attach(o); // keep o's world transform, now under the pivot
+        pivot.attach(o);
+        const modelKey = currentModel.value;
+        const axis =
+            modelKey in PROP_TAIL_AXES && /tail_rotor/i.test(o.name || "")
+                ? PROP_TAIL_AXES[modelKey]
+                : PROP_AXES[modelKey] || "y";
+        pivot.userData.axis = axis;
         pivots.push(pivot);
     }
     return pivots;
@@ -913,8 +917,7 @@ function updatePropellers(dt, throttle) {
     const maxRpm = 400;
     const speed = 20 + Math.min(1, Math.max(0, throttle)) * maxRpm;
     propAngle += speed * dt;
-    const axis = PROP_AXES[currentModel.value] || "y";
-    for (const p of propellers) p.rotation[axis] = propAngle;
+    for (const p of propellers) p.rotation[p.userData.axis || "y"] = propAngle;
 }
 function setPlaying(p) {
     playingFlag = p;
