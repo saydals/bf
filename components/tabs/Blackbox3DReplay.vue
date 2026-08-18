@@ -93,23 +93,19 @@ const logStore = useLogStore();
 // ---------------------------------------------------------------------------
 // Model selection
 // ---------------------------------------------------------------------------
-// Built-in models shipped in resources/models/ (key === filename without .gltf).
-// "My Repository" opens the OS file picker so the user can load their own
-// .gltf/.glb for this session only (never written to resources/models/).
+// Built-in models shipped in resources/models/ (key === filename without
+// .glb/.gltf). "My Repository" opens the OS file picker so the user can load
+// their own .gltf/.glb for this session only (never written to resources/models/).
 const availableModels = [
     { key: "airplane", label: "Airplane" },
     { key: "Biplane", label: "Biplane" },
     { key: "car", label: "Car" },
-    { key: "fallback", label: "Fallback" },
     { key: "helicopter", label: "Helicopter" },
-    { key: "hex_plus", label: "Hex +" },
-    { key: "hex_x", label: "Hex X" },
-    { key: "quad_atail", label: "Quad A-Tail" },
-    { key: "quad_vtail", label: "Quad V-Tail" },
-    { key: "quad_x", label: "Quad X" },
-    { key: "tricopter", label: "Tricopter" },
-    { key: "y4", label: "Y4" },
-    { key: "y6", label: "Y6" },
+    { key: "airplane3", label: "Airplane 3" },
+    { key: "biplane2", label: "Biplane 2" },
+    { key: "dae_rustairborn", label: "Rustairborn" },
+    { key: "drone", label: "Drone" },
+    { key: "f14_tomcat", label: "F-14 Tomcat" },
     { key: "__myrepo__", label: "Custom" },
 ];
 const MY_REPO_KEY = "__myrepo__";
@@ -119,17 +115,19 @@ const MY_REPO_KEY = "__myrepo__";
 let customModelFile = null;
 
 // Per-model propeller/rotor rules. Each entry maps a model key to the name
-// pattern of the meshes that should spin around their local Y axis (glTF is
-// Y-up, so a rotor's spin axis is the mesh's local Y). Models not listed here
+// pattern of the prop meshes that should spin. Every spinning prop is wrapped
+// in a pivot at its rotation centre (see collectPropellers) and rotated about
+// world Y, which is the prop shaft for these models. Models not listed here
 // never spin — guessing by geometry produced wrong results (arms/legs), so we
 // keep an explicit rule per craft instead.
 //   - airplane / Biplane: legacy "cylinder" propeller meshes
 //   - helicopter: "rotor" meshes (main + tail rotor, heads included)
+//   - drone: "prop1".."prop4" blades, each spinning around its hub "c1".."c4"
 const PROP_RULES = {
     airplane: /cylinder/i,
     Biplane: /cylinder/i,
     helicopter: /rotor/i,
-    quad_x: /prop/i,
+    drone: /prop[1-4]/i,
 };
 
 // Currently selected model key. Defaults to the airplane on first run.
@@ -294,17 +292,41 @@ function applyAirfieldAlignment() {
 // ---------------------------------------------------------------------------
 
 // Collect the nodes that should spin, using the model's explicit name rule.
-// A match may be a mesh OR a group node (e.g. airplane's "Cylinder_0" is a
-// group wrapping the blade meshes) — rotating the group spins its whole
-// subtree, which is the original working behaviour. Returns [] when the model
-// has no rule, so nothing unexpected rotates. spinProp is PROP_RULES[key] or null.
+// Each matched object is wrapped in a pivot Group whose origin sits at the
+// prop's rotation centre, so it spins in place instead of orbiting the model
+// origin (some models bake prop geometry in world space). For the drone each
+// "propN" blade mesh is paired with its hub "cN" (prop1 <-> c1, ...) and the
+// pivot is placed at cN's centre; for other craft the prop's own bounding-box
+// centre is used. The pivot is parented to the (unrotated) scene root so the
+// spin axis is always world Y. Returns [] when the model has no rule.
+// spinProp is PROP_RULES[key] or null.
 function collectPropellers(model, spinProp) {
     if (!spinProp) return [];
-    const found = [];
+    const matched = [];
     model.traverse((o) => {
-        if (spinProp.test((o.name || "").toLowerCase())) found.push(o);
+        if (spinProp.test((o.name || "").toLowerCase())) matched.push(o);
     });
-    return found;
+    const pivots = [];
+    for (const o of matched) {
+        // Drone: pair propN with its hub centre cN.
+        let centerObj = o;
+        const pm = /^prop([1-4])$/i.exec(o.name || "");
+        if (pm) {
+            const cName = `c${pm[1]}`;
+            model.traverse((c) => {
+                if (centerObj === o && (c.name || "").toLowerCase() === cName) centerObj = c;
+            });
+        }
+        const box = new THREE.Box3().setFromObject(centerObj);
+        const center = box.getCenter(new THREE.Vector3());
+        const parent = model.parent || model;
+        const pivot = new THREE.Group();
+        parent.add(pivot);
+        pivot.position.copy(parent.worldToLocal(center.clone()));
+        pivot.attach(o); // keep o's world transform, now under the pivot
+        pivots.push(pivot);
+    }
+    return pivots;
 }
 
 function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
