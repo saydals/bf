@@ -134,7 +134,7 @@ const PROP_AXES = {
     drone: "y",
 };
 const PROP_TAIL_AXES = {
-    helicopter: "z",
+    helicopter: "x",
 };
 
 // Currently selected model key. Defaults to the airplane on first run.
