@@ -117,17 +117,23 @@ let customModelFile = null;
 // Per-model propeller/rotor rules. Each entry maps a model key to the name
 // pattern of the prop meshes that should spin. Every spinning prop is wrapped
 // in a pivot at its rotation centre (see collectPropellers) and rotated about
-// world Y, which is the prop shaft for these models. Models not listed here
-// never spin — guessing by geometry produced wrong results (arms/legs), so we
-// keep an explicit rule per craft instead.
-//   - airplane / Biplane: legacy "cylinder" propeller meshes
-//   - helicopter: "rotor" meshes (main + tail rotor, heads included)
-//   - drone: "prop1".."prop4" blades, each spinning around its hub "c1".."c4"
+// the axis below, which is the prop shaft for these models. Models not listed
+// here never spin — guessing by geometry produced wrong results (arms/legs), so
+// we keep an explicit rule per craft instead.
+//   - airplane / Biplane: legacy "cylinder" propeller meshes, spin about +X
+//   - helicopter: "rotor" meshes (main + tail rotor, heads included), spin about +Y
+//   - drone: "prop1".."prop4" blades, each spinning around its hub "c1".."c4", spin about +Y
 const PROP_RULES = {
     airplane: /cylinder/i,
     Biplane: /cylinder/i,
     helicopter: /rotor/i,
     drone: /prop[1-4]/i,
+};
+const PROP_AXES = {
+    airplane: "x",
+    Biplane: "x",
+    helicopter: "y",
+    drone: "y",
 };
 
 // Currently selected model key. Defaults to the airplane on first run.
@@ -910,7 +916,8 @@ function updatePropellers(dt, throttle) {
     const maxRpm = 400;
     const speed = 20 + Math.min(1, Math.max(0, throttle)) * maxRpm;
     propAngle += speed * dt;
-    for (const p of propellers) p.rotation.y = propAngle;
+    const axis = PROP_AXES[currentModel.value] || "y";
+    for (const p of propellers) p.rotation[axis] = propAngle;
 }
 function setPlaying(p) {
     playingFlag = p;
