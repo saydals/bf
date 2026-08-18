@@ -297,8 +297,9 @@ function applyAirfieldAlignment() {
 // origin (some models bake prop geometry in world space). For the drone each
 // "propN" blade mesh is paired with its hub "cN" (prop1 <-> c1, ...) and the
 // pivot is placed at cN's centre; for other craft the prop's own bounding-box
-// centre is used. The pivot is parented to the (unrotated) scene root so the
-// spin axis is always world Y. Returns [] when the model has no rule.
+// centre is used. The pivot is parented to the (unrotated) model so the prop
+// stays in the craft's hierarchy and moves with it, while its local Y still
+// equals world Y so the spin axis is correct. Returns [] when model has no rule.
 // spinProp is PROP_RULES[key] or null.
 function collectPropellers(model, spinProp) {
     if (!spinProp) return [];
@@ -319,7 +320,12 @@ function collectPropellers(model, spinProp) {
         }
         const box = new THREE.Box3().setFromObject(centerObj);
         const center = box.getCenter(new THREE.Vector3());
-        const parent = model.parent || model;
+        // Parent the pivot to the model (gltf.scene), which has no rotation
+        // (only scale + position are set on load). This keeps the prop in the
+        // craft's hierarchy so it moves/rotates WITH the airplane, while the
+        // pivot's local Y still equals world Y (so the spin axis is correct and
+        // not tilted by an intermediate rotated node).
+        const parent = model;
         const pivot = new THREE.Group();
         parent.add(pivot);
         pivot.position.copy(parent.worldToLocal(center.clone()));
