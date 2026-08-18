@@ -101,8 +101,6 @@ const availableModels = [
     { key: "Biplane", label: "Biplane" },
     { key: "car", label: "Car" },
     { key: "helicopter", label: "Helicopter" },
-    { key: "airplane3", label: "Airplane 3" },
-    { key: "biplane2", label: "Biplane 2" },
     { key: "dae_rustairborn", label: "Rustairborn" },
     { key: "drone", label: "Drone" },
     { key: "f14_tomcat", label: "F-14 Tomcat" },
@@ -120,8 +118,8 @@ let customModelFile = null;
 // the axis below, which is the prop shaft for these models. Models not listed
 // here never spin — guessing by geometry produced wrong results (arms/legs), so
 // we keep an explicit rule per craft instead.
-//   - airplane / Biplane: legacy "cylinder" propeller meshes, spin about +X
-//   - helicopter: "rotor" meshes (main + tail rotor, heads included), spin about +Y
+//   - airplane / Biplane: legacy "cylinder" propeller meshes, spin about +Z
+//   - helicopter: "rotor" meshes (main + tail rotor, heads included), main about +Y, tail about +X
 //   - drone: "prop1".."prop4" blades, each spinning around its hub "c1".."c4", spin about +Y
 const PROP_RULES = {
     airplane: /cylinder/i,
@@ -130,9 +128,8 @@ const PROP_RULES = {
     drone: /prop[1-4]/i,
 };
 const PROP_AXES = {
-    airplane: "x",
-    Biplane: "x",
-    helicopter: "y",
+    airplane: "z",
+    Biplane: "z",
     drone: "y",
 };
 
