@@ -332,11 +332,10 @@ function collectPropellers(model, spinProp) {
         pivot.position.copy(parent.worldToLocal(center.clone()));
         pivot.attach(o);
         const modelKey = currentModel.value;
-        const axis =
-            modelKey in PROP_TAIL_AXES && /tail_rotor/i.test(o.name || "")
-                ? PROP_TAIL_AXES[modelKey]
-                : PROP_AXES[modelKey] || "y";
+        const isTail = modelKey in PROP_TAIL_AXES && /tail_rotor/i.test(o.name || "");
+        const axis = isTail ? PROP_TAIL_AXES[modelKey] : PROP_AXES[modelKey] || "y";
         pivot.userData.axis = axis;
+        pivot.userData.reverse = !!isTail;
         pivots.push(pivot);
     }
     return pivots;
@@ -917,7 +916,7 @@ function updatePropellers(dt, throttle) {
     const maxRpm = 400;
     const speed = 20 + Math.min(1, Math.max(0, throttle)) * maxRpm;
     propAngle += speed * dt;
-    for (const p of propellers) p.rotation[p.userData.axis || "y"] = propAngle;
+    for (const p of propellers) p.rotation[p.userData.axis || "y"] = p.userData.reverse ? -propAngle : propAngle;
 }
 function setPlaying(p) {
     playingFlag = p;
