@@ -155,7 +155,7 @@ function init() {
 
     const loader = new GLTFLoader();
     loader.load(
-        "./resources/models/airplane.gltf",
+        "./resources/models/Biplane.gltf",
         (gltf) => {
             model = gltf.scene;
             model.scale.set(15, 15, 15);
@@ -164,7 +164,7 @@ function init() {
             // Apply whatever attitude we already received (or the latest) now.
             applyAttitudeFrom(pendingAttitude);
 
-            // Identify propeller nodes for spinning. The airplane.gltf uses generic
+            // Identify propeller nodes for spinning. The Biplane.gltf uses generic
             // names (Cylinder/Circle), so match by shape-name heuristics.
             propellerNodes = findPropellerNodes(model);
             console.log(
