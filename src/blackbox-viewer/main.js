@@ -167,6 +167,7 @@ export function bootstrapViewer() {
             craftCanvas,
             analyserCanvas,
             userSettings,
+            pinia,
         );
         graphStore.graph = graph;
 

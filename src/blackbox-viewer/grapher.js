@@ -17,9 +17,18 @@ function extend(base, top) {
     return { ...base, ...top };
 }
 
-export function FlightLogGrapher(flightLog, graphConfig, canvas, stickCanvas, craftCanvas, analyserCanvas, options) {
-    const graphStore = useGraphStore();
-    const workspaceStore = useWorkspaceStore();
+export function FlightLogGrapher(
+    flightLog,
+    graphConfig,
+    canvas,
+    stickCanvas,
+    craftCanvas,
+    analyserCanvas,
+    options,
+    pinia,
+) {
+    const graphStore = useGraphStore(pinia);
+    const workspaceStore = useWorkspaceStore(pinia);
 
     const DEFAULT_FONT_FACE = "Verdana, Arial, sans-serif";
     let drawingParams = {
