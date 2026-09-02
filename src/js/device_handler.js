@@ -29,6 +29,15 @@ function createDfuProtocol() {
 
 const dfuProtocol = createDfuProtocol();
 
+/**
+ * @param {Array<{path: string}>} a
+ * @param {Array<{path: string}>} b
+ * @returns {boolean} true when both lists hold the same paths in the same order
+ */
+function samePaths(a, b) {
+    return a.length === b.length && a.every((device, index) => device.path === b[index].path);
+}
+
 const DeviceHandler = new (function () {
     this.logHead = "[DEVICEHANDLER]";
 
@@ -46,7 +55,6 @@ const DeviceHandler = new (function () {
         portOverride: getConfig("portOverride", "/dev/rfcomm0").portOverride,
         virtualMspVersion: getConfig("virtualMspVersion", "1.46.0").virtualMspVersion,
         autoConnect: getConfig("autoConnect", false).autoConnect,
-        wifiTcpAddress: getConfig("wifiTcpAddress", "tcp://10.3.2.1").wifiTcpAddress,
     };
 
     this.devicePickerDisabled = false;
@@ -60,13 +68,12 @@ const DeviceHandler = new (function () {
     this.showBluetoothOption = checkBluetoothSupport();
     this.showSerialOption = checkSerialSupport();
     this.showUsbOption = checkUsbSupport();
-    this.showWiFiOption = isAndroid() || true; // TCP/WiFi: Android에서 항상 사용 가능
 
     console.log(`${this.logHead} Bluetooth available: ${this.showBluetoothOption}`);
     console.log(`${this.logHead} Serial available: ${this.showSerialOption}`);
     console.log(`${this.logHead} DFU available: ${this.showUsbOption}`);
 
-    this.showVirtualMode = getConfig("showVirtualMode", true).showVirtualMode;
+    this.showVirtualMode = getConfig("showVirtualMode", false).showVirtualMode;
     this.showManualMode = getConfig("showManualMode", false).showManualMode;
     this.showAllSerialDevices = getConfig("showAllSerialDevices", false).showAllSerialDevices;
 
@@ -235,6 +242,58 @@ DeviceHandler.sortPorts = function (ports) {
     });
 };
 
+/**
+ * Describe a listed device well enough to recognise it after a reboot. A re-enumerating
+ * device usually comes back under a NEW path (the browser mints a fresh SerialPort object),
+ * so the USB ids travel with it.
+ * @param {string} path - a device path
+ * @returns {?{path: string, vendorId: *, productId: *}} null when the path is not listed
+ */
+DeviceHandler.describeDevice = function (path) {
+    const device = [...this.currentSerialPorts, ...this.currentBluetoothPorts].find((port) => port.path === path);
+
+    return device ? { path: device.path, vendorId: device.vendorId, productId: device.productId } : null;
+};
+
+/**
+ * The listed device matching a descriptor: the same path if it came back as itself, otherwise
+ * the same make. Undefined while it is away.
+ *
+ * The make comparison needs both ids: SerialPortInfo carries usbVendorId/usbProductId for USB
+ * ports only, so a platform-native port (a built-in COM port, a Bluetooth SPP one) has neither
+ * and `undefined === undefined` would match it to any other port without ids.
+ * @param {?{path: string, vendorId: *, productId: *}} target - from describeDevice()
+ * @returns {object|undefined} the device wrapper
+ */
+DeviceHandler.findDescribedDevice = function (target) {
+    if (!target) {
+        return undefined;
+    }
+
+    const devices = [...this.currentSerialPorts, ...this.currentBluetoothPorts];
+    const byPath = devices.find((device) => device.path === target.path);
+
+    if (byPath || target.vendorId === undefined || target.productId === undefined) {
+        return byPath;
+    }
+
+    return devices.find((device) => device.vendorId === target.vendorId && device.productId === target.productId);
+};
+
+/**
+ * @param {string} path - a device path
+ * @returns {boolean} true when the serial, Bluetooth or USB list holds this path
+ */
+DeviceHandler.isKnownDevicePath = function (path) {
+    if (!path) {
+        return false;
+    }
+
+    return [this.currentSerialPorts, this.currentBluetoothPorts, this.currentUsbPorts].some((devices) =>
+        devices.some((device) => device.path === path),
+    );
+};
+
 DeviceHandler.selectActivePort = function (suggestedDevice = false) {
     const deviceFilter = ["AT32", "CP210", "SPR", "STM"];
     let selectedDevice;
@@ -263,8 +322,20 @@ DeviceHandler.selectActivePort = function (suggestedDevice = false) {
         return selectedDevice;
     }
 
-    // Return the suggested device (the new device that has been detected)
-    if (!selectedDevice && suggestedDevice) {
+    // Mid-reboot, prefer the device that was rebooted. A plug-in raises a burst of events and
+    // another device can be added while the FC is away; without this the selection follows
+    // whichever event arrived last, and the reconnect aims at a device nobody asked for.
+    // A preference, not a restriction: if the rebooted device is not back, the rules below
+    // still apply, so a board that returns as something else is not locked out.
+    if (!selectedDevice) {
+        selectedDevice = this.findDescribedDevice(getConnectionState().rebootTarget)?.path;
+    }
+
+    // The code reads suggestedDevice from an addedDevice event. updateDeviceList() reads the
+    // transport again after that. The device can be absent at this point. On Linux, udev and
+    // ModemManager remove a CDC-ACM node and add it again while they examine it. Auto-connect
+    // fails if the selection holds a path that the transport does not list.
+    if (!selectedDevice && suggestedDevice && this.isKnownDevicePath(suggestedDevice.path)) {
         selectedDevice = suggestedDevice.path;
     }
 
@@ -315,20 +386,25 @@ DeviceHandler.selectActivePort = function (suggestedDevice = false) {
         selectedDevice = "manual";
     }
 
-    // While reconnecting, keep the previously-selected device rather than dropping
-    // to "noselection": it re-enumerates with the same stable id, so the existing
-    // selection is still the right target. Never virtual/manual.
+    // During a reconnect, keep the device from the last selection. Do not change it to
+    // "noselection". The device is absent for a short time only. If it comes back with a new
+    // id, the addedDevice event selects it again. Do not use virtual or manual here.
     if (!selectedDevice && reconnectInProgress) {
         selectedDevice = this.devicePicker.selectedDevice;
     }
 
     // Return the default port if no other port was selected
+    const previousDevice = this.devicePicker.selectedDevice;
     this.devicePicker.selectedDevice = selectedDevice || DEFAULT_PORT;
 
-    console.log(
-        `${this.logHead} Automatically selected device is '${this.devicePicker.selectedDevice}' - suggested:`,
-        suggestedDevice,
-    );
+    // One plug-in gives a burst of device events. Each event runs this function and gets the
+    // same result. Log the selection only when it changes.
+    if (this.devicePicker.selectedDevice !== previousDevice) {
+        console.log(
+            `${this.logHead} Automatically selected device is '${this.devicePicker.selectedDevice}' - suggested:`,
+            suggestedDevice,
+        );
+    }
 
     return selectedDevice;
 };
@@ -389,25 +465,36 @@ DeviceHandler.updateDeviceList = async function (deviceType) {
         const orderedPorts = this.sortPorts(ports);
 
         // Update the appropriate properties based on device type
+        let previousPorts;
+        let label;
+
         switch (deviceType) {
             case "bluetooth":
+                previousPorts = this.currentBluetoothPorts;
+                label = "bluetooth";
                 this.bluetoothAvailable = orderedPorts.length > 0;
                 this.currentBluetoothPorts = [...orderedPorts];
-                console.log(`${this.logHead} Found bluetooth port(s)`, orderedPorts);
                 break;
             case "usb":
+                previousPorts = this.currentUsbPorts;
+                label = "DFU";
                 this.dfuAvailable = orderedPorts.length > 0;
                 this.currentUsbPorts = [...orderedPorts];
-                console.log(`${this.logHead} Found DFU port(s)`, orderedPorts);
                 break;
             case "serial":
+                previousPorts = this.currentSerialPorts;
+                label = "serial";
                 this.portAvailable = orderedPorts.length > 0;
                 this.currentSerialPorts = [...orderedPorts];
-                console.log(`${this.logHead} Found serial port(s)`, orderedPorts);
                 break;
             default:
                 console.warn(`${this.logHead} Unknown device type for updating ports: ${deviceType}`);
                 return [];
+        }
+
+        // A burst of device events refreshes the same list many times. Log it only on a change.
+        if (!samePaths(orderedPorts, previousPorts)) {
+            console.log(`${this.logHead} Found ${label} port(s)`, orderedPorts);
         }
 
         return orderedPorts;
