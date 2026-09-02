@@ -3,8 +3,8 @@ import semver from "semver";
 import MSP from "../js/msp";
 import GUI from "../js/gui";
 import FC from "../js/fc";
-import PortHandler from "../js/port_handler";
-import { disconnect } from "../js/serial_backend";
+import { disconnect, isDrivenRebootTarget, scheduleRebootReconnect } from "../js/serial_backend";
+import DeviceHandler from "../js/device_handler";
 import { getConnectionState, State } from "../js/connection_state";
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 2000;
@@ -68,11 +68,16 @@ export function readDumpAll() {
 }
 
 export function scheduleReconnect() {
-    // Pin the port we are connected to right now. The save/exit that precedes this reboots the
-    // FC, so the port briefly disappears; the live selectedPort can then be auto-reassigned
-    // (e.g. to "virtual" in expert mode). Capturing synchronously here — before the async
-    // device-removal callback runs — lets us reconnect to the original FC, not the fallback.
-    const pinnedPort = PortHandler.portPicker.selectedPort;
+    const willAutoReconnect = DeviceHandler.devicePicker.autoConnect;
+    const target = DeviceHandler.devicePicker.selectedDevice;
+
+    // When we expect an auto-reconnect, hold the reconnect-in-progress window so selectActivePort()
+    // keeps the current selection and does NOT hijack it with the expert-mode virtual/manual
+    // fallback while the device is briefly off the port list.
+    if (willAutoReconnect && target && target !== "noselection" && target !== "virtual" && target !== "manual") {
+        getConnectionState().reconnectStarted();
+    }
+
     GUI.timeout_remove(RECONNECT_TIMEOUT_NAME);
     // Enter the reconnect window so selectActivePort keeps the device selection for auto-reconnect.
     if (PortHandler.portPicker.autoConnect) {
@@ -81,9 +86,8 @@ export function scheduleReconnect() {
     GUI.timeout_add(
         RECONNECT_TIMEOUT_NAME,
         () => {
-            if (pinnedPort && !["noselection", "virtual", "manual"].includes(pinnedPort)) {
-                PortHandler.portPicker.selectedPort = pinnedPort;
-            }
+            // Drop the stale link only. disconnect() is a no-op if the reboot already closed the
+            // port; reconnection (if any) is auto-connect's job on device re-enumeration.
             disconnect();
         },
         RECONNECT_DELAY_MS,
@@ -91,11 +95,22 @@ export function scheduleReconnect() {
 }
 
 export function cancelScheduledReconnect() {
-    GUI.timeout_remove(RECONNECT_TIMEOUT_NAME);
-    const cs = getConnectionState();
-    if (cs.state === State.RECONNECTING) {
-        cs.concludeReboot(false);
+    const removed = GUI.timeout_remove(RECONNECT_TIMEOUT_NAME);
+    // Only conclude the window this function actually cancelled: the timer was still
+    // pending (removed) AND we are still in the RECONNECTING wait it opened. Once the
+    // timer has fired, connectDisconnect() owns the phase (CONNECTING/HANDSHAKING) and
+    // its own concludeReboot settles it — forcing IDLE here would abort a live connect.
+    if (removed && getConnectionState().state === State.RECONNECTING) {
+        getConnectionState().concludeReboot(false);
     }
+}
+
+// A `save`/`exit` reboots the FC, so the port closes before the command can reply and its
+// in-flight promise is drained with a connection-closed error (tagged in MSP.disconnect_cleanup).
+// That is the EXPECTED successful outcome — the config is saved and the board is restarting — not
+// a failure, so callers should not surface it as an error.
+export function isConnectionClosedError(error) {
+    return error?.connectionClosed === true;
 }
 
 export async function saveAndReconnect() {
@@ -103,9 +118,11 @@ export async function saveAndReconnect() {
     try {
         await sendSave();
     } catch (error) {
-        saveError = error;
-        // A connection-closed error during save means the FC rebooted as expected.
-        if (!error?.connectionClosed) {
+        if (isConnectionClosedError(error)) {
+            // Save accepted; the FC is rebooting (the port closed before it could reply).
+            console.debug("Save reboot: connection closed before response (expected).");
+        } else {
+            saveError = error;
             console.error("sendSave failed:", error);
         }
     } finally {

@@ -54,7 +54,7 @@ class CapacitorBle extends EventTarget {
         });
     }
 
-    getConnectedPort() {
+    getConnectedDevice() {
         return this.devices.find((d) => d.path === this.connectionId) || null;
     }
 

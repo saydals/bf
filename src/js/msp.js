@@ -617,13 +617,14 @@ const MSP = {
     disconnect_cleanup() {
         this.state = 0; // reset packet state for "clean" initial entry (this is only required if user hot-disconnects)
         this.packet_error = 0; // reset CRC packet error counter for next session
+
+        this.callbacks_cleanup();
         // Tag the error so callers can distinguish an EXPECTED close-driven drain — a `save`/
         // `exit` reboots the FC, closing the port before it can reply — from a genuine command
         // failure. The save still succeeded; the board is just restarting.
         const closedError = new Error("Serial connection closed");
         closedError.connectionClosed = true;
-        this.callbacks_cleanup(closedError);
-        this._drain_cli_queue(new Error("Serial connection closed"));
+        this._drain_cli_queue(closedError);
     },
 };
 

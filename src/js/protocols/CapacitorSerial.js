@@ -83,7 +83,8 @@ class CapacitorSerial extends EventTarget {
                 // Clean up state without calling native disconnect (already done)
                 this.cleanupConnectionState();
 
-                // Dispatch disconnect event to notify the app
+                // Dispatch disconnect event to notify the app. The connected
+                // device vanished, so this is a LOST link, not an intentional close.
                 this.dispatchEvent(new CustomEvent("disconnect", { detail: true }));
             }
 
@@ -286,7 +287,7 @@ class CapacitorSerial extends EventTarget {
         }
     }
 
-    getConnectedPort() {
+    getConnectedDevice() {
         return this.currentDevice;
     }
 
