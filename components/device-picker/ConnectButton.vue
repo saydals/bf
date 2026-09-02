@@ -21,7 +21,7 @@
                 variant="soft"
                 icon="i-lucide-link-2"
                 :loading="connecting"
-                :disabled="portPickerDisabled"
+                :disabled="devicePickerDisabled"
                 :title="mainLabel"
                 @click="onConnectClick"
             >
@@ -38,7 +38,7 @@
                     variant="soft"
                     :icon="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
                     square
-                    :disabled="portPickerDisabled"
+                    :disabled="devicePickerDisabled"
                     :aria-label="$t('connect')"
                 />
             </UDropdownMenu>
@@ -46,58 +46,48 @@
         <ConnectOptionsDialog
             v-model="dialogOpen"
             :mode="dialogMode"
-            :initial-version="portPicker.virtualMspVersion"
-            :initial-port-override="portPicker.portOverride"
+            :initial-version="devicePicker.virtualMspVersion"
+            :initial-port-override="devicePicker.portOverride"
             @confirm="onDialogConfirm"
-        />
-        <BleProfileDialog v-model="bleProfileDialogOpen" />
-        <WifiDialog
-            v-model="wifiDialogOpen"
-            :saved-address="wifiAddress"
-            :error="wifiError"
-            @connect="onWifiDialogConnect"
         />
     </div>
 </template>
 
 <script>
-import { defineComponent, computed, ref, onMounted, onUnmounted } from "vue";
+import { defineComponent, computed, ref } from "vue";
 import { useConnectionStore } from "../../stores/connection";
-import PortHandler from "../../js/port_handler";
+import DeviceHandler from "../../js/device_handler";
 import { connectDisconnect, disconnect } from "../../js/serial_backend";
 import { i18n } from "../../js/localization";
-import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
+import { set as setConfig } from "../../js/ConfigStorage";
 import { isExpertModeEnabled } from "../../js/utils/isExpertModeEnabled";
-import { EventBus } from "../eventBus";
 import ConnectOptionsDialog from "./ConnectOptionsDialog.vue";
-import BleProfileDialog from "./BleProfileDialog.vue";
-import WifiDialog from "./WifiDialog.vue";
 
 function selectAndConnect(path) {
-    PortHandler.portPicker.selectedPort = path;
+    DeviceHandler.devicePicker.selectedDevice = path;
     connectDisconnect();
 }
 
 function onDialogConfirm({ mode, version, portOverride }) {
     if (mode === "virtual") {
-        PortHandler.portPicker.virtualMspVersion = version;
+        DeviceHandler.devicePicker.virtualMspVersion = version;
         setConfig({ virtualMspVersion: version });
         selectAndConnect("virtual");
     } else {
-        PortHandler.portPicker.portOverride = portOverride;
+        DeviceHandler.devicePicker.portOverride = portOverride;
         setConfig({ portOverride });
         selectAndConnect("manual");
     }
 }
 
 function toggleAutoConnect(value) {
-    PortHandler.portPicker.autoConnect = value;
+    DeviceHandler.devicePicker.autoConnect = value;
     setConfig({ autoConnect: value });
 }
 
 export default defineComponent({
     name: "ConnectButton",
-    components: { ConnectOptionsDialog, BleProfileDialog, WifiDialog },
+    components: { ConnectOptionsDialog },
     setup() {
         const connectionStore = useConnectionStore();
 
@@ -119,15 +109,15 @@ export default defineComponent({
             }
             return i18n.getMessage("disconnect");
         });
-        const portPickerDisabled = computed(() => PortHandler.portPickerDisabled);
+        const devicePickerDisabled = computed(() => DeviceHandler.devicePickerDisabled);
 
-        const selectedPort = computed(() => PortHandler.portPicker.selectedPort);
-        const serialPorts = computed(() => PortHandler.currentSerialPorts);
-        const usbPorts = computed(() => PortHandler.currentUsbPorts);
-        const bluetoothPorts = computed(() => PortHandler.currentBluetoothPorts);
+        const selectedDevice = computed(() => DeviceHandler.devicePicker.selectedDevice);
+        const serialPorts = computed(() => DeviceHandler.currentSerialPorts);
+        const usbPorts = computed(() => DeviceHandler.currentUsbPorts);
+        const bluetoothPorts = computed(() => DeviceHandler.currentBluetoothPorts);
 
         const selectedDisplayName = computed(() => {
-            const path = selectedPort.value;
+            const path = selectedDevice.value;
             if (!path || path === "noselection") {
                 return null;
             }
@@ -139,7 +129,7 @@ export default defineComponent({
             if (connecting.value) {
                 return i18n.getMessage("connecting");
             }
-            if (selectedPort.value === "virtual") {
+            if (selectedDevice.value === "virtual") {
                 return i18n.getMessage("connectVirtual");
             }
             return selectedDisplayName.value ?? i18n.getMessage("connect");
@@ -147,57 +137,7 @@ export default defineComponent({
 
         const dialogOpen = ref(false);
         const dialogMode = ref("virtual");
-        const bleProfileDialogOpen = ref(false);
-        const portPicker = computed(() => PortHandler.portPicker);
-
-        // WiFi 상태
-        const wifiDialogOpen = ref(false);
-        const wifiAddress = ref("");
-        const wifiError = ref("");
-        const wifiAutoConnectAttempted = ref(false);
-        const wifiLastFailed = ref(false);
-
-        function onWifiClick() {
-            // 이미 WiFi 연결 시도 중이면 중복 실행 방지
-            if (wifiAutoConnectAttempted.value) return;
-            const saved = getConfig("wifiTcpAddress", "").wifiTcpAddress;
-            if (saved && !wifiLastFailed.value) {
-                // 저장된 주소 → 자동 연결 시도 (이전 실패 이력이 없을 때만)
-                wifiAutoConnectAttempted.value = true;
-                wifiError.value = "";
-                PortHandler.portPicker.selectedPort = saved;
-                connectDisconnect();
-                // 12초 후 연결 실패 감지 (serial_backend 10초 타임아웃 이후)
-                wifiTimeoutId = setTimeout(() => {
-                    if (wifiAutoConnectAttempted.value) {
-                        wifiAutoConnectAttempted.value = false;
-                        if (!connectionStore.connectionValid) {
-                            wifiLastFailed.value = true;
-                            wifiAddress.value = saved;
-                            wifiError.value = i18n.getMessage("connectionFailed").replace(/<[^>]*>/g, "");
-                            wifiDialogOpen.value = true;
-                        }
-                    }
-                }, 12000);
-            } else {
-                // 저장 주소 없음 or 이전 연결 실패 → 다이얼로그 표시
-                wifiAddress.value = saved || "tcp://10.3.2.1";
-                wifiError.value = "";
-                wifiLastFailed.value = false;
-                wifiDialogOpen.value = true;
-            }
-        }
-
-        function onWifiDialogConnect(address) {
-            // 주소 저장
-            setConfig({ wifiTcpAddress: address });
-            PortHandler.portPicker.wifiTcpAddress = address;
-            // 연결
-            wifiError.value = "";
-            wifiLastFailed.value = false;
-            PortHandler.portPicker.selectedPort = address;
-            connectDisconnect();
-        }
+        const devicePicker = computed(() => DeviceHandler.devicePicker);
 
         function openConnectDialog(mode) {
             dialogMode.value = mode;
@@ -207,7 +147,7 @@ export default defineComponent({
         function buildDeviceItems() {
             const expertMode = isExpertModeEnabled();
             const devices = [];
-            if (PortHandler.showSerialOption) {
+            if (DeviceHandler.showSerialOption) {
                 for (const d of serialPorts.value) {
                     devices.push({
                         label: d.displayName,
@@ -216,7 +156,7 @@ export default defineComponent({
                     });
                 }
             }
-            if (PortHandler.showUsbOption) {
+            if (DeviceHandler.showUsbOption) {
                 for (const d of usbPorts.value) {
                     devices.push({
                         label: d.displayName,
@@ -225,7 +165,7 @@ export default defineComponent({
                     });
                 }
             }
-            if (PortHandler.showBluetoothOption) {
+            if (DeviceHandler.showBluetoothOption) {
                 for (const d of bluetoothPorts.value) {
                     devices.push({
                         label: d.displayName,
@@ -234,14 +174,14 @@ export default defineComponent({
                     });
                 }
             }
-            if (expertMode && PortHandler.showVirtualMode) {
+            if (expertMode && DeviceHandler.showVirtualMode) {
                 devices.push({
                     label: i18n.getMessage("portsSelectVirtual"),
                     icon: "i-lucide-flask-conical",
                     onSelect: () => openConnectDialog("virtual"),
                 });
             }
-            if (expertMode && PortHandler.showManualMode) {
+            if (expertMode && DeviceHandler.showManualMode) {
                 devices.push({
                     label: i18n.getMessage("portsSelectManual"),
                     icon: "i-lucide-keyboard",
@@ -253,39 +193,18 @@ export default defineComponent({
 
         function buildPermissionItems() {
             const items = [];
-            if (PortHandler.showSerialOption) {
+            if (DeviceHandler.showSerialOption) {
                 items.push({
                     label: i18n.getMessage("portsSelectPermission"),
                     icon: "i-lucide-plug-zap",
-                    onSelect: () => PortHandler.requestDevicePermission("serial"),
+                    onSelect: () => DeviceHandler.requestDevicePermission("serial"),
                 });
             }
-            if (PortHandler.showBluetoothOption) {
+            if (DeviceHandler.showBluetoothOption) {
                 items.push({
                     label: i18n.getMessage("portsSelectPermissionBluetooth"),
                     icon: "i-lucide-bluetooth",
-                    onSelect: () => PortHandler.requestDevicePermission("bluetooth"),
-                });
-                items.push({
-                    label: i18n.getMessage("bleProfileDialogTitle"),
-                    icon: "i-lucide-settings-2",
-                    onSelect: () => {
-                        bleProfileDialogOpen.value = true;
-                    },
-                });
-            }
-            if (PortHandler.showUsbOption) {
-                items.push({
-                    label: i18n.getMessage("portsSelectPermissionDFU"),
-                    icon: "i-lucide-usb",
-                    onSelect: () => PortHandler.requestDevicePermission("usb"),
-                });
-            }
-            if (PortHandler.showWiFiOption) {
-                items.push({
-                    label: i18n.getMessage("portsSelectWiFi"),
-                    icon: "i-lucide-wifi",
-                    onSelect: onWifiClick,
+                    onSelect: () => DeviceHandler.requestDevicePermission("bluetooth"),
                 });
             }
             return items;
@@ -300,7 +219,7 @@ export default defineComponent({
                 {
                     type: "checkbox",
                     label: i18n.getMessage("autoConnect"),
-                    checked: portPicker.value.autoConnect,
+                    checked: devicePicker.value.autoConnect,
                     onUpdateChecked: toggleAutoConnect,
                     onSelect: (e) => e.preventDefault(),
                 },
@@ -308,41 +227,27 @@ export default defineComponent({
             return items;
         });
 
-        // WiFi PortsInput 드롭다운 이벤트 처리
-        let wifiTimeoutId = null;
-        onMounted(() => {
-            EventBus.$on("ports-input:request-permission-wifi", onWifiClick);
-        });
-        onUnmounted(() => {
-            if (wifiTimeoutId) clearTimeout(wifiTimeoutId);
-        });
-
         async function onConnectClick() {
-            if (portPickerDisabled.value) {
+            if (devicePickerDisabled.value) {
                 return;
             }
 
             // Guard against a persisted virtual/manual selection when expert mode is off.
             const gatedModes = ["virtual", "manual"];
-            if (!isExpertModeEnabled() && gatedModes.includes(selectedPort.value)) {
-                PortHandler.portPicker.selectedPort = "noselection";
+            if (!isExpertModeEnabled() && gatedModes.includes(selectedDevice.value)) {
+                DeviceHandler.devicePicker.selectedDevice = "noselection";
             }
 
-            if (selectedPort.value === "noselection") {
-                PortHandler.selectActivePort();
-                if (PortHandler.portPicker.selectedPort !== "noselection") {
+            if (selectedDevice.value === "noselection") {
+                DeviceHandler.selectActivePort();
+                if (DeviceHandler.devicePicker.selectedDevice !== "noselection") {
                     connectDisconnect();
                     return;
                 }
-                await PortHandler.requestDevicePermission("serial");
-                if (PortHandler.portPicker.selectedPort !== "noselection") {
+                await DeviceHandler.requestDevicePermission("serial");
+                if (DeviceHandler.devicePicker.selectedDevice !== "noselection") {
                     connectDisconnect();
                 }
-                return;
-            }
-
-            if (selectedPort.value === "wifi") {
-                onWifiClick();
                 return;
             }
 
@@ -352,22 +257,16 @@ export default defineComponent({
         return {
             isConnected,
             connecting,
-            portPickerDisabled,
+            devicePickerDisabled,
             disconnectLabel,
             mainLabel,
             menuItems,
             dialogOpen,
             dialogMode,
-            portPicker,
+            devicePicker,
             onConnectClick,
             onDisconnectClick: disconnect,
             onDialogConfirm,
-            bleProfileDialogOpen,
-            bluetoothPorts,
-            wifiDialogOpen,
-            wifiAddress,
-            wifiError,
-            onWifiDialogConnect,
         };
     },
 });

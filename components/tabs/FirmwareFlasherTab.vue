@@ -156,7 +156,7 @@ import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { get as getStorage, set as setStorage } from "../../js/SessionStorage";
 import BuildApi from "../../js/BuildApi";
 import { tracking } from "../../js/Analytics";
-import PortHandler from "../../js/port_handler";
+import DeviceHandler from "../../js/device_handler";
 import { gui_log } from "../../js/gui_log";
 import semver from "semver";
 import FileSystem from "../../js/FileSystem";
@@ -335,9 +335,9 @@ export default defineComponent({
         };
 
         const updateDfuExitButtonState = () => {
-            const selectedPort = PortHandler.portPicker?.selectedPort || "";
-            const hasDfuPortSelected = typeof selectedPort === "string" && selectedPort.startsWith("usb");
-            enableDfuExitButton(PortHandler.dfuAvailable || hasDfuPortSelected);
+            const selectedDevice = DeviceHandler.devicePicker?.selectedDevice || "";
+            const hasDfuPortSelected = typeof selectedDevice === "string" && selectedDevice.startsWith("usb");
+            enableDfuExitButton(DeviceHandler.dfuAvailable || hasDfuPortSelected);
         };
 
         const flashingMessage = (message, type) => {
@@ -1004,8 +1004,8 @@ export default defineComponent({
                 logHead,
             });
 
-            EventBus.$on("port-handler:auto-select-usb-device", detectedUsbDevice);
-            EventBus.$on("port-handler:device-removed", onDeviceRemoved);
+            EventBus.$on("device-handler:auto-select-usb-device", detectedUsbDevice);
+            EventBus.$on("device-handler:device-removed", onDeviceRemoved);
 
             // Store references for proper cleanup in onBeforeUnmount
             eventListenerRefs = { detectedUsbDevice, onDeviceRemoved };
@@ -1065,8 +1065,8 @@ export default defineComponent({
                 return;
             }
 
-            EventBus.$off("port-handler:auto-select-usb-device", eventListenerRefs.detectedUsbDevice);
-            EventBus.$off("port-handler:device-removed", eventListenerRefs.onDeviceRemoved);
+            EventBus.$off("device-handler:auto-select-usb-device", eventListenerRefs.detectedUsbDevice);
+            EventBus.$off("device-handler:device-removed", eventListenerRefs.onDeviceRemoved);
             eventListenerRefs = null;
         };
 
@@ -1106,7 +1106,7 @@ export default defineComponent({
                 $t("stm32DfuPermissionRequired"),
                 async () => {
                     try {
-                        const device = await PortHandler.dfuProtocol.requestPermission();
+                        const device = await DeviceHandler.dfuProtocol.requestPermission();
                         if (!device) {
                             onCancel();
                         }
@@ -1173,7 +1173,7 @@ export default defineComponent({
             const callBackWhenPortAvailable = function () {
                 const startTime = Date.now();
                 const interval = setInterval(() => {
-                    if (PortHandler.portAvailable) {
+                    if (DeviceHandler.portAvailable) {
                         clearInterval(interval);
                         callback();
                     } else if (Date.now() - startTime > 5000) {
@@ -1489,8 +1489,8 @@ export default defineComponent({
         };
 
         // DFU permission request — moved here from the global ConnectButton dropdown
-        const showDfuButton = PortHandler.showUsbOption;
-        const handleRequestDfuPermission = () => PortHandler.requestDevicePermission("usb");
+        const showDfuButton = DeviceHandler.showUsbOption;
+        const handleRequestDfuPermission = () => DeviceHandler.requestDevicePermission("usb");
 
         // Click event handlers for buttons
         const handleExitDfu = async () => {
@@ -1528,8 +1528,8 @@ export default defineComponent({
                 firmwareType: state.firmware_type,
                 filename: state.filename,
                 flashOnConnect: state.flashOnConnect,
-                portAvailable: PortHandler.portAvailable,
-                dfuAvailable: PortHandler.dfuAvailable,
+                portAvailable: DeviceHandler.portAvailable,
+                dfuAvailable: DeviceHandler.dfuAvailable,
                 preservePreFlashingState,
                 enableFlashButton,
                 enableDfuExitButton,

@@ -32,9 +32,8 @@
                     ? [{ label: $t('portsSelectPermissionBluetooth'), value: 'requestpermissionbluetooth' }]
                     : []),
                 ...(showUsbOption ? [{ label: $t('portsSelectPermissionDFU'), value: 'requestpermissionusb' }] : []),
-                ...(showWiFiOption ? [{ label: $t('portsSelectWiFi'), value: 'wifi' }] : []),
             ]"
-            v-model="selectedPort"
+            v-model="selectedDevice"
             :disabled="disabled"
             size="sm"
             class="sm:min-w-64 min-w-full"
@@ -47,22 +46,10 @@
             <div :title="modelValue.autoConnect ? $t('autoConnectEnabled') : $t('autoConnectDisabled')">
                 <USwitch :label="$t('autoConnect')" v-model="autoConnect" :disabled="disabled" size="xs" />
             </div>
-            <div v-if="selectedPort !== 'virtual' && selectedPort !== 'noselection'" id="baudselect">
+            <div v-if="selectedDevice !== 'virtual' && selectedDevice !== 'noselection'" id="baudselect">
                 <USelect
                     :items="baudRates"
                     v-model="selectedBauds"
-                    :disabled="disabled"
-                    size="xs"
-                    class="min-w-24"
-                    :ui="{
-                        content: 'max-h-96',
-                    }"
-                />
-            </div>
-            <div v-if="isBluetoothPortSelected" id="ble-profile-select">
-                <USelect
-                    :items="bleProfiles"
-                    v-model="selectedBleProfile"
                     :disabled="disabled"
                     size="xs"
                     class="min-w-24"
@@ -76,17 +63,16 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, computed } from "vue";
+import { defineComponent, ref, watch } from "vue";
 import { set as setConfig } from "../../js/ConfigStorage";
 import { EventBus } from "../eventBus";
-import { getProfileOverride, setProfileOverride, getSelectableProfiles } from "../../js/protocols/blePreferences";
 
 export default defineComponent({
     props: {
         modelValue: {
             type: Object,
             default: () => ({
-                selectedPort: "noselection",
+                selectedDevice: "noselection",
                 selectedBauds: 115200,
                 autoConnect: true,
             }),
@@ -127,17 +113,12 @@ export default defineComponent({
             type: Boolean,
             default: true,
         },
-        showWiFiOption: {
-            type: Boolean,
-            default: false,
-        },
     },
     emits: ["update:modelValue"],
     setup(props, { emit }) {
-        const selectedPort = ref(props.modelValue.selectedPort); // Access through modelValue
+        const selectedDevice = ref(props.modelValue.selectedDevice); // Access through modelValue
         const selectedBauds = ref(props.modelValue.selectedBauds); // Access through modelValue
         const autoConnect = ref(props.modelValue.autoConnect); // Access through modelValue
-        const selectedBleProfile = ref("");
         const baudRates = ref([
             { value: "1000000", label: "1000000" },
             { value: "500000", label: "500000" },
@@ -153,25 +134,17 @@ export default defineComponent({
             { value: "2400", label: "2400" },
             { value: "1200", label: "1200" },
         ]);
-        const bleProfiles = ref(getSelectableProfiles());
 
-        const isBluetoothPortSelected = computed(() => {
-            if (!selectedPort.value) return false;
-            if (selectedPort.value === "virtual" || selectedPort.value === "noselection") return false;
-            if (selectedPort.value.startsWith("requestpermission")) return false;
-            return props.connectedBluetoothDevices.some((device) => device.path === selectedPort.value);
-        });
-
-        // Keep UI in sync when PortHandler (or parent) updates selectedPort, e.g. after WebUSB permission dialog
+        // Keep UI in sync when DeviceHandler (or parent) updates selectedDevice, e.g. after WebUSB permission dialog
         watch(
-            () => props.modelValue.selectedPort,
+            () => props.modelValue.selectedDevice,
             (v) => {
-                selectedPort.value = v;
+                selectedDevice.value = v;
             },
         );
 
-        watch(selectedPort, (newValue) => {
-            emit("update:modelValue", { ...props.modelValue, selectedPort: newValue });
+        watch(selectedDevice, (newValue) => {
+            emit("update:modelValue", { ...props.modelValue, selectedDevice: newValue });
         });
 
         watch(selectedBauds, (newValue) => {
@@ -183,44 +156,25 @@ export default defineComponent({
             setConfig({ autoConnect: newValue });
         });
 
-        watch(selectedBleProfile, (newValue) => {
-            emit("update:modelValue", { ...props.modelValue, selectedBleProfile: newValue });
-            if (selectedPort.value && selectedPort.value !== "noselection") {
-                setProfileOverride(selectedPort.value, newValue || null);
-            }
-        });
-
-        // Load saved override when port changes
-        watch(selectedPort, (newValue) => {
-            selectedBleProfile.value = getProfileOverride(newValue)?.name ?? "";
-        });
-
         const onChangePort = () => {
-            const value = selectedPort.value;
+            const value = selectedDevice.value;
 
             if (value.startsWith("requestpermission")) {
                 // Extract "serial", "bluetooth", etc., and format the event name
                 const type = value.replace("requestpermission", "");
                 EventBus.$emit(`ports-input:request-permission-${type}`);
-                // Reset selection to "No Selection" (watch(selectedPort) emits update:modelValue)
-                selectedPort.value = "noselection";
-            } else if (value === "wifi") {
-                // WiFi는 바로 액션 트리거 (다이얼로그 표시)
-                EventBus.$emit("ports-input:request-permission-wifi");
-                selectedPort.value = "noselection";
+                // Reset selection to "No Selection" (watch(selectedDevice) emits update:modelValue)
+                selectedDevice.value = "noselection";
             } else {
                 EventBus.$emit("ports-input:change", value);
             }
         };
 
         return {
-            selectedPort,
+            selectedDevice,
             selectedBauds,
             autoConnect,
-            selectedBleProfile,
             baudRates,
-            bleProfiles,
-            isBluetoothPortSelected,
             onChangePort,
         };
     },

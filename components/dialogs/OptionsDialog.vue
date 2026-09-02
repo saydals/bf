@@ -155,7 +155,7 @@ import { useDialog } from "@/composables/useDialog";
 import { get as getConfig, set as setConfig } from "../../js/ConfigStorage";
 import { applyUiScale, sanitizeUiScale, DEFAULT_UI_SCALE, MIN_UI_SCALE, MAX_UI_SCALE } from "../../js/UiScale";
 import { i18n } from "../../js/localization";
-import PortHandler from "../../js/port_handler";
+import DeviceHandler from "../../js/device_handler";
 import CliAutoComplete from "../../js/CliAutoComplete";
 import DarkTheme, { setDarkTheme } from "../../js/DarkTheme";
 import { checkSetupAnalytics } from "../../js/Analytics";
@@ -265,7 +265,7 @@ watch(
     () => settings.showManualMode,
     (value) => {
         setConfig({ showManualMode: value });
-        PortHandler.setShowManualMode(value);
+        DeviceHandler.setShowManualMode(value);
     },
 );
 
@@ -273,7 +273,7 @@ watch(
     () => settings.showVirtualMode,
     (value) => {
         setConfig({ showVirtualMode: value });
-        PortHandler.setShowVirtualMode(value);
+        DeviceHandler.setShowVirtualMode(value);
     },
 );
 
@@ -338,7 +338,7 @@ watch(
     () => settings.showAllSerialDevices,
     (value) => {
         setConfig({ showAllSerialDevices: value });
-        PortHandler.setShowAllSerialDevices(value);
+        DeviceHandler.setShowAllSerialDevices(value);
     },
 );
 
