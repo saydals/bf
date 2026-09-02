@@ -937,7 +937,7 @@ export function FlightLogGrapher(
             const centerFrame = flightLog.getSmoothedFrameAtTime(windowCenterTime);
 
             if (centerFrame) {
-                if (options.drawSticks) {
+                if (options.drawSticks && sticks) {
                     sticks.render(centerFrame, chunks, startFrameIndex, windowCenterTime);
                 }
 
@@ -948,9 +948,9 @@ export function FlightLogGrapher(
                     );
                 }
 
-                if (options.craftType === "3D") {
+                if (options.craftType === "3D" && craft3D) {
                     craft3D.render(centerFrame, flightLog.getMainFieldIndexes());
-                } else if (options.craftType === "2D") {
+                } else if (options.craftType === "2D" && craft2D) {
                     craft2D.render(centerFrame, flightLog.getMainFieldIndexes());
                 }
             }
@@ -1163,7 +1163,12 @@ export function FlightLogGrapher(
 
     // Update user options
     this.refreshOptions = function (newSettings) {
-        options = { ...defaultOptions, ...newSettings };
+        options = {
+            ...defaultOptions,
+            ...options,
+            ...newSettings,
+            craftType: newSettings.drawCraft || newSettings.craftType || options.craftType || defaultOptions.craftType,
+        };
     };
 
     this.refreshLogo = function () {
