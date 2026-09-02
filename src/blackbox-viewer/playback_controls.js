@@ -42,7 +42,9 @@ export function animationLoop() {
     const logStore = useLogStore(pinia);
     const playbackStore = usePlaybackStore(pinia);
 
-    if (!graphStore.graph) {
+    const graph = graphStore.graph;
+
+    if (!graph) {
         animationFrameIsQueued = false;
         return;
     }
@@ -66,7 +68,7 @@ export function animationLoop() {
         }
     }
 
-    graphStore.graph.render(logStore.currentBlackboxTime);
+    graph.render(logStore.currentBlackboxTime);
 
     graphStore.seekBar.setCurrentTime(logStore.currentBlackboxTime);
     graphStore.seekBar.setWindow(graphStore.graph.getWindowWidthTime());
