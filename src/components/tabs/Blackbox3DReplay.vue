@@ -177,7 +177,7 @@ let airplane = null;
 let propellers = [];
 let propAngle = 0;
 let lastTs = 0;
-let yawOffset = -Math.PI / 2;
+let yawOffset = Math.PI;
 let camTargetY = 2;
 const CAM_HOME = new THREE.Vector3(0, 25, 55);
 
@@ -310,7 +310,7 @@ function loadAirplane(modelKey = currentModel.value, selectedFile = null) {
 
     const onLoaded = (gltf) => {
         airplane = gltf.scene;
-        airplane.scale.set(0.75, 0.75, 0.75);
+        airplane.scale.set(0.25, 0.25, 0.25);
         airplane.traverse((o) => {
             if (o.isMesh) o.castShadow = true;
         });
