@@ -77,6 +77,7 @@ import { computed, ref, onMounted, onBeforeUnmount, nextTick } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { FreshMorningEnvironment } from "../../blackbox-viewer/three/freshMorningEnvironment.js";
 import BaseTab from "./BaseTab.vue";
 import { useLogStore } from "../../blackbox-viewer/stores/log.js";
 import { FlightLog } from "../../blackbox-viewer/flightlog.js";
@@ -200,73 +201,20 @@ const PLAYBACK_STEP_US = 1e6 / PLAYBACK_HZ;
 let hudAltRel, hudHome, hudPos, hudMode, hudFile, hudSpeed;
 
 // ---------------------------------------------------------------------------
-// Environment
+// Background: blackbox2 "fresh morning" airfield (vendored under
+// src/blackbox-viewer/three/, upstream formatting kept, no local edits).
+// Only the backdrop is replaced — menu, craft, markers and flight path below
+// are untouched.
 // ---------------------------------------------------------------------------
+let morningEnvironment = null;
+let environmentElapsed = 0;
 function buildEnvironment() {
-    const parent = worldGroup;
-    const GROUND_SIZE = 600;
-    const ground = new THREE.Mesh(
-        new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
-        new THREE.MeshStandardMaterial({ color: 0x5a9e3f }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    parent.add(ground);
-
-    const runway = new THREE.Mesh(
-        new THREE.BoxGeometry(12, 0.2, 160),
-        new THREE.MeshStandardMaterial({ color: 0x33363b }),
-    );
-    runway.position.set(0, 0.1, 0);
-    runway.receiveShadow = true;
-    parent.add(runway);
-    for (let z = -70; z <= 70; z += 14) {
-        const dash = new THREE.Mesh(
-            new THREE.BoxGeometry(0.6, 0.05, 5),
-            new THREE.MeshStandardMaterial({ color: 0xffffff }),
-        );
-        dash.position.set(0, 0.22, z);
-        parent.add(dash);
+    if (morningEnvironment) {
+        morningEnvironment.dispose();
+        morningEnvironment = null;
     }
-
-    const rand = (a, b) => a + Math.random() * (b - a);
-    const treeGroup = new THREE.Group();
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f7d32 });
-    for (let i = 0; i < 80; i++) {
-        const x = rand(-280, 280),
-            z = rand(-280, 280);
-        if (Math.abs(x) < 18 && Math.abs(z) < 175) continue;
-        const t = new THREE.Group();
-        const h = rand(7, 10);
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, h, 6), trunkMat);
-        trunk.position.y = h / 2;
-        trunk.castShadow = true;
-        const leaves = new THREE.Mesh(new THREE.SphereGeometry(rand(2.2, 3.6), 8, 6), leafMat);
-        leaves.position.y = h + 1.2;
-        leaves.castShadow = true;
-        t.add(trunk);
-        t.add(leaves);
-        t.position.set(x, 0, z);
-        treeGroup.add(t);
-    }
-    parent.add(treeGroup);
-
-    const flowerColors = [0xff5d8f, 0xffd166, 0x9b5de5, 0xffffff, 0xf15bb5];
-    const flowerGeo = new THREE.SphereGeometry(0.35, 6, 5);
-    for (let i = 0; i < 240; i++) {
-        const x = rand(-290, 290),
-            z = rand(-290, 290);
-        if (Math.abs(x) < 14 && Math.abs(z) < 170) continue;
-        const f = new THREE.Mesh(
-            flowerGeo,
-            new THREE.MeshStandardMaterial({
-                color: flowerColors[(Math.random() * flowerColors.length) | 0],
-            }),
-        );
-        f.position.set(x, 0.35, z);
-        parent.add(f);
-    }
+    morningEnvironment = new FreshMorningEnvironment(scene, worldGroup, camera);
+    environmentElapsed = 0;
 }
 
 // Align the static airfield (runway long axis = world +Z) so its direction
@@ -1074,6 +1022,11 @@ function animate(ts) {
     const thr = frames.length ? frameAt(playT)?.throttle || 0 : 0;
     updatePropellers(dt, thr);
 
+    if (morningEnvironment) {
+        environmentElapsed += Math.min(Math.max(dt, 0), 0.1);
+        morningEnvironment.update(dt, environmentElapsed);
+    }
+
     controls.update();
     renderer.clear();
     renderer.render(scene, camera);
@@ -1091,8 +1044,8 @@ function resize() {
 function init() {
     disposed = false;
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87b9e6);
-    scene.fog = new THREE.Fog(0x87b9e6, 60, 400);
+    // Background, fog and lights are owned by the blackbox2 fresh-morning
+    // airfield environment (see buildEnvironment above).
 
     const w = rootRef.value.clientWidth || 800;
     const h = rootRef.value.clientHeight || 600;
@@ -1109,17 +1062,6 @@ function init() {
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.target.set(0, 2, 0);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.1);
-    sun.position.set(50, 100, 30);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -150;
-    sun.shadow.camera.right = 150;
-    sun.shadow.camera.top = 150;
-    sun.shadow.camera.bottom = -150;
-    scene.add(sun);
 
     worldGroup = new THREE.Group();
     scene.add(worldGroup);
@@ -1156,6 +1098,10 @@ function dispose() {
     }
     setPlaying(false);
     clearContrail();
+    if (morningEnvironment) {
+        morningEnvironment.dispose();
+        morningEnvironment = null;
+    }
     if (worldGroup) {
         worldGroup.traverse((o) => {
             if (o.geometry) o.geometry.dispose();
